@@ -5,7 +5,7 @@
 var WampRouter = require('../lib/fox.wamp');
 var program = require('commander');
 var StatsD = require('../ext/statsd');
-var userSession = require('../ext/usersession');
+var userSession = require('../ext/metauser');
 
 StatsD.init(program);
 

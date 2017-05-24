@@ -19,6 +19,22 @@ connection.onopen = function (session, details) {
 
    session.log("Session open.");
 
+   session.subscribe('wamp.session.on_join', function (publishArgs, kwargs, opts) {
+     console.log('Event', opts.topic, 'received args', publishArgs, 'kwargs ',kwargs);
+   }).then(
+      function(subscription) {
+         console.log("subscription successfull", subscription);
+      }
+   );
+
+   session.subscribe('wamp.session.on_leave', function (publishArgs, kwargs, opts) {
+     console.log('Event', opts.topic, 'received args', publishArgs, 'kwargs ',kwargs);
+   }).then(
+      function(subscription) {
+         console.log("subscription successfull", subscription);
+      }
+   );
+
    session.call('wamp.registration.get').then(
       function (result) {
          session.log("registration.get =", typeof(result), result);
