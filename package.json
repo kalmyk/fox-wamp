@@ -1,0 +1,38 @@
+{
+  "name": "fox.wamp",
+  "version": "0.2.0",
+  "description": "Basic WebSocket Application Messaging Protocol (WAMP) V2 router library",
+  "author": {
+    "name": "Anatoly Tsapkov",
+    "email": "anatoly.tsapkov@gmail.com"
+  },
+  "contributors": [
+    "Dominique ALOË <daloe.ext@orange.com>",
+    "David Corvoysier <david.corvoysier@orange.com>"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kalmyk/fox.wamp.git"
+  },
+  "dependencies": {
+    "ws": "~1",
+    "commander": "*",
+    "node-statsd": "*"
+  },
+  "devDependencies": {
+    "autobahn": "~0.9.4",
+    "when": "*",
+    "chai": "*",
+    "chai-as-promised": "*",
+    "chai-spies": "*"
+  },
+  "main": "lib/wamp.rt",
+  "engines": {
+    "node": ">=0.10.0"
+  },
+  "scripts": {
+    "mocha-node-test": "mocha",
+    "lint": "jshint lib/*.js test/*.js",
+    "test": "npm run-script lint && npm run-script mocha-node-test"
+  }
+}
