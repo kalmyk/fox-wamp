@@ -15,6 +15,9 @@ fox.wamp has been inspired by the following Open Source projects:
 
 
 ## Changes:
+2017-05-24:
+- Session Meta Events added (wamp.session.on_join & wamp.session.on_leave)
+
 2017-05-17:
 - Concrete topic published to
 - Progressive Calls (receive_progress & progress)

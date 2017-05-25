@@ -1,4 +1,4 @@
-AUTOBAHN_DEBUG = true;
+// AUTOBAHN_DEBUG = true;
 var autobahn = require('autobahn');
 var program = require('commander');
 

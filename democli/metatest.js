@@ -1,4 +1,4 @@
-AUTOBAHN_DEBUG = true;
+// AUTOBAHN_DEBUG = true;
 var autobahn = require('autobahn');
 var program = require('commander');
 
@@ -23,7 +23,7 @@ connection.onopen = function (session, details) {
      console.log('Event', opts.topic, 'received args', publishArgs, 'kwargs ',kwargs);
    }).then(
       function(subscription) {
-         console.log("subscription successfull", subscription);
+         console.log("subscription successfull wamp.session.on_join");
       }
    );
 
@@ -31,7 +31,7 @@ connection.onopen = function (session, details) {
      console.log('Event', opts.topic, 'received args', publishArgs, 'kwargs ',kwargs);
    }).then(
       function(subscription) {
-         console.log("subscription successfull", subscription);
+         console.log("subscription successfull wamp.session.on_leave");
       }
    );
 

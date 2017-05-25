@@ -5,7 +5,6 @@
 var WampRouter = require('../lib/fox.wamp');
 var program = require('commander');
 var StatsD = require('../ext/statsd');
-var userSession = require('../ext/metauser');
 
 StatsD.init(program);
 
@@ -17,5 +16,4 @@ console.log('Listening port:', program.port);
 
 var app = new WampRouter({port: program.port});
 
-userSession.registerHandlers(app);
 var trace = new StatsD.TraceRouter(program, app);

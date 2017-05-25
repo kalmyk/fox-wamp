@@ -1,4 +1,4 @@
-AUTOBAHN_DEBUG = true;
+// AUTOBAHN_DEBUG = true;
 var autobahn = require('autobahn');
 var program = require('commander');
 
@@ -75,7 +75,7 @@ connection.onopen = function (session) {
    // Subscribe to a topic
    session.subscribe('com.myapp.topic1', onEvent).then(
       function(subscription) {
-         console.log("subscription successfull", subscription);
+         console.log("subscription successfull", subscription.topic);
       },
       function(error) {
          console.log("subscription failed", error);
@@ -84,7 +84,7 @@ connection.onopen = function (session) {
 
    session.subscribe('wamp.session.on_join', onEvent).then(
       function(subscription) {
-         console.log("subscription successfull", subscription);
+         console.log("subscription successfull", subscription.topic);
       },
       function(error) {
          console.log("subscription failed", error);
@@ -93,7 +93,7 @@ connection.onopen = function (session) {
 
    session.subscribe('wamp.session.on_leave', onEvent).then(
       function(subscription) {
-         console.log("subscription successfull", subscription);
+         console.log("subscription successfull", subscription.topic);
       },
       function(error) {
          console.log("subscription failed", error);
