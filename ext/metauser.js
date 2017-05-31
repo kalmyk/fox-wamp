@@ -51,6 +51,6 @@ wamp.session.get, [ 43749572799123 ] =>
      type: 'websocket' } }
 */
 
-};
+}
 
 exports.registerHandlers = registerHandlers;

@@ -14,6 +14,12 @@
     "type": "git",
     "url": "https://github.com/kalmyk/fox.wamp.git"
   },
+  "license": "MIT",
+  "keywords": [
+    "wamp",
+    "message",
+    "broker"
+  ],
   "dependencies": {
     "ws": "~1",
     "commander": "*",
@@ -32,7 +38,7 @@
   },
   "scripts": {
     "mocha-node-test": "mocha",
-    "lint": "jshint lib/*.js test/*.js",
+    "lint": "jshint lib/*.js test/*.js ext/*.js",
     "test": "npm run-script lint && npm run-script mocha-node-test"
   }
 }
