@@ -1,7 +1,7 @@
 {
-  "name": "fox.wamp",
-  "version": "0.2.0",
-  "description": "Basic WebSocket Application Messaging Protocol (WAMP) V2 router library",
+  "name": "fox-wamp",
+  "version": "0.4.0",
+  "description": "V2 Message Router, Basic WebSocket Application Messaging Protocol (WAMP)",
   "author": {
     "name": "Anatoly Tsapkov",
     "email": "anatoly.tsapkov@gmail.com"
@@ -12,7 +12,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/kalmyk/fox.wamp.git"
+    "url": "https://github.com/kalmyk/fox-wamp.git"
   },
   "license": "MIT",
   "keywords": [
@@ -27,12 +27,11 @@
   },
   "devDependencies": {
     "autobahn": "~0.9.4",
-    "when": "*",
     "chai": "*",
     "chai-as-promised": "*",
     "chai-spies": "*"
   },
-  "main": "lib/wamp.rt",
+  "main": "lib/fox-wamp",
   "engines": {
     "node": ">=0.10.0"
   },

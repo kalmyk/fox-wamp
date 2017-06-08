@@ -7,7 +7,7 @@ program
     .option('-i, --ip <ip>', 'Server IP address','127.0.0.1')
     .parse(process.argv);
 
-var connectUrl = 'ws://' + program.ip + ':' + program.port + '/ws';
+var connectUrl = 'ws://' + program.ip + ':' + program.port;
 console.log('connectUrl:', connectUrl);
 
 var user = "joe";

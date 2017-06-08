@@ -8,8 +8,13 @@ function registerHandlers(router) {
 
   router.on(MSG.REALM_CREATED, function (realm, realmName) {
     var api = realm.api();
+
     api.regrpc('wamp.session.count', function (id, args, kwargs) {
       api.resrpc(id, null /* no error */, [realm.getSessionCount()]);
+    });
+
+    api.regrpc('wamp.session.list', function (id, args, kwargs) {
+      api.resrpc(id, null /* no error */, realm.getSessionIds());
     });
   });
 
