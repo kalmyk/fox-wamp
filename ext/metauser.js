@@ -14,7 +14,7 @@ function registerHandlers(router) {
     });
 
     api.regrpc('wamp.session.list', function (id, args, kwargs) {
-      api.resrpc(id, null /* no error */, realm.getSessionIds());
+      api.resrpc(id, null /* no error */, [realm.getSessionIds()]);
     });
   });
 

@@ -2,7 +2,7 @@
 // This is a basic router example with sonnectivity to the statsd server
 //
 
-var WampRouter = require('../lib/fox.wamp');
+var WampRouter = require('../lib/fox-wamp');
 var program = require('commander');
 var StatsD = require('../ext/statsd');
 

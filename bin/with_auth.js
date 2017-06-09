@@ -4,7 +4,7 @@
 
 WAMPRT_TRACE = true;
 
-var WampRouter = require('../lib/fox.wamp');
+var WampRouter = require('../lib/fox-wamp');
 var program = require('commander');
 
 program

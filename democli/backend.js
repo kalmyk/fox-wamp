@@ -24,15 +24,15 @@ connection.onopen = function (session) {
       console.log("Someone is calling utc function", args, kwargs, options);
       if (options.progress) {
           var now = new Date();
-          options.progress(now.toISOString());
+          options.progress([now.toISOString()]);
           setTimeout(function () {
               var now = new Date();
-              options.progress(now.toISOString());
+              options.progress([now.toISOString()]);
           }, 100);
           return new Promise((resolve, reject) => {
               setTimeout(function () {
                   var now = new Date();
-                  resolve(now.toISOString());
+                  resolve([now.toISOString()]);
               }, 200);
           });
       }
