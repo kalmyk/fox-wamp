@@ -33,6 +33,7 @@ describe('session', function() {
         sender.send = chai.spy(
             function (msg, callback) {
                 expect(msg[0]).to.equal(WAMP.WELCOME);
+//                console.log(msg[2].roles);
             }
         );
         cli.handle([WAMP.HELLO, 'test', {}]);
@@ -42,7 +43,7 @@ describe('session', function() {
         sender.send = chai.spy(function (msg, callback) {});
         sender.close = chai.spy(function (error, reason) {});
         cli.handle([WAMP.HELLO, 'test', {}]);
-        expect(sender.send).to.not.have.been.called();
+        expect(sender.send).to.not.have.been.called;
         expect(sender.close).to.have.been.called.once;
     });
 

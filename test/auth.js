@@ -73,6 +73,9 @@ describe('authenticate', function() {
         sender.send = chai.spy(
             function (msg, callback) {
                 expect(msg[0]).to.equal(WAMP.WELCOME);
+                expect(msg[2].realm).to.equal('test');
+                expect(msg[2].authid).to.equal('joe');
+                expect(msg[2].authmethod).to.equal('ticket');
             }
         );
         cli.handle([WAMP.AUTHENTICATE, 'test-joe-secret']);
