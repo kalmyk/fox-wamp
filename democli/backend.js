@@ -10,10 +10,25 @@ program
 var connectUrl = 'ws://' + program.ip + ':' + program.port;
 console.log('connectUrl:', connectUrl);
 
+var user = "joe";
+var key = "joe-secret";
+
+// this callback is fired during authentication
+function onchallenge (session, method, extra) {
+    if (method === "ticket") {
+        return key;
+    } else {
+        throw "don't know how to authenticate using '" + method + "'";
+    }
+}
+
 var connection = new autobahn.Connection({
     url: connectUrl,
-    realm: 'realm1'}
-);
+    realm: 'realm1',
+    authmethods: ["ticket", "wampcra"],
+    authid: user,
+    onchallenge: onchallenge
+});
 
 connection.onopen = function (session) {
 

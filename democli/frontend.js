@@ -25,7 +25,7 @@ function onchallenge (session, method, extra) {
 var connection = new autobahn.Connection({
     url: connectUrl,
     realm: 'realm1',
-//    authmethods: ["ticket", "wampcra"],
+    authmethods: ["ticket", "wampcra"],
     authid: user,
     onchallenge: onchallenge
 });
@@ -55,7 +55,7 @@ connection.onopen = function (session, details) {
          // This method returns an autobahn.result object
          session.log("Call com.echoservice.echo completed in " +
             (Date.now() - starttime) +
-            " ms: result", res, "expected", null);
+            " ms: result " + ((res == null) ? 'OK': 'Failed!'));
       },
       function (error) {
          console.log("Call failed:", error);
@@ -66,31 +66,7 @@ connection.onopen = function (session, details) {
          // This method returns an autobahn.result object
          session.log("Call com.echoservice.echo completed in " +
             (Date.now() - starttime) +
-            " ms: result", res, "expected", null);
-      },
-      function (error) {
-         console.log("Call failed:", error);
-      }
-   );
-
-   session.call('com.echoservice.echo', ["arg1","arg2"]).then(
-      function (res) {
-         // This method returns an autobahn.result object
-         session.log("Call com.echoservice.echo completed in " +
-            (Date.now() - starttime) +
-            " ms: result", res, "expected", ["arg1","arg2"]);
-      },
-      function (error) {
-         console.log("Call failed:", error);
-      }
-   );
-
-   session.call('com.echoservice.echo', [],{ "kwarg1": "kwarg1","kwarg2": "kwarg2"}).then(
-      function (res) {
-         // This method returns an autobahn.result object
-         session.log("Call com.echoservice.echo completed in " +
-            (Date.now() - starttime) +
-            " ms: result", res, "expected", [],  { "kwarg1": "kwarg1","kwarg2": "kwarg2"});
+            " ms: result " + ((res == null) ? 'OK': 'Failed!'));
       },
       function (error) {
          console.log("Call failed:", error);
@@ -120,14 +96,10 @@ connection.onopen = function (session, details) {
       }
    );
 
-
    // Start publishing events
    console.log("Publish events");
    session.publish('com.myapp.topic1', [], {}, { acknowledge : false });
-   session.publish('com.myapp.topic1', ["Arg1", "Arg2" ], {}, { acknowledge : false });
-   session.publish('com.myapp.topic1', [], { "kwarg1": "kwarg1", "kwarg2": "kwarg2"}, { acknowledge : false });
    session.publish('com.myapp.topic1', ["Arg1", "Arg2" ], { "kwarg1": "kwarg1", "kwarg2": "kwarg2"}, { acknowledge : false });
-
 
    var p1 = session.publish('com.myapp.topic1', [ "Arg_1", "Arg_2" ], {}, { acknowledge : true }).then(
       function(publication) {
@@ -139,6 +111,7 @@ connection.onopen = function (session, details) {
       }
    );
 
+   // when progressive call and acknowledge publish done
    Promise.all([c1,p1]).then(function () {
       connection.close();
    });

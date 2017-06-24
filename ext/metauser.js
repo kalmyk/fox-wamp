@@ -16,6 +16,15 @@ function registerHandlers(router) {
     api.regrpc('wamp.session.list', function (id, args, kwargs) {
       api.resrpc(id, null /* no error */, [realm.getSessionIds()]);
     });
+
+    api.regrpc('wamp.session.get', function (id, args, kwargs) {
+      if (args instanceof Array && args[0] && typeof args[0] == "number") {
+        api.resrpc(id, null /* no error */, [realm.getSessionInfo(args[0])]);
+      }
+      else {
+        api.resrpc(id, 'unable to get sessio id');
+      }
+    });
   });
 
   router.on(MSG.SESSION_JOIN, function (session, realm) {
