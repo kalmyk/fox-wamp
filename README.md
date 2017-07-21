@@ -18,14 +18,14 @@ It is good to have some storage to keep last published message. The server
 has to maintain persistence of keys and provide the value as immediate first
 message for the subscription. And here what could be implemented
 
-<code>
+```javascript
 publish('the.key', ['args'], {kvArgs:false}, {
     retain: 100,
     weak: 'public',
     when: {status:'started'},
     watch: false
   });
-</code>
+```
 
 ### Options Description
 * retain: time in seconds to keep the message in the server memory. Zero means forever. Default value is false that means message does no retain.
