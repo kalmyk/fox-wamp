@@ -19,7 +19,7 @@ has to maintain persistence of keys and provide the value as immediate first
 message for the subscription. And here what could be implemented
 
 ```javascript
-publish('the.key', ['args'], {kvArgs:false}, {
+publish('the.key', ['args'], {kwArgs:false}, {
     retain: 100,
     weak: 'public',
     when: {status:'started'},
@@ -32,6 +32,7 @@ publish('the.key', ['args'], {kvArgs:false}, {
 * weak: The key disappears then client disconnects. (private:public) who could see the message, public by default
 * when: publish only if the key meets requirements. null means that key should not be exists.
 * watch: applicable for when option only. Provide ability to wait required conditions and do action immediately. If several clients waits for that the only one achieves acknowledge message.
+* sequence: generate unique key
 
 ## Changes:
 2017-05-24:
