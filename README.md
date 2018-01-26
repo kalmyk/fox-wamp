@@ -35,8 +35,11 @@ publish('the.key', ['args'], {kwArgs:false}, {
 * sequence: generate unique key
 
 ## Changes:
+2018-01-25:
+- Pattern based subscription added. Thanks to https://github.com/davedoesdev/qlobber
+
 2017-05-24:
-- Session Meta Events added (wamp.session.on_join & wamp.session.on_leave)
+- Session Meta Events added (wamp.session.on_join & wamp.session.on_leave).
 
 2017-05-17:
 - Concrete topic published to

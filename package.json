@@ -1,6 +1,6 @@
 {
   "name": "fox-wamp",
-  "version": "0.4.3",
+  "version": "0.4.5",
   "description": "V2 Message Router, Basic WebSocket Application Messaging Protocol (WAMP)",
   "author": {
     "name": "Anatoly Tsapkov",
@@ -23,6 +23,7 @@
   "dependencies": {
     "ws": "*",
     "commander": "*",
+    "qlobber": "*",
     "node-statsd": "*"
   },
   "devDependencies": {

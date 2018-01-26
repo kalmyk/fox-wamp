@@ -299,6 +299,15 @@ describe('realm', function() {
       expect(subSpy).to.have.been.called.once;
     });
 
+    it('PUBLISH to pattern', function () {
+      var subSpy = chai.spy(function (a,b,c,d) {
+//        console.log('Publish Event', a,b,c,d);
+      });
+      api.substopic('topic1.*.item', subSpy);
+      api.publish('topic1.123.item', [], {}, {exclude_me:false});
+      expect(subSpy).to.have.been.called.once;
+    });
+
     it('PUBLISH to remote', function () {
         var subscriptionId = null;
 

@@ -22,7 +22,7 @@ function registerHandlers(router) {
         api.resrpc(id, null /* no error */, [realm.getSessionInfo(args[0])]);
       }
       else {
-        api.resrpc(id, 'unable to get sessio id');
+        api.resrpc(id, 'unable to get session id');
       }
     });
   });
