@@ -22,8 +22,7 @@ describe('session', function() {
     beforeEach(function(){
         sender = {};
         router = new Router();
-        cli = new Session(router, sender, router.getNewSessionId());
-        router.registerSession(cli);
+        cli = new Session(router, sender, router.makeSessionId());
     });
 
     afterEach(function(){

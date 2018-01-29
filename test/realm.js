@@ -27,8 +27,8 @@ describe('realm', function() {
     router = new Router();
     realm = new Realm(router);
     api = realm.api();
-    cli = new Session(router, sender, router.getNewSessionId());
-    router.registerSession(cli);
+    cli = new Session(router, sender, router.makeSessionId());
+    realm.joinSession(cli);
     cli.realm = realm;
   });
 

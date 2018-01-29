@@ -31,10 +31,9 @@ describe('authenticate', function() {
     beforeEach(function(){
         sender = {};
         router = new Router();
+        router.setAuthHandler(new Auth());
 
-        cli = new Session(router, sender, router.getNewSessionId());
-        cli.setAuthHandler(new Auth());
-        router.registerSession(cli);
+        cli = new Session(router, sender);
     });
 
     afterEach(function(){
