@@ -39,6 +39,11 @@ describe('realm', function() {
     realm.cleanup(api);
   });
 
+  it('session-list', function () {
+    let result = realm.getSessionIds();
+    expect(result).to.be.an('array').that.is.not.empty;;
+  });
+
   describe('RPC', function() {
     it('CALL to RPC not exist', function () {
       sender.send = chai.spy(
@@ -117,13 +122,13 @@ describe('realm', function() {
     });
 
     it('UNREGISTER', function () {
-      var registrationId = null;
+      var qid = null;
 
       sender.send = chai.spy(
         function (msg, callback) {
           expect(msg[0]).to.equal(WAMP.REGISTERED);
           expect(msg[1]).to.equal(1234);
-          registrationId = msg[2];
+          qid = msg[2];
         }
       );
       cli.handle([WAMP.REGISTER, 1234, {}, 'func1']);
@@ -135,18 +140,18 @@ describe('realm', function() {
           expect(msg[1]).to.equal(2345);
         }
       );
-      cli.handle([WAMP.UNREGISTER, 2345, registrationId]);
+      cli.handle([WAMP.UNREGISTER, 2345, qid]);
       expect(sender.send, 'unregistration confirmed').to.have.been.called.once;
     });
 
-    it('CALL to remote', function () {
-        var registrationId = null;
+    it('CALL-to-remote', function () {
+        var qid = null;
 
         sender.send = chai.spy(
           function (msg, callback) {
             expect(msg[0]).to.equal(WAMP.REGISTERED);
             expect(msg[1]).to.equal(1234);
-            registrationId = msg[2];
+            qid = msg[2];
           }
         );
         cli.handle([WAMP.REGISTER, 1234, {}, 'func1']);
@@ -157,14 +162,14 @@ describe('realm', function() {
           function (msg, callback) {
             expect(msg[0]).to.equal(WAMP.INVOCATION);
             callId = msg[1];
-            expect(msg[2]).to.equal(registrationId);
+            expect(msg[2]).to.equal(qid);
             expect(msg[3]).to.deep.equal({});  // options
             expect(msg[4]).to.deep.equal(['arg.1','arg.2']);
             expect(msg[5]).to.deep.equal({kVal:'kRes'});
           }
         );
         var callResponse = chai.spy(function(err, args, kwargs) {
-          expect(err).to.equal(null);
+          expect(err).to.be.undefined;
           expect(args).to.deep.equal(['result.1','result.2'], 'args call spy response');
           expect(kwargs).to.deep.equal({foo:'bar'}, 'kwargs call spy response');
         });
@@ -207,14 +212,14 @@ describe('realm', function() {
         function (msg, callback) {
           expect(msg[0]).to.equal(WAMP.INVOCATION);
           callId = msg[1];
-          // registrationId
+          // qid
           expect(msg[3]).to.deep.equal({receive_progress:true});
         }
       );
       var result;
       var options;
       var callResponse = chai.spy(function(err, args, kwargs, options) {
-        expect(err).to.equal(null);
+        expect(err).to.be.undefined;
         expect(args).to.deep.equal(result, 'args call spy response');
         expect(options).to.deep.equal(options, 'progress 1');
       });
