@@ -1,6 +1,7 @@
 /*jshint mocha: true */
 /*jshint node: true */
 /*jshint expr: true */
+/*jshint esversion: 6 */
 'use strict';
 
 var
@@ -41,7 +42,7 @@ describe('realm', function() {
 
   it('session-list', function () {
     let result = realm.getSessionIds();
-    expect(result).to.be.an('array').that.is.not.empty;;
+    expect(result).to.be.an('array').that.is.not.empty;
   });
 
   describe('RPC', function() {
