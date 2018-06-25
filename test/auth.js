@@ -4,12 +4,13 @@
 'use strict';
 
 var
-    chai    = require('chai'),
-    spies   = require('chai-spies'),
-    expect  = chai.expect,
-    WAMP    = require('../lib/protocol'),
-    Session = require('../lib/session'),
-    Router  = require('../lib/router');
+    chai     = require('chai'),
+    spies    = require('chai-spies'),
+    expect   = chai.expect,
+    WAMP     = require('../lib/wamp/protocol'),
+    WampGate = require('../lib/wamp/gate'),
+    Session  = require('../lib/session'),
+    Router   = require('../lib/router');
 
 chai.use(spies);
 
@@ -25,15 +26,17 @@ var Auth = function () {
 describe('authenticate', function() {
     var
         router,
+        gate,
         sender,
         cli;
 
     beforeEach(function(){
         sender = {};
         router = new Router();
-        router.setAuthHandler(new Auth());
+        gate   = new WampGate(router);
+        gate.setAuthHandler(new Auth());
 
-        cli = new Session(router, sender);
+        cli = new Session(gate, sender, gate.makeSessionId());
     });
 
     afterEach(function(){
@@ -46,7 +49,7 @@ describe('authenticate', function() {
                 expect(msg[1]).to.equal('ticket');
             }
         );
-        cli.handle([WAMP.HELLO, 'test', {authid: 'joe', authmethods:['ticket']}]);
+        gate.handle(cli, [WAMP.HELLO, 'test', {authid: 'joe', authmethods:['ticket']}]);
         expect(sender.send).to.have.been.called.once;
 
         sender.send = chai.spy(
@@ -55,7 +58,7 @@ describe('authenticate', function() {
 //                callback();
             }
         );
-        cli.handle([WAMP.AUTHENTICATE, 'incorrect-secret']);
+        gate.handle(cli, [WAMP.AUTHENTICATE, 'incorrect-secret']);
         expect(sender.send).to.have.been.called.once;
     });
 
@@ -66,7 +69,7 @@ describe('authenticate', function() {
                 expect(msg[1]).to.equal('ticket');
             }
         );
-        cli.handle([WAMP.HELLO, 'test', {authid: 'joe', authmethods:['ticket']}]);
+        gate.handle(cli, [WAMP.HELLO, 'test', {authid: 'joe', authmethods:['ticket']}]);
         expect(sender.send).to.have.been.called.once;
 
         sender.send = chai.spy(
@@ -77,7 +80,7 @@ describe('authenticate', function() {
                 expect(msg[2].authmethod).to.equal('ticket');
             }
         );
-        cli.handle([WAMP.AUTHENTICATE, 'test-joe-secret']);
+        gate.handle(cli, [WAMP.AUTHENTICATE, 'test-joe-secret']);
         expect(sender.send).to.have.been.called.once;
     });
 

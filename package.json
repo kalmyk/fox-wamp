@@ -24,7 +24,10 @@
     "ws": "*",
     "commander": "*",
     "qlobber": "*",
-    "node-statsd": "*"
+    "node-statsd": "*",
+    "rconsole": "*",
+    "mqtt-packet": "*",
+    "jsonschema": "*"
   },
   "devDependencies": {
     "autobahn": "*",

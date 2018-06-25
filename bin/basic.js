@@ -33,9 +33,6 @@ app.on('RPCRegistered', function (realm, uri) {
 app.on('RPCUnregistered', function (realm, uri) {
     console.log('onRPCUnregistered RPC unregistered', uri);
 });
-app.on('Publish', function onPublish(realm, topicUri, args) {
-    console.log('onPublish Publish', topicUri, args);
-});
 app.on(MSG.REALM_CREATED, function (realm, realmName) {
     console.log('new Relm:', realmName);
 });
