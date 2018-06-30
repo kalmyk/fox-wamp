@@ -8,7 +8,7 @@ var
     chai     = require('chai'),
     spies    = require('chai-spies'),
     expect   = chai.expect,
-    Realm    = require('../lib/realm'),
+    Realm    = require('../lib/realm').Realm,
     MqttGate = require('../lib/mqtt/gate'),
     Session  = require('../lib/session'),
     Router   = require('../lib/router');

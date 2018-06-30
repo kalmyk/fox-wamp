@@ -9,7 +9,7 @@ var
     spies    = require('chai-spies'),
     expect   = chai.expect,
     WAMP     = require('../lib/wamp/protocol'),
-    Realm    = require('../lib/realm'),
+    Realm    = require('../lib/realm').Realm,
     WampGate = require('../lib/wamp/gate'),
     Session  = require('../lib/session'),
     Router   = require('../lib/router');
@@ -41,7 +41,7 @@ describe('wamp-realm', function() {
   });
 
   it('empty cleanup', function () {
-    realm.cleanup(api);
+    realm.cleanupSession(api);
   });
 
   it('session-list', function () {
@@ -67,8 +67,8 @@ describe('wamp-realm', function() {
     it('cleanup RPC API', function () {
       var procSpy = chai.spy(function() {});
       api.regrpc('func1', procSpy);
-      expect(realm.cleanupRPC(api)).to.deep.equal(['func1']);
-      expect(realm.cleanupRPC(api)).to.deep.equal([]);
+      expect(api.cleanupReg(realm.rpc)).to.equal(1);
+      expect(api.cleanupReg(realm.rpc)).to.equal(0);
       expect(procSpy).to.not.have.been.called();
     });
 
@@ -150,7 +150,7 @@ describe('wamp-realm', function() {
     });
 
     it('CALL-to-remote', function () {
-        var qid = null;
+        let qid = null;
 
         sender.send = chai.spy(
           function (msg, callback) {
@@ -290,8 +290,8 @@ describe('wamp-realm', function() {
     it('cleanup Topic API', function () {
       var subSpy = chai.spy(function () {});
       api.substopic('topic1', subSpy);
-      expect(cli.realm.cleanupTopic(api)).to.deep.equal(['topic1']);
-      expect(cli.realm.cleanupTopic(api)).to.deep.equal([]);
+      expect(api.cleanupTrace(realm.push)).to.equal(1);
+      expect(api.cleanupTrace(realm.push)).to.equal(0);
       expect(subSpy).to.not.have.been.called();
     });
 
@@ -400,7 +400,7 @@ describe('wamp-realm', function() {
     it('retain-weak', function () {
       gate.handle(cli, [WAMP.PUBLISH, 1234, {retain:0, weak:'public'}, "topic2", ['arg.1','arg.2'],{}]);
 //      console.log('key', realm.getKey('topic2'));
-      realm.cleanup(cli);
+      realm.cleanupSession(cli);
 //      console.log('key', realm.getKey('topic2'));
     });
   });
