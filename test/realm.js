@@ -362,7 +362,7 @@ describe('wamp-realm', function() {
       );
       gate.handle(cli, [WAMP.PUBLISH, 1234, {}, "topic1", ['arg.1','arg.2'],{foo:'bar'}]);
       expect(sender.send, 'published').to.not.have.been.called();
-      gate.handle(cli, [WAMP.PUBLISH, 2345, {"acknowledge":true}, "topic1", ['arg.1','arg.2'],{foo:'bar'}]);
+      gate.handle(cli, [WAMP.PUBLISH, 2345, {acknowledge:true}, "topic1", ['arg.1','arg.2'],{foo:'bar'}]);
       expect(sender.send, 'published').to.have.been.called.once;
 
       expect(subSpy, 'publication done').to.have.been.called.twice;
