@@ -23,7 +23,7 @@ var Auth = function () {
     };
 };
 
-describe('authenticate', function() {
+describe('wamp-authenticate', function() {
     var
         router,
         gate,

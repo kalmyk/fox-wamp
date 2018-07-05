@@ -145,7 +145,7 @@ describe('pub-worker', function() {
           'push done'
         )}).
       then(() => {
-        assert.becomes(
+        return assert.becomes(
           worker.unTrace(regTrace),
           undefined,
           'unTrace done'
