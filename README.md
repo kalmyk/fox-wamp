@@ -35,6 +35,9 @@ publish('the.key', ['args'], {kwArgs:false}, {
 * sequence: generate unique key
 
 ## Changes:
+2018-07-19
+- MQTT gate added. Functionality allows to subscribe to the MQTT messages.
+
 2018-01-25:
 - Pattern based subscription added. Thanks to https://github.com/davedoesdev/qlobber
 
