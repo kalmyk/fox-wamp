@@ -39,12 +39,12 @@ describe('mqtt-realm', function() {
   afterEach(function(){
   });
 
-  describe('PUBLISH', function() {
+  describe('publish', function() {
     it('SUBSCRIBE-to-remote-mqtt', function () {
       var subSpy = chai.spy(
         function (publicationId, args, kwargs) {
           expect(args).to.equal(undefined);
-          expect(kwargs).to.deep.equal(Buffer.from('text'));
+          expect(kwargs).to.deep.equal({the:'text'});
         }
       );
       var subId = api.substopic('topic1', subSpy);
@@ -62,7 +62,7 @@ describe('mqtt-realm', function() {
         dup: false,
         length: 17,
         topic: 'topic1',
-        payload: Buffer.from('text')
+        payload: Buffer.from('{"the":"text"}')
       });
       expect(sender.send, 'event is published').to.not.have.been.called();
 
