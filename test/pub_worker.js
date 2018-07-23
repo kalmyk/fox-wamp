@@ -27,8 +27,8 @@ describe('pub-worker', function() {
 
   function connect(clientGate, realm, gate, id) {
     let result = new QueueClient.QueueClient();
-    let serverSession = new ServerSession(gate, new MemTransport.Sender(clientGate, result), id);
-    result.sender = new MemTransport.Sender(gate, serverSession);
+    let serverSession = new ServerSession(gate, new MemTransport.Sender(result), id);
+    result.sender = new MemTransport.Sender(serverSession);
     serverSession.realm = realm;
     realm.joinSession(serverSession);
     return result;
