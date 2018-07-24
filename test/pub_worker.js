@@ -87,6 +87,28 @@ describe('pub-worker', function() {
     );
   });
 
+  it('call-progress', function (done) {
+    worker.register(
+      'test.func', function(args, task) {
+        expect(task.getUri()).to.equal('test.func');
+        expect(args).to.deep.equal({attr1:1, attr2:2});
+        task.notify({progress:1});
+        task.notify({progress:2});
+        task.resolve({result:'done'});
+    }).then(
+      function(result) {
+        return assert.becomes(
+          client.call('test.func', {attr1:1, attr2:2}),
+          {result:'done'},
+          'call should be processed'
+        ).notify(done);
+      },
+      function(reason) {
+        assert(false, 'unable to register');
+      }
+    );
+  });
+
   it('simultaneous-task-limit', function (done) {
     let qTask = null;
     let worker_calls = 0;

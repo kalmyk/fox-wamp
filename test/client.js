@@ -9,6 +9,7 @@ var
   spies  = require('chai-spies'),
   expect = chai.expect,
   assert = chai.assert,
+  {RESULT_OK, RESULT_ACK, RESULT_EMIT} = require('../lib/messages'),
   ClientBase = require('../lib/hyper/clientBase'),
   QueueClient = require('../lib/hyper/queueClient');
 
@@ -95,7 +96,7 @@ describe('clent', function() {
     expect(sender.send).to.have.been.called.once();
 
     var rsp = {};
-    rsp.rsp = QUEUE.RES_ACK;
+    rsp.rsp = RESULT_ACK;
     rsp.id = 1;
     client.handle(rsp);
 
@@ -109,7 +110,7 @@ describe('clent', function() {
 
     // remove subscription
     var rsp = {};
-    rsp.rsp = QUEUE.RES_OK;
+    rsp.rsp = RESULT_OK;
     rsp.id = 1;
     client.handle(rsp);
   });
@@ -117,14 +118,14 @@ describe('clent', function() {
   it('send Task response', function () {
     var cmd = {};
     cmd.ft = 'YIELD';
-    cmd.rsp = QUEUE.RES_EMIT;
+    cmd.rsp = RESULT_EMIT;
     cmd.qid = 'generaged.id';
     cmd.data = ['data'];
     expectCommand = cmd;
 
     var request = {};
     request.qid = 'generaged.id';
-    client.sendTaskResponse(request, QUEUE.RES_EMIT, ['data']);
+    client.sendTaskResponse(request, RESULT_EMIT, ['data']);
     expect(sender.send).to.have.been.called.once();
   });
 });

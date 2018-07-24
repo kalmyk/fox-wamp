@@ -1,9 +1,9 @@
 /*jshint expr: true */
 var
-  QUEUE       = require('../lib/hyper/const.js'),
   chai        = require('chai'),
   spies       = require('chai-spies'),
   expect      = chai.expect,
+  {RESULT_OK, RESULT_ACK, RESULT_ERR} = require('../lib/messages'),
   Session     = require("../lib/session"),
   errorCodes  = require('../lib/realm_error').errorCodes,
   FoxGate     = require('../lib/hyper/gate'),
@@ -40,7 +40,7 @@ describe('broker', function() {
     sender.send = chai.spy(
         function (msg) {
             resp = {};
-            resp.rsp = QUEUE.RES_OK;
+            resp.rsp = RESULT_OK;
             resp.ft = 'ECHO';
             resp.id = id;
             resp.data = {body:'data package'};
@@ -61,7 +61,7 @@ describe('broker', function() {
       sender.send = chai.spy(
         function (msg) {
           resp = {};
-          resp.rsp = QUEUE.RES_ERR;
+          resp.rsp = RESULT_ERR;
           resp.ft = 'YIELD';
           resp.id = 1234;
           resp.data = {code:103,message: "The defer requested not found"};
@@ -71,8 +71,8 @@ describe('broker', function() {
 
       cmd = {};
       cmd.ft = 'YIELD';
-      cmd.rsp = QUEUE.RES_OK;
-      cmd.id = 1234;
+      cmd.rsp = RESULT_OK;
+      cmd.qid = 1234;
       cmd.data = {body:'data package'};
 
       gate.handle(session, cmd);
@@ -84,7 +84,7 @@ describe('broker', function() {
         sender.send = chai.spy(
             function (msg) {
               resp = {};
-              resp.rsp = QUEUE.RES_ERR;
+              resp.rsp = RESULT_ERR;
               resp.ft = 'CALL';
               resp.id = id;
               resp.data = {
@@ -113,13 +113,13 @@ describe('broker', function() {
         function (msg) {
           var resp = {};
           if (msg.id == idSub) {
-            resp.rsp = QUEUE.RES_ACK;
+            resp.rsp = RESULT_ACK;
             expect(msg.ft).to.equal('REG');
             expect(msg.id).to.equal(idSub);
             regSub = msg.data;
           }
           else {
-            resp.rsp = QUEUE.RES_OK;
+            resp.rsp = RESULT_OK;
             resp.ft = 'UNREG';
             resp.id = idUnSub;
             expect(msg).to.deep.equal(resp);
@@ -150,13 +150,13 @@ describe('broker', function() {
       sender.send = chai.spy(
         function (msg) {
           if (msg.id == idTrace) {
-            expect(msg.rsp).to.equal(QUEUE.RES_ACK);
+            expect(msg.rsp).to.equal(RESULT_ACK);
             expect(msg.ft).to.equal('TRACE');
             expect(msg.id).to.equal(idTrace);
             regTrace = msg.data;
           }
           else {
-            expect(msg.rsp).to.equal(QUEUE.RES_OK);
+            expect(msg.rsp).to.equal(RESULT_OK);
             expect(msg.ft).to.equal('UNTRACE');
             expect(msg.id).to.equal(idUnTrace);
           }
