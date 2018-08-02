@@ -1,6 +1,6 @@
 {
   "name": "fox-wamp",
-  "version": "0.4.10",
+  "version": "0.4.11",
   "description": "V2 Message Router, Basic WebSocket Application Messaging Protocol (WAMP)",
   "author": {
     "name": "Anatoly Tsapkov",
@@ -17,8 +17,11 @@
   "license": "MIT",
   "keywords": [
     "wamp",
+    "mqtt",
     "message",
-    "broker"
+    "mq",
+    "broker",
+    "router"
   ],
   "dependencies": {
     "ws": "*",

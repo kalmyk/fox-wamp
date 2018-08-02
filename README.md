@@ -1,14 +1,21 @@
-# FOX.WAMP is a WAMP v2 message router implementation
+# FOX-WAMP is a message router implementation
 
-The message router is compliant with the [WAMP V2 Basic Profile](http://wamp-proto.org/).
+The project goal is to provide durable message source.
+
+Message router has pluggable interface to the several message standards. As for now it could interact by
+* [WAMP V2 Basic Profile](http://wamp-proto.org/)
+* [MQTT](http://mqtt.org/)
 
 ## Build Instructions
 
 Install using npm. Depending on what you want to do.
+```
+npm install fox-wamp
+```
 
 ## Credits
 
-fox.wamp has been inspired by the following Open Source projects:
+fox-wamp has been inspired by the following Open Source projects:
 
 - [wamp.rt](https://github.com/Orange-OpenSource/wamp.rt)
 - [wamp.io](https://github.com/nicokaiser/wamp.io)

@@ -25,7 +25,7 @@ describe('pub-worker', function() {
     client,
     worker;
 
-  function connect(clientGate, realm, gate, id) {
+  function connect(realm, gate, id) {
     let result = new QueueClient.QueueClient();
     let serverSession = new ServerSession(gate, new MemTransport.Sender(result), id);
     result.sender = new MemTransport.Sender(serverSession);
@@ -35,12 +35,11 @@ describe('pub-worker', function() {
   }
 
   beforeEach(function(){
-    let clientGate = new QueueClient.ClientGate();
     router = new Router();
     realm = new Realm(router);
     gate = new FoxGate(router);
-    client = connect(clientGate, realm, gate, gate.makeSessionId());
-    worker = connect(clientGate, realm, gate, gate.makeSessionId());
+    client = connect(realm, gate, gate.makeSessionId());
+    worker = connect(realm, gate, gate.makeSessionId());
   });
 
   afterEach(function(){
@@ -115,22 +114,22 @@ describe('pub-worker', function() {
     let reg;
 
     worker.register(
-      'customer', function (args, task)
+      'func1', function (args, task)
       {
         assert.equal(null, qTask, 'only one task to resolve');
         qTask = task;
         worker_calls++;
         assert.equal(args, worker_calls, 'Task FIFO broken');
 
-        if (worker_calls == 7)
-        {
+        if (worker_calls == 7) {
           assert.becomes(
             worker.unRegister(reg),
             undefined,
             'must unregister'
           );
           done();
-        } else {
+        }
+        else {
           process.nextTick(function () {
             qTask.resolve('result '+worker_calls);
             qTask = null;
@@ -143,10 +142,31 @@ describe('pub-worker', function() {
       var i;
       for (i=1; i<=7; i++)
       {
-        client.call('customer', i).then((response) => {
+        client.call('func1', i).then((response) => {
 //          console.log('response', response);
         });
       }
+    });
+  });
+
+  it('omit-tasks-of-terminated-sessions', function (done) {
+    let reg;
+
+    worker.register(
+      'func1', function (args, task) {
+        task.resolve('any-result');
+        client.close();
+      }
+    ).then(function(registration){
+      reg = registration;
+      client.call('func1', 'call-1').then(() => {
+        expect(realm.rpc.getPendingTaskCount()).to.equal(0);
+        done();
+      });
+      client.call('func1', 'call-2').then(() => {
+        done();
+      });
+      client.call('func1', 'call-3');
     });
   });
 
