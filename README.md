@@ -20,6 +20,9 @@ fox-wamp has been inspired by the following Open Source projects:
 - [wamp.rt](https://github.com/Orange-OpenSource/wamp.rt)
 - [wamp.io](https://github.com/nicokaiser/wamp.io)
 
+## Mission
+Provide message based connectivity between web applications and several backend servers such as session storage, database and cache.
+
 ## The Roadmap
 It is good to have some storage to keep last published message. The server
 has to maintain persistence of keys and provide the value as immediate first
