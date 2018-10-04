@@ -4,13 +4,13 @@
 'use strict';
 
 var
-    chai     = require('chai'),
-    spies    = require('chai-spies'),
-    expect   = chai.expect,
-    WAMP     = require('../lib/wamp/protocol'),
-    WampGate = require('../lib/wamp/gate'),
-    Session  = require('../lib/session'),
-    Router   = require('../lib/router');
+    chai      = require('chai'),
+    spies     = require('chai-spies'),
+    expect    = chai.expect,
+    WAMP      = require('../lib/wamp/protocol'),
+    WampGate  = require('../lib/wamp/gate'),
+    Session   = require('../lib/session'),
+    FoxRouter = require('../lib/fox_router');
 
 chai.use(spies);
 
@@ -24,7 +24,7 @@ describe('wamp-session', function() {
 
     beforeEach(function(){
         sender = {};
-        router = new Router();
+        router = new FoxRouter();
         gate = new WampGate(router);
         sessionId = gate.makeSessionId();
         cli = new Session(gate, sender, sessionId);
