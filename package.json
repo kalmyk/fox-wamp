@@ -1,6 +1,6 @@
 {
   "name": "fox-wamp",
-  "version": "0.4.12",
+  "version": "0.4.14",
   "description": "V2 Message Router, Basic WebSocket Application Messaging Protocol (WAMP)",
   "author": {
     "name": "Anatoly Tsapkov",
@@ -34,7 +34,7 @@
   },
   "devDependencies": {
     "autobahn": "*",
-    "chai": "*",
+    "chai": "^4.2.0",
     "chai-as-promised": "*",
     "chai-spies": "*"
   },

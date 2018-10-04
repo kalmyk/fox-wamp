@@ -12,24 +12,15 @@ WAMPRT_TRACE = true;
 
 var 
     MSG = require('../lib/messages'),
-    MqttTransport = require('../lib/mqtt/transport'),
-    WampRouter = require('../lib/fox-wamp'),
+    Router = require('../index'),
     program = require('commander');
 
 program
-  .option('-p, --port <port>', 'Server IP port', 9000)
+  .option('-p, --wamp <port>', 'WAMP Server IP port', 9000)
+  .option('-q, --mqtt <port>', 'MQTT Server IP port', 1883)
   .parse(process.argv);
 
-console.log('Listening port:', program.port);
-
-//
-// WebSocket server
-//
-var app = new WampRouter(
-    {port: program.port}
-);
-
-MqttTransport.listen(app, {port: 1883});
+var app = new Router();
 
 app.on(MSG.REALM_CREATED, function (realm, realmName) {
     console.log('new Relm:', realmName);
@@ -42,3 +33,8 @@ app.getRealm('realm1', function (realm) {
         api.resrpc(id, null /* no error */, ["bar", "bar2"], {"key1": "bar1", "key2": "bar2"});
     });
 });
+
+console.log('Listening port wamp', program.wamp, 'mqtt',program.mqtt);
+
+app.listenMQTT({port: program.mqtt});
+app.listenWAMP({port: program.wamp});
