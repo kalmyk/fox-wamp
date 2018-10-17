@@ -3,7 +3,6 @@
 'use strict';
 
 var
-  QUEUE    = require('../lib/hyper/const'),
   chai     = require('chai'),
   expect   = chai.expect,
   assert   = chai.assert,

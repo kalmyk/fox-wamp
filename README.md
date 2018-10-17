@@ -44,6 +44,38 @@ publish('the.key', ['args'], {kwArgs:false}, {
 * watch: applicable for when option only. Provide ability to wait required conditions and do action immediately. If several clients waits for that the only one achieves acknowledge message.
 * sequence: generate unique key
 
+### Aggregate Engine for the data streams
+
+To support data update propagation. The idea is to have definition of cross table relations and calculation rules.
+
+```javascript
+customer {
+    "type": "object",
+    "properties": {
+        "date": { "type": "string" },
+        "customer": { "type": "string" },
+        "amount": { "type": "string" }
+    },
+    "unique":["date", "customer"],
+    "propagate":{
+        "detail":[{
+            "key":["customer"],
+            "fields":{"total":"amount"}
+        }]
+    }
+}
+
+detail {
+    "type": "aggregate",
+    "properties": {
+        "customer": { "type": "string" },
+        "total": { "type": "string" }
+    },
+    "unique":["customer"],
+    "sum":["amount"]
+}
+```
+
 ## Changes:
 2018-07-19
 - MQTT gate added. Functionality allows to subscribe to the MQTT messages.
