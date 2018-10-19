@@ -39,13 +39,14 @@ publish('the.key', ['args'], {kwArgs:false}, {
 
 ### Options Description
 * retain: time in seconds to keep the message in the server memory. Zero means forever. Default value is false that means message does no retain.
-* weak: The key disappears then client disconnects. (private:public) who could see the message, public by default
+* weak: The key disappears then client disconnects. (private|public) who could see the message, public by default
 * when: publish only if the key meets requirements. null means that key should not be exists.
-* watch: applicable for when option only. Provide ability to wait required conditions and do action immediately. If several clients waits for that the only one achieves acknowledge message.
+* watch: applicable if `when` option defined. Provide ability to wait the necesssary condition and do action immediately. If several clients waits for that the only one achieves acknowledge message.
 * sequence: generate unique key
 
 ### Aggregate Engine for the data streams
 
+Provide rapid access to continuously changed data to the web application.
 To support data update propagation. The idea is to have definition of cross table relations and calculation rules.
 
 ```javascript

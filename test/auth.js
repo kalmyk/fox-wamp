@@ -33,10 +33,10 @@ describe('wamp-authenticate', function() {
     beforeEach(function(){
         sender = {};
         router = new FoxRouter();
-        gate   = new WampGate(router);
+        gate   = new WampGate.WampHandler(router, new WampGate.WampEncoder());
         gate.setAuthHandler(new Auth());
 
-        cli = new Session(gate, sender, gate.makeSessionId());
+        cli = new Session(gate.getEncoder(), sender, gate.makeSessionId());
     });
 
     afterEach(function(){

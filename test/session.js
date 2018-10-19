@@ -25,9 +25,9 @@ describe('wamp-session', function() {
     beforeEach(function(){
         sender = {};
         router = new FoxRouter();
-        gate = new WampGate(router);
+        gate = new WampGate.WampHandler(router, new WampGate.WampEncoder());
         sessionId = gate.makeSessionId();
-        cli = new Session(gate, sender, sessionId);
+        cli = new Session(gate.getEncoder(), sender, sessionId);
     });
 
     afterEach(function(){
