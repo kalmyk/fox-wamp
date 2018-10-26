@@ -1,16 +1,4 @@
-//
-// This is a basic router example
-//
-// This script runs a simple WAMP router on port 9000
-// It illustrates:
-// - how to filter out incoming connections,
-// - how to declare a router-embedded RPC,
-// - how to subscribe to router events.
-//
-
-WAMPRT_TRACE = true;
-
-var 
+var
     MSG = require('../lib/messages'),
     Router = require('../index'),
     program = require('commander');
@@ -21,6 +9,7 @@ program
   .parse(process.argv);
 
 var app = new Router();
+app.setLogTrace(true);
 
 app.on(MSG.REALM_CREATED, function (realm, realmName) {
     console.log('new Relm:', realmName);

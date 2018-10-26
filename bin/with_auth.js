@@ -2,8 +2,6 @@
 // This is authenticate router example
 //
 
-WAMPRT_TRACE = true;
-
 var Router = require('../index');
 var program = require('commander');
 
@@ -24,4 +22,5 @@ var Auth = function () {
 console.log('Listening port:', program.port);
 
 var app = new Router(new Auth());
+app.setLogTrace(true);
 app.listenWAMP({port: program.port});
