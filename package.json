@@ -1,6 +1,6 @@
 {
   "name": "fox-wamp",
-  "version": "0.4.19",
+  "version": "0.4.20",
   "description": "V2 Message Router, Basic WebSocket Application Messaging Protocol (WAMP)",
   "author": {
     "name": "Anatoly Tsapkov",
@@ -24,20 +24,18 @@
     "router"
   ],
   "dependencies": {
-    "commander": "^2.18.0",
-    "jsonschema": "*",
+    "commander": "^2.19.0",
     "mqtt-packet": "*",
     "node-statsd": "*",
     "qlobber": "*",
-    "rconsole": "*",
-    "ws": "^6.0.0"
+    "ws": "^6.1.0"
   },
   "devDependencies": {
-    "autobahn": "*",
-    "randombytes": "^2.0.6",
+    "autobahn": "^18.10.2",
     "chai": "^4.2.0",
     "chai-as-promised": "*",
-    "chai-spies": "*"
+    "chai-spies": "*",
+    "randombytes": "^2.0.6"
   },
   "main": "lib/fox-wamp",
   "engines": {
