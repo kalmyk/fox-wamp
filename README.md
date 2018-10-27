@@ -23,6 +23,44 @@ fox-wamp has been inspired by the following Open Source projects:
 ## Mission
 Provide message based connectivity between web applications and several backend servers such as session storage, database and cache.
 
+## Template to share HTTP port with express
+To open server socket with shared port between express and FoxRouter need to use HTTP module as it shown below
+```javascript
+const http = require('http')
+const express = require('express')
+const FoxRouter = require('fox-wamp')
+
+const PORT = process.env.PORT || 5000
+
+let app = express()
+
+let httpServer = http.createServer(app)
+httpServer.listen(PORT, () => console.log(`Listening on ${ PORT }`))
+
+router = new FoxRouter()
+router.listenWAMP({server: httpServer, path: "/wss"})
+```
+
+and correspondingly the web socket client connection will look like as
+```javascript
+var autobahn = require('autobahn');
+let connection = new autobahn.Connection({
+    url: 'ws:localhost:5000/wss',
+    realm: 'realm1'
+});
+```
+
+## Secure connection to the router
+```javascript
+const https    = require('https')
+
+let httpsServer = https.createServer({
+    key: fs.readFileSync(__dirname + '/config/server.key'),
+    cert: fs.readFileSync(__dirname + '/config/server.crt')
+});
+router.listenWAMP({server: httpsServer, path: "/wss"})
+```
+
 ## The Roadmap
 It is good to have some storage to keep last published message. The server
 has to maintain persistence of keys and provide the value as immediate first
