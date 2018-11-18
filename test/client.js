@@ -4,12 +4,11 @@
 'use strict';
 
 var
-  QUEUE  = require('../lib/hyper/const.js'),
   chai   = require('chai'),
   spies  = require('chai-spies'),
   expect = chai.expect,
   assert = chai.assert,
-  {RESULT_OK, RESULT_ACK, RESULT_EMIT} = require('../lib/messages'),
+  {RESULT_OK, RESULT_ACK, RESULT_EMIT, REQUEST_EVENT} = require('../lib/messages'),
   ClientBase = require('../lib/hyper/clientBase'),
   QueueClient = require('../lib/hyper/queueClient');
 
@@ -37,55 +36,52 @@ describe('clent', function() {
   });
 
   it('create ECHO command', function () {
-    var cmd = {};
-    cmd.ft = 'ECHO';
-    cmd.id = 1;
-    cmd.data = 1234;
-    expectCommand = cmd;
-
+    expectCommand = {
+      ft: 'ECHO',
+      id: 1,
+      data: 1234
+    };
     client.echo(1234);
     expect(sender.send).to.have.been.called.once();
   });
 
   it('create CALL command', function () {
-    var cmd = {};
-    cmd.ft = 'CALL';
-    cmd.uri = 'function.queue.name';
-    cmd.id = 1;
-    cmd.data = {attr1:1, attr2:'value'};
-    expectCommand = cmd;
-
+    expectCommand = {
+      ft: 'CALL',
+      uri: 'function.queue.name',
+      id: 1,
+      data: {attr1:1, attr2:'value'}
+    };
     client.call('function.queue.name', {attr1:1, attr2:'value'});
     expect(sender.send).to.have.been.called.once();
   });
 
-  it('create PUSH command', function () {
-    var cmd = {};
-    cmd.ft = 'PUSH';
-    cmd.uri = 'function.queue.name';
-    cmd.ack = true;
-    cmd.opt = {some:'option'};
-    cmd.id = 1;
-    cmd.data = {attr1:1, attr2:'value'};
-    expectCommand = cmd;
-
+  it('create-PUSH-command', function () {
+    expectCommand = {
+      ft: 'PUSH',
+      uri: 'function.queue.name',
+      ack: true,
+      opt: {some:'option'},
+      id: 1,
+      data: {attr1:1, attr2:'value'}
+    };
     client.push('function.queue.name', {attr1:1, attr2:'value'}, {some:'option'});
     expect(sender.send).to.have.been.called.once();
   });
 
-  it('build trace task', function (done) {
-    var trace = chai.spy(function (data, task) {
+  it('build-trace-task', function (done) {
+    let trace = chai.spy(function (data, task) {
       expect(task).to.be.instanceof(ClientBase.Task);
-      expect(data).to.equal('data');
-      //task.resolve();
+      expect(data).to.equal('task-data');
+      task.resolve('task-data-amended');
     });
 
-    var cmd = {};
-    cmd.ft = 'TRACE';
-    cmd.uri = 'function.queue.name';
-    cmd.opt = {some:'option'};
-    cmd.id = 1;
-    expectCommand = cmd;
+    expectCommand = {
+      ft: 'TRACE',
+      uri: 'function.queue.name',
+      opt: {some:'option'},
+      id: 1
+    };
 
     assert.becomes(
       client.trace('function.queue.name', trace, {some:'option'}),
@@ -95,34 +91,46 @@ describe('clent', function() {
 
     expect(sender.send).to.have.been.called.once();
 
-    var rsp = {};
-    rsp.rsp = RESULT_ACK;
-    rsp.id = 1;
-    client.handle(rsp);
+    // server response that TRACE is SET
+    client.handle({
+      rsp: RESULT_ACK,
+      id: 1
+    });
 
-    var rsp = {};
-    rsp.rsp = QUEUE.RES_TASK;
-    rsp.id = 1;
-    rsp.data = 'data';
-    client.handle(rsp);
+    // server receives confirmation that event processed
+    expectCommand = {
+      ft: 'CONFIRM',
+      rsp: RESULT_OK,
+      qid: 'server-generated-trace-id',
+      data: "task-data-amended"
+    };
 
+    // some PUBLISH occurred and data arrived
+    client.handle({
+      id: 1,
+      uri: 'any-text',
+      rsp: REQUEST_EVENT,
+      qid: 'server-generated-trace-id',
+      data: 'task-data'
+    });
+
+    // trace event invoked
     expect(trace).to.have.been.called.once();
 
-    // remove subscription
-    var rsp = {};
-    rsp.rsp = RESULT_OK;
-    rsp.id = 1;
-    client.handle(rsp);
+    // server decided to remove subscription
+    client.handle({
+      rsp: RESULT_OK,
+      id: 1
+    });
   });
 
   it('send Task response', function () {
-    var cmd = {};
-    cmd.ft = 'YIELD';
-    cmd.rsp = RESULT_EMIT;
-    cmd.qid = 'generaged.id';
-    cmd.data = ['data'];
-    expectCommand = cmd;
-
+    expectCommand = {
+      ft: 'YIELD',
+      rsp: RESULT_EMIT,
+      qid: 'generaged.id',
+      data: ['data']
+    };
     var request = {};
     request.qid = 'generaged.id';
     client.sendTaskResponse(request, RESULT_EMIT, ['data']);

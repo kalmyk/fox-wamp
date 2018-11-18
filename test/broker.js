@@ -12,7 +12,7 @@ var
 
 chai.use(spies);
 
-describe('broker', function() {
+describe('hyper-broker', function() {
   let
     router,
     gate,
