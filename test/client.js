@@ -80,7 +80,7 @@ describe('clent', function() {
       ft: 'TRACE',
       uri: 'function.queue.name',
       opt: {some:'option'},
-      id: 1
+      id: 1 // client generated ID
     };
 
     assert.becomes(
@@ -100,7 +100,7 @@ describe('clent', function() {
     // server receives confirmation that event processed
     expectCommand = {
       ft: 'CONFIRM',
-      rsp: RESULT_OK,
+      rqt: RESULT_OK,
       qid: 'server-generated-trace-id',
       data: "task-data-amended"
     };
@@ -127,11 +127,12 @@ describe('clent', function() {
   it('send Task response', function () {
     expectCommand = {
       ft: 'YIELD',
-      rsp: RESULT_EMIT,
+      rqt: RESULT_EMIT,
       qid: 'generaged.id',
       data: ['data']
     };
     var request = {};
+    request.id = 'no.meaning.client.task.id';
     request.qid = 'generaged.id';
     client.sendTaskResponse(request, RESULT_EMIT, ['data']);
     expect(sender.send).to.have.been.called.once();

@@ -88,31 +88,31 @@ Provide rapid access to continuously changed data to the web application.
 To support data update propagation. The idea is to have definition of cross table relations and calculation rules.
 
 ```javascript
-customer {
-    "type": "object",
-    "properties": {
-        "date": { "type": "string" },
-        "customer": { "type": "string" },
-        "amount": { "type": "string" }
-    },
-    "unique":["date", "customer"],
-    "propagate":{
-        "detail":[{
-            "key":["customer"],
-            "fields":{"total":"amount"}
-        }]
+    customer {
+        "type": "object",
+        "properties": {
+            "date": { "type": "string" },
+            "customer": { "type": "string" },
+            "amount": { "type": "string" }
+        },
+        "primary_key":["date", "customer"],
+        "propagate":{
+            "detail":[{
+                "key":["customer"],
+                "fields":{"total":"amount"}
+            }]
+        }
     }
-}
 
-detail {
-    "type": "aggregate",
-    "properties": {
-        "customer": { "type": "string" },
-        "total": { "type": "string" }
-    },
-    "unique":["customer"],
-    "sum":["amount"]
-}
+    detail {
+        "type": "aggregate",
+        "properties": {
+            "customer": { "type": "string" },
+            "total": { "type": "string" }
+        },
+        "primary_key":["customer"],
+        "sum":["amount"]
+    }
 ```
 
 ## Changes:

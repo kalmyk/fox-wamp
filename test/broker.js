@@ -39,12 +39,11 @@ describe('hyper-broker', function() {
     var id = 11;
     sender.send = chai.spy(
         function (msg) {
-            resp = {};
-            resp.rsp = RESULT_OK;
-            resp.ft = 'ECHO';
-            resp.id = id;
-            resp.data = {body:'data package'};
-            expect(msg).to.deep.equal(resp);
+            expect(msg).to.deep.equal({
+              rsp: RESULT_OK,
+              id: id,
+              data: {body:'data package'}
+            });
           }
       );
 
@@ -69,13 +68,12 @@ describe('hyper-broker', function() {
         }
       );
 
-      cmd = {};
-      cmd.ft = 'YIELD';
-      cmd.rsp = RESULT_OK;
-      cmd.qid = 1234;
-      cmd.data = {body:'data package'};
-
-      gate.handle(session, cmd);
+      gate.handle(session, {
+        ft: 'YIELD',
+        rsp: RESULT_OK,
+        qid: 1234,
+        data: {body:'data package'}
+      });
       expect(sender.send).to.have.been.called.once();
     });
 
@@ -114,13 +112,11 @@ describe('hyper-broker', function() {
           var resp = {};
           if (msg.id == idSub) {
             resp.rsp = RESULT_ACK;
-            expect(msg.ft).to.equal('REG');
             expect(msg.id).to.equal(idSub);
             regSub = msg.data;
           }
           else {
             resp.rsp = RESULT_OK;
-            resp.ft = 'UNREG';
             resp.id = idUnSub;
             expect(msg).to.deep.equal(resp);
           }
@@ -143,38 +139,118 @@ describe('hyper-broker', function() {
     });
 
     it('should-unTrace', function () {
-      let idTrace = 11;
-      let idUnTrace = 12;
+      const idTrace = 11;
+      const idUnTrace = 12;
       let regTrace;
 
       sender.send = chai.spy(
         function (msg) {
           if (msg.id == idTrace) {
             expect(msg.rsp).to.equal(RESULT_ACK);
-            expect(msg.ft).to.equal('TRACE');
             expect(msg.id).to.equal(idTrace);
             regTrace = msg.data;
           }
           else {
             expect(msg.rsp).to.equal(RESULT_OK);
-            expect(msg.ft).to.equal('UNTRACE');
             expect(msg.id).to.equal(idUnTrace);
           }
         }
       );
-      cmd = {};
-      cmd.ft = 'TRACE';
-      cmd.uri = 'testQ';
-      cmd.id = idTrace;
+      gate.handle(session, {
+        ft: 'TRACE',
+        uri: 'testQ',
+        id: idTrace
+      });
 
-      gate.handle(session, cmd);
-
-      cmd = {};
-      cmd.ft = 'UNTRACE';
-      cmd.unr = regTrace;
-      cmd.id = idUnTrace;
-
-      gate.handle(session, cmd);
+      gate.handle(session, {
+        ft: 'UNTRACE',
+        unr: regTrace,
+        id: idUnTrace
+      });
       expect(sender.send).to.have.been.called.twice();
     });
+
+    it('published-confirm', function () {
+      const idTrace = 20;
+      const idUnTrace = 21;
+      const idPush = 22;
+      let regTrace;
+      let regPush;
+
+      // make realm replicable
+      realm.push.actorConfirm = (actor, cmd) => {};
+
+      realm.push.doConfirm = (actor, cmd) => {
+        actor.confirm(cmd);
+      };
+
+      sender.send = chai.spy((msg) => {
+        regTrace = msg.data;
+        expect(msg).to.deep.equal({
+          id: idTrace,
+          rsp: RESULT_ACK,
+          data: regTrace
+        });
+      });
+
+      gate.handle(session, {
+        ft: 'TRACE',
+        uri: 'testQ',
+        id: idTrace
+      });
+      expect(sender.send).to.have.been.called.once();
+
+      sender.send = chai.spy((msg) => {
+        regPush = msg.qid;
+        expect(msg).to.deep.equal({
+          id: idTrace,
+          uri: 'testQ',
+          qid: regPush,
+          opt: {},
+          rsp: 'EVENT',
+          data: 'published-data'
+        });
+      });
+
+      gate.handle(session, {
+        ft: 'PUSH',
+        uri: 'testQ',
+        ack: true,
+        data: 'published-data',
+        id: idPush
+      });
+      expect(sender.send).to.have.been.called.once();
+
+      sender.send = chai.spy((msg) => {
+        expect(msg).to.deep.equal({
+          id: idPush,
+          qid: regPush,
+          rsp: RESULT_OK,
+          data: 'confirm-data'
+        });
+      });
+
+      gate.handle(session, {
+        ft: 'CONFIRM',
+        qid: regPush,
+        data: 'confirm-data'
+      });
+      expect(sender.send).to.have.been.called.once();
+
+      sender.send = chai.spy((msg) => {
+        expect(msg).to.deep.equal({
+          id: idUnTrace,
+          rsp: RESULT_OK
+        });
+      });
+
+      gate.handle(session, {
+        ft: 'UNTRACE',
+        unr: regTrace,
+        id: idUnTrace
+      });
+      expect(sender.send).to.have.been.called.once();
+
+    });
+
 });
