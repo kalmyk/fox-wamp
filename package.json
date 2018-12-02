@@ -1,7 +1,7 @@
 {
   "name": "fox-wamp",
-  "version": "0.5.0",
-  "description": "V2 Message Router, Basic WebSocket Application Messaging Protocol (WAMP)",
+  "version": "0.5.1",
+  "description": "V2 Message Router, Basic WebSocket Application Messaging Protocol (WAMP/MQTT)",
   "author": {
     "name": "Anatoly Tsapkov",
     "email": "anatoly.tsapkov@gmail.com"
@@ -28,7 +28,7 @@
     "mqtt-packet": "*",
     "node-statsd": "*",
     "qlobber": "*",
-    "ws": "^6.1.0"
+    "ws": "^6.1.2"
   },
   "devDependencies": {
     "autobahn": "^18.10.2",
