@@ -69,6 +69,19 @@ describe('clent', function() {
     expect(sender.send).to.have.been.called.once();
   });
 
+  it('create-PUSH-no-opt', function () {
+    expectCommand = {
+      ft: 'PUSH',
+      uri: 'function.queue.name',
+      ack: true,
+      opt: {},
+      id: 1,
+      data: {key:'val'}
+    };
+    client.push('function.queue.name', {key:'val'});
+    expect(sender.send).to.have.been.called.once();
+  });
+
   it('build-trace-task', function (done) {
     let trace = chai.spy(function (data, task) {
       expect(task).to.be.instanceof(ClientBase.Task);
