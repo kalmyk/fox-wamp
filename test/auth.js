@@ -1,6 +1,3 @@
-/*jshint mocha: true */
-/*jshint node: true */
-/*jshint expr: true */
 'use strict';
 
 var
@@ -50,7 +47,7 @@ describe('wamp-authenticate', function() {
             }
         );
         gate.handle(cli, [WAMP.HELLO, 'test', {authid: 'joe', authmethods:['ticket']}]);
-        expect(sender.send).to.have.been.called.once;
+        expect(sender.send).to.have.been.called.once();
 
         sender.send = chai.spy(
             function (msg, callback) {
@@ -59,7 +56,7 @@ describe('wamp-authenticate', function() {
             }
         );
         gate.handle(cli, [WAMP.AUTHENTICATE, 'incorrect-secret']);
-        expect(sender.send).to.have.been.called.once;
+        expect(sender.send).to.have.been.called.once();
     });
 
     it('Joe AUTH:OK', function () {
@@ -70,7 +67,7 @@ describe('wamp-authenticate', function() {
             }
         );
         gate.handle(cli, [WAMP.HELLO, 'test', {authid: 'joe', authmethods:['ticket']}]);
-        expect(sender.send).to.have.been.called.once;
+        expect(sender.send).to.have.been.called.once();
 
         sender.send = chai.spy(
             function (msg, callback) {
@@ -81,7 +78,7 @@ describe('wamp-authenticate', function() {
             }
         );
         gate.handle(cli, [WAMP.AUTHENTICATE, 'test-joe-secret']);
-        expect(sender.send).to.have.been.called.once;
+        expect(sender.send).to.have.been.called.once();
     });
 
 });

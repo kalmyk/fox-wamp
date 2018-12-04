@@ -1,5 +1,3 @@
-/*jshint mocha: true */
-/*jshint node: true */
 'use strict';
 
 var
@@ -184,14 +182,14 @@ describe('pub-worker', function() {
           client.push('customer', {data1:'value1', data2:'value2'}),
           undefined,
           'push done'
-        )}).
+        );}).
       then(() => {
+        expect(traceSpy).to.have.been.called.once();
         return assert.becomes(
           worker.unTrace(regTrace),
           undefined,
           'unTrace done'
         );
-        expect(traceSpy).to.have.been.called.once();
       });
   });
 

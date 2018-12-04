@@ -1,7 +1,3 @@
-/*jshint mocha: true */
-/*jshint node: true */
-/*jshint expr: true */
-/*jshint esversion: 6 */
 'use strict';
 
 var
@@ -43,17 +39,14 @@ describe('mqtt-realm', function() {
     it('SUBSCRIBE-to-remote-mqtt', function () {
       var subSpy = chai.spy(
         function (publicationId, args, kwargs) {
-          expect(args).to.equal(undefined);
+          expect(args).to.deep.equal([]);
           expect(kwargs).to.deep.equal({the:'text'});
         }
       );
       var subId = api.substopic('topic1', subSpy);
 
       sender.send = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.PUBLISHED);
-          expect(msg[1]).to.equal(2345);
-        }
+        function (msg, callback) {}
       );
       gate.handle(cli, {
         cmd: 'publish',
@@ -64,9 +57,9 @@ describe('mqtt-realm', function() {
         topic: 'topic1',
         payload: Buffer.from('{"the":"text"}')
       });
-      expect(sender.send, 'event is published').to.not.have.been.called();
+      expect(sender.send, 'no publish confirmation').to.not.have.been.called();
 
-      expect(subSpy, 'publication done').to.have.been.called.once;
+      expect(subSpy, 'publication done').to.have.been.called.once();
       expect(api.unsubstopic(subId)).to.equal('topic1');
     });
   });

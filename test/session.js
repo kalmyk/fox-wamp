@@ -1,6 +1,3 @@
-/*jshint mocha: true */
-/*jshint node: true */
-/*jshint expr: true */
 'use strict';
 
 var
@@ -42,14 +39,14 @@ describe('wamp-session', function() {
             }
         );
         gate.handle(cli, [WAMP.HELLO, 'test', {}]);
-        expect(sender.send).to.have.been.called.once;
+        expect(sender.send).to.have.been.called.once();
 
         // second hello command raises error and disconnects the user
         sender.send = chai.spy(function (msg, callback) {});
         sender.close = chai.spy(function (error, reason) {});
         gate.handle(cli, [WAMP.HELLO, 'test', {}]);
-        expect(sender.send).to.not.have.been.called;
-        expect(sender.close).to.have.been.called.once;
+        expect(sender.send).to.not.have.been.called();
+        expect(sender.close).to.have.been.called.once();
     });
 
     it('GOODBYE', function () {
@@ -63,8 +60,8 @@ describe('wamp-session', function() {
             function (error) {}
         );
         gate.handle(cli, [WAMP.GOODBYE]);
-        expect(sender.send).to.have.been.called.once;
-        expect(sender.close).to.have.been.called.once;
+        expect(sender.send).to.have.been.called.once();
+        expect(sender.close).to.have.been.called.once();
     });
 
     it('CALL to no realm RPC', function () {
@@ -77,7 +74,7 @@ describe('wamp-session', function() {
             }
         );
         gate.handle(cli, [WAMP.CALL, 1234, {}, 'any.function.name', []]);
-        expect(sender.send).to.have.been.called.once;
+        expect(sender.send).to.have.been.called.once();
     });
 
     it('REGISTER to no realm', function () {
@@ -90,6 +87,6 @@ describe('wamp-session', function() {
             }
         );
         gate.handle(cli, [WAMP.REGISTER, 1234, {}, 'func1']);
-        expect(sender.send, 'registration failed').to.have.been.called.once;
+        expect(sender.send, 'registration failed').to.have.been.called.once();
     });
 });
