@@ -208,11 +208,11 @@ describe('wamp-realm', function() {
         expect(callSpy, 'error delivered').to.have.been.called.once();
     });
 
-    it('Progress remote CALL', function () {
+    it('progress-remote-CALL', function () {
       sender.send = function (msg, callback) {};
       gate.handle(cli, [WAMP.REGISTER, 1234, {}, 'func1']);
 
-      var callId = null;
+      let callId = null;
       sender.send = chai.spy(
         function (msg, callback) {
           expect(msg[0]).to.equal(WAMP.INVOCATION);
@@ -221,12 +221,12 @@ describe('wamp-realm', function() {
           expect(msg[3]).to.deep.equal({receive_progress:true});
         }
       );
-      var result;
-      var options;
-      var callResponse = chai.spy(function(err, args, kwargs, options) {
+      let result;
+      let options;
+      let callResponse = chai.spy(function(err, args, kwargs, opt) {
         expect(err).to.be.undefined;
-        expect(args).to.deep.equal(result, 'args call spy response');
-//        expect(options).to.deep.equal(???, 'progress 1');
+        expect(args).to.deep.equal(result);
+        expect(opt).to.deep.equal(options);
       });
       api.callrpc('func1', [], {}, callResponse, {receive_progress:1});
       expect(sender.send, 'invocation received').to.have.been.called.once();

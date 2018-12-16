@@ -73,7 +73,7 @@ describe('pub-worker', function() {
       function(result) {
         return assert.becomes(
           client.call('test.func', {attr1:1, attr2:2}),
-          {result:'done'},
+          {kv:{result:'done'}},
           'call should be processed'
         ).notify(done);
       },
@@ -95,7 +95,7 @@ describe('pub-worker', function() {
       function(result) {
         return assert.becomes(
           client.call('test.func', {attr1:1, attr2:2}),
-          {result:'done'},
+          {kv:{result:'done'}},
           'call should be processed'
         ).notify(done);
       },

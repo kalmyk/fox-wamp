@@ -115,7 +115,7 @@ describe('clent', function() {
       ft: 'CONFIRM',
       rqt: RESULT_OK,
       qid: 'server-generated-trace-id',
-      data: "task-data-amended"
+      data: {kv:"task-data-amended"}
     };
 
     // some PUBLISH occurred and data arrived
