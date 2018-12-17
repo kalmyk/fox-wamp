@@ -39,7 +39,7 @@ describe('clent', function() {
     expectCommand = {
       ft: 'ECHO',
       id: 1,
-      data: 1234
+      data: { kv: 1234 }
     };
     client.echo(1234);
     expect(sender.send).to.have.been.called.once();
@@ -50,7 +50,7 @@ describe('clent', function() {
       ft: 'CALL',
       uri: 'function.queue.name',
       id: 1,
-      data: {attr1:1, attr2:'value'}
+      data: { kv:{attr1:1, attr2:'value'} }
     };
     client.call('function.queue.name', {attr1:1, attr2:'value'});
     expect(sender.send).to.have.been.called.once();
@@ -63,7 +63,7 @@ describe('clent', function() {
       ack: true,
       opt: {some:'option'},
       id: 1,
-      data: {attr1:1, attr2:'value'}
+      data: { kv: {attr1:1, attr2:'value'} }
     };
     client.push('function.queue.name', {attr1:1, attr2:'value'}, {some:'option'});
     expect(sender.send).to.have.been.called.once();
@@ -76,7 +76,7 @@ describe('clent', function() {
       ack: true,
       opt: {},
       id: 1,
-      data: {key:'val'}
+      data: { kv:{key:'val'} }
     };
     client.push('function.queue.name', {key:'val'});
     expect(sender.send).to.have.been.called.once();
@@ -124,7 +124,7 @@ describe('clent', function() {
       uri: 'any-text',
       rsp: REQUEST_EVENT,
       qid: 'server-generated-trace-id',
-      data: 'task-data'
+      data: {kv:'task-data'}
     });
 
     // trace event invoked
@@ -142,12 +142,12 @@ describe('clent', function() {
       ft: 'YIELD',
       rqt: RESULT_EMIT,
       qid: 'generaged.id',
-      data: ['data']
+      data: { kv: {dataKey:'data-value'} }
     };
     var request = {};
     request.id = 'no.meaning.client.task.id';
     request.qid = 'generaged.id';
-    client.sendTaskResponse(request, RESULT_EMIT, ['data']);
+    client.sendTaskResponse(request, RESULT_EMIT, {dataKey:'data-value'});
     expect(sender.send).to.have.been.called.once();
   });
 });

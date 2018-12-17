@@ -1,6 +1,6 @@
-# FOX-WAMP is a message router implementation
+# FOX-WAMP is a The Web Application Message Server
 
-The project goal is to provide durable message source.
+The project goal is to provide durable message source for the actual web applications.
 
 Message router has pluggable interface to the several message standards. As for now it could interact by
 * [WAMP V2 Basic Profile](http://wamp-proto.org/)

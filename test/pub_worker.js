@@ -73,7 +73,7 @@ describe('pub-worker', function() {
       function(result) {
         return assert.becomes(
           client.call('test.func', {attr1:1, attr2:2}),
-          {kv:{result:'done'}},
+          {result:'done'},
           'call should be processed'
         ).notify(done);
       },
@@ -95,7 +95,7 @@ describe('pub-worker', function() {
       function(result) {
         return assert.becomes(
           client.call('test.func', {attr1:1, attr2:2}),
-          {kv:{result:'done'}},
+          {result:'done'},
           'call should be processed'
         ).notify(done);
       },
@@ -147,15 +147,12 @@ describe('pub-worker', function() {
   });
 
   it('omit-tasks-of-terminated-sessions', function (done) {
-    let reg;
-
     worker.register(
       'func1', function (args, task) {
         task.resolve('any-result');
         client.close();
       }
     ).then(function(registration){
-      reg = registration;
       client.call('func1', 'call-1').then(() => {
         expect(realm.rpc.getPendingTaskCount()).to.equal(0);
         done();
