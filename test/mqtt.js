@@ -1,14 +1,10 @@
-/*jshint mocha: true */
-/*jshint node: true */
-/*jshint expr: true */
-/*jshint esversion: 6 */
 'use strict';
 
 var
     chai     = require('chai'),
     spies    = require('chai-spies'),
     expect   = chai.expect,
-    Realm    = require('../lib/realm'),
+    Realm    = require('../lib/realm').Realm,
     MqttGate = require('../lib/mqtt/gate'),
     Session  = require('../lib/session'),
     Router   = require('../lib/router');
@@ -39,21 +35,18 @@ describe('mqtt-realm', function() {
   afterEach(function(){
   });
 
-  describe('PUBLISH', function() {
+  describe('publish', function() {
     it('SUBSCRIBE-to-remote-mqtt', function () {
       var subSpy = chai.spy(
         function (publicationId, args, kwargs) {
-          expect(args).to.equal(undefined);
-          expect(kwargs).to.deep.equal(Buffer.from('text'));
+          expect(args).to.deep.equal([]);
+          expect(kwargs).to.deep.equal({the:'text'});
         }
       );
       var subId = api.substopic('topic1', subSpy);
 
       sender.send = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.PUBLISHED);
-          expect(msg[1]).to.equal(2345);
-        }
+        function (msg, callback) {}
       );
       gate.handle(cli, {
         cmd: 'publish',
@@ -62,11 +55,11 @@ describe('mqtt-realm', function() {
         dup: false,
         length: 17,
         topic: 'topic1',
-        payload: Buffer.from('text')
+        payload: Buffer.from('{"the":"text"}')
       });
-      expect(sender.send, 'event is published').to.not.have.been.called();
+      expect(sender.send, 'no publish confirmation').to.not.have.been.called();
 
-      expect(subSpy, 'publication done').to.have.been.called.once;
+      expect(subSpy, 'publication done').to.have.been.called.once();
       expect(api.unsubstopic(subId)).to.equal('topic1');
     });
   });

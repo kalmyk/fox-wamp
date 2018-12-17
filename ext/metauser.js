@@ -27,14 +27,14 @@ function registerHandlers(router) {
     });
   });
 
-  router.on(MSG.SESSION_JOIN, function (session, realm) {
+  router.on(MSG.SESSION_JOIN, function (realm, session) {
     var sessionData = {
       session: session.sessionId
     };
     realm.api().publish('wamp.session.on_join', [], sessionData);
   });
 
-  router.on(MSG.SESSION_LEAVE, function (session, realm) {
+  router.on(MSG.SESSION_LEAVE, function (realm, session) {
     realm.api().publish('wamp.session.on_leave', [session.sessionId]);
   });
 

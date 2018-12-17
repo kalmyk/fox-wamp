@@ -2,7 +2,7 @@
 // This is a basic router example with sonnectivity to the statsd server
 //
 
-var WampRouter = require('../lib/fox-wamp');
+var Router = require('../index');
 var program = require('commander');
 var StatsD = require('../ext/statsd');
 
@@ -14,6 +14,8 @@ program
 
 console.log('Listening port:', program.port);
 
-var app = new WampRouter({port: program.port});
+var app = new Router();
 
 var trace = new StatsD.TraceRouter(program, app);
+
+app.listenWAMP({port: program.port});

@@ -1,7 +1,7 @@
 {
   "name": "fox-wamp",
-  "version": "0.4.7",
-  "description": "V2 Message Router, Basic WebSocket Application Messaging Protocol (WAMP)",
+  "version": "0.5.4",
+  "description": "V2 Message Router, Basic WebSocket Application Messaging Protocol (WAMP/MQTT)",
   "author": {
     "name": "Anatoly Tsapkov",
     "email": "anatoly.tsapkov@gmail.com"
@@ -17,23 +17,25 @@
   "license": "MIT",
   "keywords": [
     "wamp",
+    "mqtt",
     "message",
-    "broker"
+    "mq",
+    "broker",
+    "router"
   ],
   "dependencies": {
-    "ws": "*",
-    "commander": "*",
-    "qlobber": "*",
-    "node-statsd": "*",
-    "rconsole": "*",
+    "commander": "^2.19.0",
     "mqtt-packet": "*",
-    "jsonschema": "*"
+    "node-statsd": "*",
+    "qlobber": "*",
+    "ws": "^6.1.2"
   },
   "devDependencies": {
-    "autobahn": "*",
-    "chai": "*",
+    "autobahn": "^18.10.2",
+    "chai": "^4.2.0",
     "chai-as-promised": "*",
-    "chai-spies": "*"
+    "chai-spies": "*",
+    "randombytes": "^2.0.6"
   },
   "main": "lib/fox-wamp",
   "engines": {

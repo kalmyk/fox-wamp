@@ -9,7 +9,7 @@ var
     spies    = require('chai-spies'),
     expect   = chai.expect,
     WAMP     = require('../lib/wamp/protocol'),
-    Realm    = require('../lib/realm'),
+    Realm    = require('../lib/realm').Realm,
     WampGate = require('../lib/wamp/gate'),
     Session  = require('../lib/session'),
     Router   = require('../lib/router');
@@ -31,8 +31,8 @@ describe('wamp-realm', function() {
     realm = new Realm(router);
     api = realm.api();
 
-    gate = new WampGate(router);
-    cli = new Session(gate, sender, gate.makeSessionId());
+    gate = new WampGate.WampHandler(router, new WampGate.WampEncoder());
+    cli = new Session(gate.getEncoder(), sender, gate.makeSessionId());
     realm.joinSession(cli);
     cli.realm = realm;
   });
@@ -41,7 +41,7 @@ describe('wamp-realm', function() {
   });
 
   it('empty cleanup', function () {
-    realm.cleanup(api);
+    realm.cleanupSession(api);
   });
 
   it('session-list', function () {
@@ -61,14 +61,14 @@ describe('wamp-realm', function() {
         }
       );
       gate.handle(cli, [WAMP.CALL, 1234, {}, 'any.function.name', []]);
-      expect(sender.send).to.have.been.called.once;
+      expect(sender.send).to.have.been.called.once();
     });
 
     it('cleanup RPC API', function () {
       var procSpy = chai.spy(function() {});
       api.regrpc('func1', procSpy);
-      expect(realm.cleanupRPC(api)).to.deep.equal(['func1']);
-      expect(realm.cleanupRPC(api)).to.deep.equal([]);
+      expect(api.cleanupReg(realm.rpc)).to.equal(1);
+      expect(api.cleanupReg(realm.rpc)).to.equal(0);
       expect(procSpy).to.not.have.been.called();
     });
 
@@ -87,8 +87,8 @@ describe('wamp-realm', function() {
         }
       );
       gate.handle(cli, [WAMP.CALL, 1234, {}, 'func1', ['arg1', 'arg2'], {'kArg':'kVal'}]);
-      expect(procSpy, 'RPC delivered').to.have.been.called.once;
-      expect(sender.send, 'result delivered').to.have.been.called.once;
+      expect(procSpy, 'RPC delivered').to.have.been.called.once();
+      expect(sender.send, 'result delivered').to.have.been.called.once();
       expect(api.unregrpc(regId)).to.equal('func1');
     });
 
@@ -108,8 +108,8 @@ describe('wamp-realm', function() {
       );
       gate.handle(cli, [WAMP.CALL, 1234, {}, 'func1', ['arg1', 'arg2'], {'kArg':'kVal'}]);
       api.resrpc(callId, 1, ['result.1','result.2'], {kVal:'kRes'});
-      expect(procSpy).to.have.been.called.once;
-      expect(sender.send).to.have.been.called.once;
+      expect(procSpy).to.have.been.called.once();
+      expect(sender.send).to.have.been.called.once();
     });
 
     it('UNREGISTER error', function () {
@@ -123,7 +123,7 @@ describe('wamp-realm', function() {
         }
       );
       gate.handle(cli, [WAMP.UNREGISTER, 2345, 1234567890]);
-      expect(sender.send, 'unregistration confirmed').to.have.been.called.once;
+      expect(sender.send, 'unregistration confirmed').to.have.been.called.once();
     });
 
     it('UNREGISTER', function () {
@@ -137,7 +137,7 @@ describe('wamp-realm', function() {
         }
       );
       gate.handle(cli, [WAMP.REGISTER, 1234, {}, 'func1']);
-      expect(sender.send, 'registration confirmed').to.have.been.called.once;
+      expect(sender.send, 'registration confirmed').to.have.been.called.once();
 
       sender.send = chai.spy(
         function (msg, callback) {
@@ -146,11 +146,11 @@ describe('wamp-realm', function() {
         }
       );
       gate.handle(cli, [WAMP.UNREGISTER, 2345, qid]);
-      expect(sender.send, 'unregistration confirmed').to.have.been.called.once;
+      expect(sender.send, 'unregistration confirmed').to.have.been.called.once();
     });
 
     it('CALL-to-remote', function () {
-        var qid = null;
+        let qid = null;
 
         sender.send = chai.spy(
           function (msg, callback) {
@@ -160,7 +160,7 @@ describe('wamp-realm', function() {
           }
         );
         gate.handle(cli, [WAMP.REGISTER, 1234, {}, 'func1']);
-        expect(sender.send, 'registration confirmed').to.have.been.called.once;
+        expect(sender.send, 'registration confirmed').to.have.been.called.once();
 
         var callId = null;
         sender.send = chai.spy(
@@ -179,12 +179,12 @@ describe('wamp-realm', function() {
           expect(kwargs).to.deep.equal({foo:'bar'}, 'kwargs call spy response');
         });
         api.callrpc('func1', ['arg.1','arg.2'], {kVal:'kRes'}, callResponse);
-        expect(sender.send, 'invocation received').to.have.been.called.once;
+        expect(sender.send, 'invocation received').to.have.been.called.once();
 
         // return the function result
         gate.handle(cli, [WAMP.YIELD, callId, {}, ['result.1','result.2'], {foo:'bar'}]);
 
-        expect(callResponse, 'result delivered').to.have.been.called.once;
+        expect(callResponse, 'result delivered').to.have.been.called.once();
     });
 
     it('CALL error to remote', function () {
@@ -202,17 +202,17 @@ describe('wamp-realm', function() {
           expect(args).to.deep.equal(['err.detail.1','err.detail.2']);
         });
         api.callrpc('func1', ['arg.1','arg.2'], {kVal:'kRes'}, callSpy);
-        expect(sender.send, 'invocation received').to.have.been.called.once;
+        expect(sender.send, 'invocation received').to.have.been.called.once();
 
         gate.handle(cli, [WAMP.ERROR, WAMP.INVOCATION, callId, {}, 'wamp.error.runtime_error', ['err.detail.1','err.detail.2']]);
-        expect(callSpy, 'error delivered').to.have.been.called.once;
+        expect(callSpy, 'error delivered').to.have.been.called.once();
     });
 
-    it('Progress remote CALL', function () {
+    it('progress-remote-CALL', function () {
       sender.send = function (msg, callback) {};
       gate.handle(cli, [WAMP.REGISTER, 1234, {}, 'func1']);
 
-      var callId = null;
+      let callId = null;
       sender.send = chai.spy(
         function (msg, callback) {
           expect(msg[0]).to.equal(WAMP.INVOCATION);
@@ -221,15 +221,15 @@ describe('wamp-realm', function() {
           expect(msg[3]).to.deep.equal({receive_progress:true});
         }
       );
-      var result;
-      var options;
-      var callResponse = chai.spy(function(err, args, kwargs, options) {
+      let result;
+      let options;
+      let callResponse = chai.spy(function(err, args, kwargs, opt) {
         expect(err).to.be.undefined;
-        expect(args).to.deep.equal(result, 'args call spy response');
-        expect(options).to.deep.equal(options, 'progress 1');
+        expect(args).to.deep.equal(result);
+        expect(opt).to.deep.equal(options);
       });
       api.callrpc('func1', [], {}, callResponse, {receive_progress:1});
-      expect(sender.send, 'invocation received').to.have.been.called.once;
+      expect(sender.send, 'invocation received').to.have.been.called.once();
 
       result = ['result.1'];
       options = {progress:true};
@@ -243,7 +243,12 @@ describe('wamp-realm', function() {
       options = {};
       gate.handle(cli, [WAMP.YIELD, callId, {}, ['result.3.final']]);
 
-      gate.handle(cli, [WAMP.YIELD, callId, {}, ['result.not_delivered']]);
+      sender.send = chai.spy(
+        function (msg, callback) {
+          expect(msg[0]).to.equal(WAMP.ERROR);
+        }
+      );
+      gate.handle(cli, [WAMP.YIELD, callId, {}, ['result.response.error']]);
 
       expect(callResponse, 'result delivered').to.have.been.called.exactly(3);
     });
@@ -261,7 +266,7 @@ describe('wamp-realm', function() {
         }
       );
       gate.handle(cli, [WAMP.UNSUBSCRIBE, 2345, 1234567890]);
-      expect(sender.send, 'unsubscription confirmed').to.have.been.called.once;
+      expect(sender.send, 'unsubscription confirmed').to.have.been.called.once();
     });
 
     it('UNSUBSCRIBE-OK', function () {
@@ -275,7 +280,7 @@ describe('wamp-realm', function() {
           }
         );
         gate.handle(cli, [WAMP.SUBSCRIBE, 1234, {}, 'topic1']);
-        expect(sender.send, 'subscription confirmed').to.have.been.called.once;
+        expect(sender.send, 'subscription confirmed').to.have.been.called.once();
 
         sender.send = chai.spy(
           function (msg, callback) {
@@ -284,14 +289,14 @@ describe('wamp-realm', function() {
           }
         );
         gate.handle(cli, [WAMP.UNSUBSCRIBE, 2345, subscriptionId]);
-        expect(sender.send, 'unsubscription confirmed').to.have.been.called.once;
+        expect(sender.send, 'unsubscription confirmed').to.have.been.called.once();
     });
 
     it('cleanup Topic API', function () {
       var subSpy = chai.spy(function () {});
       api.substopic('topic1', subSpy);
-      expect(cli.realm.cleanupTopic(api)).to.deep.equal(['topic1']);
-      expect(cli.realm.cleanupTopic(api)).to.deep.equal([]);
+      expect(api.cleanupTrace(realm.push)).to.equal(1);
+      expect(api.cleanupTrace(realm.push)).to.equal(0);
       expect(subSpy).to.not.have.been.called();
     });
 
@@ -306,7 +311,7 @@ describe('wamp-realm', function() {
       var subSpy = chai.spy(function () {});
       api.substopic('topic1', subSpy);
       api.publish('topic1', [], {}, {exclude_me:false});
-      expect(subSpy).to.have.been.called.once;
+      expect(subSpy).to.have.been.called.once();
     });
 
     it('PUBLISH to pattern', function () {
@@ -315,7 +320,7 @@ describe('wamp-realm', function() {
       });
       api.substopic('topic1.*.item', subSpy);
       api.publish('topic1.123.item', [], {}, {exclude_me:false});
-      expect(subSpy).to.have.been.called.once;
+      expect(subSpy).to.have.been.called.once();
     });
 
     it('PUBLISH to remote', function () {
@@ -329,7 +334,7 @@ describe('wamp-realm', function() {
           }
         );
         gate.handle(cli, [WAMP.SUBSCRIBE, 1234, {}, 'topic1']);
-        expect(sender.send, 'subscription confirmed').to.have.been.called.once;
+        expect(sender.send, 'subscription confirmed').to.have.been.called.once();
 
         sender.send = chai.spy(
           function (msg, callback) {
@@ -342,7 +347,7 @@ describe('wamp-realm', function() {
           }
         );
         api.publish('topic1', ['arg.1','arg.2'], {foo:'bar'});
-        expect(sender.send, 'publication received').to.have.been.called.once;
+        expect(sender.send, 'publication received').to.have.been.called.once();
     });
 
     it('SUBSCRIBE-to-remote', function () {
@@ -362,8 +367,8 @@ describe('wamp-realm', function() {
       );
       gate.handle(cli, [WAMP.PUBLISH, 1234, {}, "topic1", ['arg.1','arg.2'],{foo:'bar'}]);
       expect(sender.send, 'published').to.not.have.been.called();
-      gate.handle(cli, [WAMP.PUBLISH, 2345, {"acknowledge":true}, "topic1", ['arg.1','arg.2'],{foo:'bar'}]);
-      expect(sender.send, 'published').to.have.been.called.once;
+      gate.handle(cli, [WAMP.PUBLISH, 2345, {acknowledge:true}, "topic1", ['arg.1','arg.2'],{foo:'bar'}]);
+      expect(sender.send, 'published').to.have.been.called.once();
 
       expect(subSpy, 'publication done').to.have.been.called.twice;
       expect(api.unsubstopic(subId)).to.equal('topic1');
@@ -400,7 +405,7 @@ describe('wamp-realm', function() {
     it('retain-weak', function () {
       gate.handle(cli, [WAMP.PUBLISH, 1234, {retain:0, weak:'public'}, "topic2", ['arg.1','arg.2'],{}]);
 //      console.log('key', realm.getKey('topic2'));
-      realm.cleanup(cli);
+      realm.cleanupSession(cli);
 //      console.log('key', realm.getKey('topic2'));
     });
   });

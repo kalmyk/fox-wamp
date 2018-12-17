@@ -1,37 +1,19 @@
-//
-// This is a basic router example
-//
-// This script runs a simple WAMP router on port 9000
-// It illustrates:
-// - how to filter out incoming connections,
-// - how to declare a router-embedded RPC,
-// - how to subscribe to router events.
-//
-
-WAMPRT_TRACE = true;
-
 var MSG = require('../lib/messages');
-var WampRouter = require('../lib/fox-wamp');
+var Router = require('../index');
 var program = require('commander');
 
 program
   .option('-p, --port <port>', 'Server IP port', 9000)
   .parse(process.argv);
 
-console.log('Listening port:', program.port);
+var app = new Router();
+app.setLogTrace(true);
 
-//
-// WebSocket server
-//
-var app = new WampRouter(
-    {port: program.port}
-);
-
-app.on('RPCRegistered', function (realm, uri) {
-    console.log('onRPCRegistered RPC registered', uri);
+app.on(MSG.ON_REGISTERED, function (realm, registeration) {
+    console.log('onRPCRegistered RPC registered', registeration.getUri());
 });
-app.on('RPCUnregistered', function (realm, uri) {
-    console.log('onRPCUnregistered RPC unregistered', uri);
+app.on(MSG.ON_UNREGISTERED, function (realm, registeration) {
+    console.log('onRPCUnregistered RPC unregistered', registeration.getUri());
 });
 app.on(MSG.REALM_CREATED, function (realm, realmName) {
     console.log('new Relm:', realmName);
@@ -44,3 +26,6 @@ app.getRealm('realm1', function (realm) {
         api.resrpc(id, null /* no error */, ["bar", "bar2"], {"key1": "bar1", "key2": "bar2"});
     });
 });
+
+console.log('Listening port:', program.port);
+app.listenWAMP({port: program.port});

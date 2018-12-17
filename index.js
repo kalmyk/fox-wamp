@@ -1,1 +1,1 @@
-module.exports = require('./lib/fox-wamp');
+module.exports = require('./lib/fox_router');
