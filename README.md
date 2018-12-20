@@ -2,7 +2,7 @@
 
 The project goal is to provide durable message source for the actual web applications.
 
-Message router has pluggable interface to the several message standards. As for now it could interact by
+Message router has pluggable interface to the several message protocols. As for now it could interact by
 * [WAMP V2 Basic Profile](http://wamp-proto.org/)
 * [MQTT](http://mqtt.org/)
 
