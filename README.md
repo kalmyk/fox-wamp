@@ -115,6 +115,9 @@ To support data update propagation. The idea is to have definition of cross tabl
     }
 ```
 
+Take a look for more examples at https://foxic.herokuapp.com/
+
+
 ## Changes:
 2018-07-19
 - MQTT gate added. Functionality allows to subscribe to the MQTT messages.
