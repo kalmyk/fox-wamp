@@ -3,31 +3,29 @@ var autobahn = require('autobahn');
 var program = require('commander');
 
 program
-    .option('-p, --port <port>', 'Server IP port', 9000)
-    .option('-i, --ip <ip>', 'Server IP address','127.0.0.1')
-    .parse(process.argv);
+   .option('-s, --server <server>', 'Server URI address','ws://127.0.0.1:9000/wamp')
+   .parse(process.argv);
 
-var connectUrl = 'ws://' + program.ip + ':' + program.port;
-console.log('connectUrl:', connectUrl);
+console.log('connect to server:', program.server);
 
 var user = "joe";
 var key = "joe-secret";
 
 // this callback is fired during authentication
 function onchallenge (session, method, extra) {
-    if (method === "ticket") {
-        return key;
-    } else {
-        throw "don't know how to authenticate using '" + method + "'";
-    }
+   if (method === "ticket") {
+      return key;
+   } else {
+      throw "don't know how to authenticate using '" + method + "'";
+   }
 }
 
 var connection = new autobahn.Connection({
-    url: connectUrl,
-    realm: 'realm1',
-    authmethods: ["ticket", "wampcra"],
-    authid: user,
-    onchallenge: onchallenge
+   url: program.server,
+   realm: 'realm1',
+   authmethods: ["ticket", "wampcra"],
+   authid: user,
+   onchallenge: onchallenge
 });
 
 connection.onopen = function (session) {

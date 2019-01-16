@@ -3,12 +3,10 @@ var autobahn = require('autobahn');
 var program = require('commander');
 
 program
-    .option('-p, --port <port>', 'Server IP port', 9000)
-    .option('-i, --ip <ip>', 'Server IP address','127.0.0.1')
-    .parse(process.argv);
+   .option('-s, --server <server>', 'Server URI address','ws://127.0.0.1:9000/wamp')
+   .parse(process.argv);
 
-var connectUrl = 'ws://' + program.ip + ':' + program.port;
-console.log('connectUrl:', connectUrl);
+console.log('connect to server:', program.server);
 
 var user = "joe";
 var key = "joe-secret";
@@ -23,7 +21,7 @@ function onchallenge (session, method, extra) {
 }
 
 var connection = new autobahn.Connection({
-    url: connectUrl,
+    url: program.server,
     realm: 'realm1',
     authmethods: ["ticket", "wampcra"],
     authid: user,

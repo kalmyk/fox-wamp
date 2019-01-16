@@ -84,11 +84,12 @@ publish('the.key', ['args'], {kwArgs:false}, {
 
 ### Aggregate Engine for the data streams
 
-Provide rapid access to continuously changed data to the web application.
-To support data update propagation. The idea is to have definition of cross table relations and calculation rules.
+The functionality aimed to provide rapid access to continuously changed data to the web application.
+Aggregate engine provides data update propagation for the subscribed clients.
+The idea is to have definitions of cross table relations and calculation rules.
 
 ```javascript
-    customer {
+    "invoice" {
         "type": "object",
         "properties": {
             "date": { "type": "string" },
@@ -102,9 +103,9 @@ To support data update propagation. The idea is to have definition of cross tabl
                 "fields":{"total":"amount"}
             }]
         }
-    }
+    },
 
-    detail {
+    "detail" {
         "type": "aggregate",
         "properties": {
             "customer": { "type": "string" },
@@ -115,8 +116,7 @@ To support data update propagation. The idea is to have definition of cross tabl
     }
 ```
 
-Take a look for more examples at https://foxic.herokuapp.com/
-
+Take a look for more use cases at http://jeta.host/
 
 ## Changes:
 2018-07-19

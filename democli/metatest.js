@@ -3,15 +3,13 @@ var autobahn = require('autobahn');
 var program = require('commander');
 
 program
-    .option('-p, --port <port>', 'Server IP port', 9000)
-    .option('-i, --ip <ip>', 'Server IP address','127.0.0.1')
+    .option('-s, --server <server>', 'Server URI address','ws://127.0.0.1:9000/wamp')
     .parse(process.argv);
 
-var connectUrl = 'ws://' + program.ip + ':' + program.port + '/ws';
-console.log('connectUrl:', connectUrl);
+console.log('connect to server:', program.server);
 
 var connection = new autobahn.Connection({
-    url: connectUrl,
+    url: program.server,
     realm: 'realm1',
 });
 
