@@ -15,7 +15,6 @@ chai.use(spies);
 
 describe('hyper-broker', function() {
     let
-        broker,
         router,
         gate,
         sender,
@@ -33,7 +32,6 @@ describe('hyper-broker', function() {
 
     afterEach(function(){
         session.cleanup();
-        broker = null;
         session = null;
     });
 
@@ -108,7 +106,7 @@ describe('hyper-broker', function() {
             if (msg.id == idSub) {
                 expect(msg.id).to.equal(idSub);
                 expect(msg.rsp).to.equal(RESULT_ACK);
-                regSub = msg.data.kv;
+                regSub = msg.data;
             }
             else {
                 expect(msg).to.deep.equal({
@@ -140,7 +138,7 @@ describe('hyper-broker', function() {
             if (msg.id == idTrace) {
                 expect(msg.rsp).to.equal(RESULT_ACK);
                 expect(msg.id).to.equal(idTrace);
-                regTrace = msg.data.kv;
+                regTrace = msg.data;
             }
             else {
                 expect(msg).to.deep.equal({
@@ -178,11 +176,11 @@ describe('hyper-broker', function() {
         };
 
         sender.send = chai.spy((msg) => {
-            regTrace = msg.data.kv;
+            regTrace = msg.data;
             expect(msg).to.deep.equal({
                 id: idTrace,
                 rsp: RESULT_ACK,
-                data: {kv:regTrace}
+                data: regTrace
             });
         });
 
@@ -216,10 +214,10 @@ describe('hyper-broker', function() {
 
         sender.send = chai.spy((msg) => {
             expect(msg).to.deep.equal({
-            id: idPush,
-            qid: regPush,
-            rsp: RESULT_OK,
-            data: 'confirm-data'
+                id: idPush,
+                qid: regPush,
+                rsp: RESULT_OK,
+                data: 'confirm-data'
             });
         });
 

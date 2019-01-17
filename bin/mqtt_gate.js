@@ -4,9 +4,9 @@ var
     program = require('commander');
 
 program
-  .option('-p, --wamp <port>', 'WAMP Server IP port', 9000)
-  .option('-q, --mqtt <port>', 'MQTT Server IP port', 1883)
-  .parse(process.argv);
+    .option('-p, --wamp <port>', 'WAMP Server IP port', 9000)
+    .option('-q, --mqtt <port>', 'MQTT Server IP port', 1883)
+    .parse(process.argv);
 
 var app = new Router();
 app.setLogTrace(true);

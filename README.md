@@ -84,12 +84,25 @@ publish('the.key', ['args'], {kwArgs:false}, {
 
 ### Aggregate Engine for the data streams
 
-The functionality aimed to provide rapid access to continuously changed data to the web application.
-Aggregate engine provides data update propagation for the subscribed clients.
-The idea is to have definitions of cross table relations and calculation rules.
+What if to define table structure with aggregation functions along?
+
+The functionality aimed to provide rapid access to continuously changed
+data to the web application.
+
+The idea is to have definitions of cross table relations and calculation rules in one place. 
+Such table scheme could easy listen to the events stream and do changes 
+in the related tables accordingly.
+
+The changes in tables could be transformed and
+propagated as same events to the another aggregation tables
+where it could be mixed with another sources.
+Aggregate engine provides data change events for the subscribed clients.
+
+In general the idea looks like materialized view that is based on event stream.
+
 
 ```javascript
-    "invoice" {
+    "invoice": {
         "type": "object",
         "properties": {
             "date": { "type": "string" },
@@ -105,7 +118,7 @@ The idea is to have definitions of cross table relations and calculation rules.
         }
     },
 
-    "detail" {
+    "detail": {
         "type": "aggregate",
         "properties": {
             "customer": { "type": "string" },
