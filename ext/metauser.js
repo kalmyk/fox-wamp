@@ -9,15 +9,15 @@ function registerHandlers(router) {
   router.on(MSG.REALM_CREATED, function (realm, realmName) {
     var api = realm.api();
 
-    api.regrpc('wamp.session.count', function (id, args, kwargs) {
+    api.register('wamp.session.count', function (id, args, kwargs) {
       api.resrpc(id, null /* no error */, [realm.getSessionCount()]);
     });
 
-    api.regrpc('wamp.session.list', function (id, args, kwargs) {
+    api.register('wamp.session.list', function (id, args, kwargs) {
       api.resrpc(id, null /* no error */, [realm.getSessionIds()]);
     });
 
-    api.regrpc('wamp.session.get', function (id, args, kwargs) {
+    api.register('wamp.session.get', function (id, args, kwargs) {
       if (args instanceof Array && args[0] && typeof args[0] == "number") {
         api.resrpc(id, null /* no error */, [realm.getSessionInfo(args[0])]);
       }

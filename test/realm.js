@@ -66,7 +66,7 @@ describe('wamp-realm', function() {
 
     it('cleanup RPC API', function () {
       var procSpy = chai.spy(function() {});
-      api.regrpc('func1', procSpy);
+      api.register('func1', procSpy);
       expect(api.cleanupReg(realm.rpc)).to.equal(1);
       expect(api.cleanupReg(realm.rpc)).to.equal(0);
       expect(procSpy).to.not.have.been.called();
@@ -76,7 +76,7 @@ describe('wamp-realm', function() {
       var procSpy = chai.spy(function(id, args, kwargs) {
         api.resrpc(id, undefined, ['result.1','result.2'], {kVal:'kRes'});
       });
-      var regId = api.regrpc('func1', procSpy);
+      var regId = api.register('func1', procSpy);
 
       sender.send = chai.spy(
         function (msg, callback) {
@@ -89,7 +89,7 @@ describe('wamp-realm', function() {
       gate.handle(cli, [WAMP.CALL, 1234, {}, 'func1', ['arg1', 'arg2'], {'kArg':'kVal'}]);
       expect(procSpy, 'RPC delivered').to.have.been.called.once();
       expect(sender.send, 'result delivered').to.have.been.called.once();
-      expect(api.unregrpc(regId)).to.equal('func1');
+      expect(api.unregister(regId)).to.equal('func1');
     });
 
     it('CALL to router with error', function () {
@@ -97,7 +97,7 @@ describe('wamp-realm', function() {
       var procSpy = chai.spy(function(id, args, kwargs) {
         callId = id;
       });
-      api.regrpc('func1', procSpy);
+      api.register('func1', procSpy);
       sender.send = chai.spy(
         function (msg, callback) {
           expect(msg[0]).to.equal(WAMP.ERROR);
@@ -294,7 +294,7 @@ describe('wamp-realm', function() {
 
     it('cleanup Topic API', function () {
       var subSpy = chai.spy(function () {});
-      api.substopic('topic1', subSpy);
+      api.subscribe('topic1', subSpy);
       expect(api.cleanupTrace(realm.push)).to.equal(1);
       expect(api.cleanupTrace(realm.push)).to.equal(0);
       expect(subSpy).to.not.have.been.called();
@@ -302,14 +302,14 @@ describe('wamp-realm', function() {
 
     it('PUBLISH default exclude_me:true', function () {
       var subSpy = chai.spy(function () {});
-      api.substopic('topic1', subSpy);
+      api.subscribe('topic1', subSpy);
       api.publish('topic1', [], {});
       expect(subSpy).to.not.have.been.called();
     });
 
     it('PUBLISH exclude_me:false', function () {
       var subSpy = chai.spy(function () {});
-      api.substopic('topic1', subSpy);
+      api.subscribe('topic1', subSpy);
       api.publish('topic1', [], {}, {exclude_me:false});
       expect(subSpy).to.have.been.called.once();
     });
@@ -318,7 +318,7 @@ describe('wamp-realm', function() {
       var subSpy = chai.spy(function (a,b,c,d) {
 //        console.log('Publish Event', a,b,c,d);
       });
-      api.substopic('topic1.*.item', subSpy);
+      api.subscribe('topic1.*.item', subSpy);
       api.publish('topic1.123.item', [], {}, {exclude_me:false});
       expect(subSpy).to.have.been.called.once();
     });
@@ -357,7 +357,7 @@ describe('wamp-realm', function() {
           expect(kwargs).to.deep.equal({foo:'bar'});
         }
       );
-      var subId = api.substopic('topic1', subSpy);
+      var subId = api.subscribe('topic1', subSpy);
 
       sender.send = chai.spy(
         function (msg, callback) {
@@ -371,14 +371,14 @@ describe('wamp-realm', function() {
       expect(sender.send, 'published').to.have.been.called.once();
 
       expect(subSpy, 'publication done').to.have.been.called.twice;
-      expect(api.unsubstopic(subId)).to.equal('topic1');
+      expect(api.unsubscribe(subId)).to.equal('topic1');
     });
   });
 
   describe('STORAGE', function() {
     it('retain-get', function (done) {
       var subSpy = chai.spy(function () {});
-      api.substopic('topic1', subSpy);
+      api.subscribe('topic1', subSpy);
       api.publish('topic1', [], {data:'retain-the-value'}, {retain:100});
       api.publish('topic1', [], {data:'the-value-does-not-retain'});
 

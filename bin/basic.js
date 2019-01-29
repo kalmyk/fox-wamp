@@ -21,7 +21,7 @@ app.on(MSG.REALM_CREATED, function (realm, realmName) {
 
 app.getRealm('realm1', function (realm) {
     var api = realm.api();
-    api.regrpc('test.foo', function(id, args, kwargs) {
+    api.register('test.foo', function(id, args, kwargs) {
         console.log('called with ', args, kwargs);
         api.resrpc(id, null /* no error */, ["bar", "bar2"], {"key1": "bar1", "key2": "bar2"});
     });
