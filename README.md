@@ -84,22 +84,30 @@ publish('the.key', ['args'], {kwArgs:false}, {
 
 ### Aggregate Engine for the data streams
 
-What if to define table structure with aggregation functions along?
-
-The functionality aimed to provide rapid access to continuously changed
-data to the web application.
-
-The idea is to have definitions of cross table relations and calculation rules in one place. 
-Such table scheme could easy listen to the events stream and do changes 
-in the related tables accordingly.
-
-The changes in tables could be transformed and
-propagated as same events to the another aggregation tables
-where it could be mixed with another sources.
-Aggregate engine provides data change events for the subscribed clients.
-
-In general the idea looks like materialized view that is based on event stream.
-
+<p>
+    What if to define table structure with aggregation functions in the same information schema?
+</p>
+<p>
+    The idea is to have definitions of cross table relations and calculation rules in one place. 
+    Such table scheme could easy listen to the events stream and do changes
+    in the related tables accordingly.
+</p>
+<p>
+    The functionality aimed to provide rapid access to continuously changed
+    data to the modern web application.
+</p>
+<p>
+    The changes in tables could be transformed and
+    propagated as same events to the another aggregation tables 
+    where it could be mixed with another sources.
+    Aggregate engine provides data change events for the subscribed clients.
+    In the same way standard web queue could subscribe to such the aggregated
+    event sources.
+</p>
+<p>
+    In general the idea looks like materialized view that is gathered on event stream.
+    The information schema provides ability to validate incoming messages against the schema.
+</p>
 
 ```javascript
     "invoice": {

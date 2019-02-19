@@ -1,6 +1,6 @@
 {
   "name": "fox-wamp",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "description": "V2 Message Router, Basic WebSocket Application Messaging Protocol (WAMP/MQTT)",
   "author": {
     "name": "Anatoly Tsapkov",
@@ -21,20 +21,25 @@
     "message",
     "mq",
     "broker",
-    "router"
+    "router",
+    "socket",
+    "subscribe"
   ],
   "dependencies": {
     "commander": "^2.19.0",
+    "jsonschema": "^1.2.4",
     "mqtt-packet": "*",
     "node-statsd": "*",
     "qlobber": "*",
-    "ws": "^6.1.2"
+    "ws": "^6.1.4"
   },
   "devDependencies": {
     "autobahn": "^18.10.2",
     "chai": "^4.2.0",
     "chai-as-promised": "*",
     "chai-spies": "*",
+    "eslint": "^5.14.1",
+    "eslint-plugin-mocha": "^5.3.0",
     "randombytes": "^2.0.6"
   },
   "main": "lib/fox-wamp",
@@ -43,7 +48,7 @@
   },
   "scripts": {
     "mocha-node-test": "mocha",
-    "lint": "jshint lib/*.js test/*.js ext/*.js",
+    "lint": "eslint --ignore-path .gitignore .",
     "test": "npm run-script lint && npm run-script mocha-node-test"
   }
 }

@@ -1,42 +1,43 @@
-/*jshint node: true */
-'use strict';
+'use strict'
 
-var
-  MSG = require('../lib/messages');
+const MSG = require('../lib/messages')
 
-function registerHandlers(router) {
-
+function registerHandlers (router) {
   router.on(MSG.REALM_CREATED, function (realm, realmName) {
-    var api = realm.api();
+    var api = realm.api()
 
     api.register('wamp.session.count', function (id, args, kwargs) {
-      api.resrpc(id, null /* no error */, [realm.getSessionCount()]);
-    });
+      api.resrpc(id, null /* no error */, [realm.getSessionCount()])
+    })
 
     api.register('wamp.session.list', function (id, args, kwargs) {
-      api.resrpc(id, null /* no error */, [realm.getSessionIds()]);
-    });
+      api.resrpc(id, null /* no error */, [realm.getSessionIds()])
+    })
 
     api.register('wamp.session.get', function (id, args, kwargs) {
-      if (args instanceof Array && args[0] && typeof args[0] == "number") {
-        api.resrpc(id, null /* no error */, [realm.getSessionInfo(args[0])]);
+      if (args instanceof Array && args[0] && typeof args[0] === 'number') {
+        api.resrpc(id, null /* no error */, [realm.getSessionInfo(args[0])])
+      } else {
+        api.resrpc(id, 'unable to get session id')
       }
-      else {
-        api.resrpc(id, 'unable to get session id');
-      }
-    });
-  });
+    })
+  })
 
   router.on(MSG.SESSION_JOIN, function (realm, session) {
     var sessionData = {
-      session: session.sessionId
-    };
-    realm.api().publish('wamp.session.on_join', [], sessionData);
-  });
+      session: session.sessionId,
+      authmethod: session.authmethod,
+      transport: {
+        protocol: session.getGateProtocol()
+      }
+    }
+    realm.api().publish('wamp.session.on_join', [], sessionData)
+  })
 
   router.on(MSG.SESSION_LEAVE, function (realm, session) {
-    realm.api().publish('wamp.session.on_leave', [session.sessionId]);
-  });
+    realm.api().publish('wamp.session.on_leave', [session.sessionId])
+  })
+}
 
 /*
 
@@ -65,6 +66,4 @@ wamp.session.get, [ 43749572799123 ] =>
      type: 'websocket' } }
 */
 
-}
-
-exports.registerHandlers = registerHandlers;
+exports.registerHandlers = registerHandlers

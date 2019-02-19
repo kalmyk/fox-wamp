@@ -1,15 +1,15 @@
-'use strict';
+'use strict'
 
-var
-    chai     = require('chai'),
-    spies    = require('chai-spies'),
-    expect   = chai.expect,
-    Realm    = require('../lib/realm').Realm,
-    MqttGate = require('../lib/mqtt/gate'),
-    Session  = require('../lib/session'),
-    Router   = require('../lib/router');
+const
+  chai     = require('chai'),
+  spies    = require('chai-spies'),
+  expect   = chai.expect,
+  Realm    = require('../lib/realm').Realm,
+  MqttGate = require('../lib/mqtt/gate'),
+  Session  = require('../lib/session'),
+  Router   = require('../lib/router')
 
-chai.use(spies);
+chai.use(spies)
 
 describe('mqtt-realm', function() {
   var

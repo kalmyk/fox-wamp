@@ -1,53 +1,49 @@
-/*jshint mocha: true */
-/*jshint node: true */
-/*jshint expr: true */
-/*jshint esversion: 6 */
-'use strict';
+'use strict'
 
 var
-    chai     = require('chai'),
-    spies    = require('chai-spies'),
-    expect   = chai.expect,
-    WAMP     = require('../lib/wamp/protocol'),
-    Realm    = require('../lib/realm').Realm,
-    WampGate = require('../lib/wamp/gate'),
-    Session  = require('../lib/session'),
-    Router   = require('../lib/router');
+  chai     = require('chai'),
+  spies    = require('chai-spies'),
+  expect   = chai.expect,
+  WAMP     = require('../lib/wamp/protocol'),
+  Realm    = require('../lib/realm').Realm,
+  WampGate = require('../lib/wamp/gate'),
+  Session  = require('../lib/session'),
+  Router   = require('../lib/router')
 
 chai.use(spies);
 
 describe('wamp-realm', function() {
-  var
+  let
     router,
     gate,
     realm,
     sender,
     cli,
-    api;
+    api
 
   beforeEach(function(){
-    sender = {};
-    router = new Router();
-    realm = new Realm(router);
-    api = realm.api();
+    sender = {}
+    router = new Router()
+    realm = new Realm(router)
+    api = realm.api()
 
-    gate = new WampGate.WampHandler(router, new WampGate.WampEncoder());
-    cli = new Session(gate.getEncoder(), sender, gate.makeSessionId());
-    realm.joinSession(cli);
-    cli.realm = realm;
-  });
+    gate = new WampGate.WampHandler(router, new WampGate.WampEncoder())
+    cli = new Session(gate.getEncoder(), sender, gate.makeSessionId())
+    realm.joinSession(cli)
+    cli.realm = realm
+  })
 
   afterEach(function(){
-  });
+  })
 
   it('empty cleanup', function () {
-    realm.cleanupSession(api);
-  });
+    realm.cleanupSession(api)
+  })
 
   it('session-list', function () {
-    let result = realm.getSessionIds();
-    expect(result).to.be.an('array').that.is.not.empty;
-  });
+    let result = realm.getSessionIds()
+    expect(result).to.be.an('array').that.is.not.empty
+  })
 
   describe('RPC', function() {
     it('CALL to RPC not exist', function () {
@@ -403,7 +399,7 @@ describe('wamp-realm', function() {
     });
 
     it('retain-weak', function () {
-      gate.handle(cli, [WAMP.PUBLISH, 1234, {retain:0, weak:'public'}, "topic2", ['arg.1','arg.2'],{}]);
+      gate.handle(cli, [WAMP.PUBLISH, 1234, {retain:0, weak:'public'}, 'topic2', ['arg.1','arg.2'],{}])
 //      console.log('key', realm.getKey('topic2'));
       realm.cleanupSession(cli);
 //      console.log('key', realm.getKey('topic2'));

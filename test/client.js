@@ -1,24 +1,21 @@
-/*jshint mocha: true */
-/*jshint node: true */
-/*jshint expr: true */
-'use strict';
+'use strict'
 
-var
+const
   chai   = require('chai'),
   spies  = require('chai-spies'),
   expect = chai.expect,
   assert = chai.assert,
   {RESULT_OK, RESULT_ACK, RESULT_EMIT, REQUEST_EVENT} = require('../lib/messages'),
   ClientBase = require('../lib/hyper/clientBase'),
-  QueueClient = require('../lib/hyper/queueClient');
+  QueueClient = require('../lib/hyper/queueClient')
 
-chai.use(spies);
+chai.use(spies)
 
 describe('clent', function() {
   var
     sender,
     client,
-    expectCommand;
+    expectCommand
 
   beforeEach(function(){
     sender = {};
