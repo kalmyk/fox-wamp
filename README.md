@@ -61,6 +61,13 @@ let httpsServer = https.createServer({
 router.listenWAMP({server: httpsServer, path: "/wss"})
 ```
 
+## Demo Application
+Such kind of event dispatchers are better integrate with event driven
+frontend frameworks such as React JS. Here is chat application that
+includes frontend part on React JS and backend server on Fox-WAMP.
+
+https://github.com/kalmyk/reflux-chat
+
 ## The Roadmap
 It is good to have some storage to keep last published message. The server
 has to maintain persistence of keys and provide the value as immediate first
