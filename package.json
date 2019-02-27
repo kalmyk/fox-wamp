@@ -1,15 +1,11 @@
 {
   "name": "fox-wamp",
-  "version": "0.5.9",
-  "description": "V2 Message Router, Basic WebSocket Application Messaging Protocol (WAMP/MQTT)",
+  "version": "0.5.10",
+  "description": "Web Application Message Router/Server WAMP/MQTT",
   "author": {
     "name": "Anatoly Tsapkov",
     "email": "anatoly.tsapkov@gmail.com"
   },
-  "contributors": [
-    "Dominique ALOË <daloe.ext@orange.com>",
-    "David Corvoysier <david.corvoysier@orange.com>"
-  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/kalmyk/fox-wamp.git"
@@ -40,11 +36,11 @@
     "chai-spies": "*",
     "eslint": "^5.14.1",
     "eslint-plugin-mocha": "^5.3.0",
-    "randombytes": "^2.0.6"
+    "randombytes": "^2.1.0"
   },
-  "main": "lib/fox-wamp",
+  "main": "index.js",
   "engines": {
-    "node": ">=0.10.0"
+    "node": ">=6.0.0"
   },
   "scripts": {
     "mocha-node-test": "mocha",

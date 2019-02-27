@@ -12,7 +12,7 @@ var
 
 chai.use(spies);
 
-describe('wamp-realm', function() {
+describe('wamp-realm', function () {
   let
     router,
     gate,
@@ -21,7 +21,7 @@ describe('wamp-realm', function() {
     cli,
     api
 
-  beforeEach(function(){
+  beforeEach(function () {
     sender = {}
     router = new Router()
     realm = new Realm(router)
@@ -33,7 +33,7 @@ describe('wamp-realm', function() {
     cli.realm = realm
   })
 
-  afterEach(function(){
+  afterEach(function () {
   })
 
   it('empty cleanup', function () {
@@ -45,7 +45,7 @@ describe('wamp-realm', function() {
     expect(result).to.be.an('array').that.is.not.empty
   })
 
-  describe('RPC', function() {
+  describe('RPC', function () {
     it('CALL to RPC not exist', function () {
       sender.send = chai.spy(
         function (msg, callback) {
@@ -61,7 +61,7 @@ describe('wamp-realm', function() {
     });
 
     it('cleanup RPC API', function () {
-      var procSpy = chai.spy(function() {});
+      var procSpy = chai.spy(function () {})
       api.register('func1', procSpy);
       expect(api.cleanupReg(realm.rpc)).to.equal(1);
       expect(api.cleanupReg(realm.rpc)).to.equal(0);

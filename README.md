@@ -1,6 +1,6 @@
 # FOX-WAMP is a The Web Application Message Server
 
-The project goal is to provide durable message source for the actual web applications.
+The Web Application Message Server goal is to provide durable message source for the actual web applications.
 
 Message router has pluggable interface to the several message protocols. As for now it could interact by
 * [WAMP V2 Basic Profile](http://wamp-proto.org/)
@@ -43,11 +43,11 @@ router.listenWAMP({server: httpServer, path: "/wss"})
 
 and correspondingly the web socket client connection will look like as
 ```javascript
-var autobahn = require('autobahn');
+var autobahn = require('autobahn')
 let connection = new autobahn.Connection({
     url: 'ws:localhost:5000/wss',
     realm: 'realm1'
-});
+})
 ```
 
 ## Secure connection to the router
@@ -57,7 +57,7 @@ const https    = require('https')
 let httpsServer = https.createServer({
     key: fs.readFileSync(__dirname + '/config/server.key'),
     cert: fs.readFileSync(__dirname + '/config/server.crt')
-});
+})
 router.listenWAMP({server: httpsServer, path: "/wss"})
 ```
 
@@ -74,12 +74,12 @@ has to maintain persistence of keys and provide the value as immediate first
 message for the subscription. And here what could be implemented
 
 ```javascript
-publish('the.key', ['args'], {kwArgs:false}, {
+publish('the.key', [ 'args' ], { kwArgs: false }, {
     retain: 100,
     weak: 'public',
-    when: {status:'started'},
+    when: { status: 'started' },
     watch: false
-  });
+  })
 ```
 
 ### Options Description
@@ -124,11 +124,11 @@ publish('the.key', ['args'], {kwArgs:false}, {
             "customer": { "type": "string" },
             "amount": { "type": "string" }
         },
-        "primary_key":["date", "customer"],
+        "primary_key":[ "date", "customer" ],
         "propagate":{
             "detail":[{
-                "key":["customer"],
-                "fields":{"total":"amount"}
+                "key": [ "customer" ],
+                "fields": { "total": "amount" }
             }]
         }
     },
@@ -139,8 +139,8 @@ publish('the.key', ['args'], {kwArgs:false}, {
             "customer": { "type": "string" },
             "total": { "type": "string" }
         },
-        "primary_key":["customer"],
-        "sum":["amount"]
+        "primary_key": [ "customer" ],
+        "sum": [ "amount" ]
     }
 ```
 
