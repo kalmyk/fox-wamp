@@ -1,6 +1,6 @@
 {
   "name": "fox-wamp",
-  "version": "0.5.10",
+  "version": "0.5.11",
   "description": "Web Application Message Router/Server WAMP/MQTT",
   "author": {
     "name": "Anatoly Tsapkov",
@@ -34,9 +34,8 @@
     "chai": "^4.2.0",
     "chai-as-promised": "*",
     "chai-spies": "*",
-    "eslint": "^5.14.1",
-    "eslint-plugin-mocha": "^5.3.0",
-    "randombytes": "^2.1.0"
+    "eslint": "^5.15.1",
+    "eslint-plugin-mocha": "^5.3.0"
   },
   "main": "index.js",
   "engines": {

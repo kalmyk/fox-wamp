@@ -43,7 +43,7 @@ router.listenWAMP({server: httpServer, path: "/wss"})
 
 and correspondingly the web socket client connection will look like as
 ```javascript
-var autobahn = require('autobahn')
+let autobahn = require('autobahn')
 let connection = new autobahn.Connection({
     url: 'ws:localhost:5000/wss',
     realm: 'realm1'
