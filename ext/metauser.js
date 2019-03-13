@@ -4,7 +4,7 @@ const MSG = require('../lib/messages')
 
 function registerHandlers (router) {
   router.on(MSG.REALM_CREATED, function (realm, realmName) {
-    var api = realm.api()
+    var api = realm.wampApi()
 
     api.register('wamp.session.count', function (id, args, kwargs) {
       api.resrpc(id, null /* no error */, [realm.getSessionCount()])
@@ -31,11 +31,11 @@ function registerHandlers (router) {
         protocol: session.getGateProtocol()
       }
     }
-    realm.api().publish('wamp.session.on_join', [], sessionData)
+    realm.wampApi().publish('wamp.session.on_join', [], sessionData)
   })
 
   router.on(MSG.SESSION_LEAVE, function (realm, session) {
-    realm.api().publish('wamp.session.on_leave', [session.sessionId])
+    realm.wampApi().publish('wamp.session.on_leave', [session.sessionId])
   })
 }
 

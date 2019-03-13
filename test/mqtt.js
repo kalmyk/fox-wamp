@@ -24,7 +24,7 @@ describe('mqtt-realm', function() {
     sender = {};
     router = new Router();
     realm = new Realm(router);
-    api = realm.api();
+    api = realm.wampApi();
 
     gate = new MqttGate(router);
     cli = new Session(gate, sender, gate.makeSessionId());

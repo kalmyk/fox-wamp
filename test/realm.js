@@ -25,7 +25,7 @@ describe('wamp-realm', function () {
     sender = {}
     router = new Router()
     realm = new Realm(router)
-    api = realm.api()
+    api = realm.wampApi()
 
     gate = new WampGate.WampHandler(router, new WampGate.WampEncoder())
     cli = new Session(gate.getEncoder(), sender, gate.makeSessionId())
