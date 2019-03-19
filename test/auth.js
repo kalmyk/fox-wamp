@@ -1,42 +1,41 @@
 'use strict'
 
-const
-  chai      = require('chai'),
-  spies     = require('chai-spies'),
-  expect    = chai.expect,
-  WAMP      = require('../lib/wamp/protocol'),
-  WampGate  = require('../lib/wamp/gate'),
-  Session   = require('../lib/session'),
-  FoxRouter = require('../lib/fox_router')
+const chai      = require('chai')
+const spies     = require('chai-spies')
+const expect    = chai.expect
+const WAMP      = require('../lib/wamp/protocol')
+const WampGate  = require('../lib/wamp/gate')
+const Session   = require('../lib/session')
+const FoxRouter = require('../lib/fox_router')
 
 chai.use(spies)
 
 const Auth = function () {
-
   this.authenticate = function (realmName, secureDetails, secret, callback) {
-    if (realmName+'-'+secureDetails.authid+'-secret' === secret)
+    if (realmName + '-' + secureDetails.authid + '-secret' === secret) {
       callback()
-    else
+    } else {
       callback('authorization_failed')
+    }
   }
-
 }
 
-describe('wamp-authenticate', function() {
-
+describe('wamp-authenticate', function () {
   let
     router,
     gate,
     sender,
-    cli
+    cli,
+    ctx
 
   beforeEach(function () {
     sender = {}
     router = new FoxRouter()
-    gate   = new WampGate.WampHandler(router, new WampGate.WampEncoder())
+    gate = new WampGate.WampHandler(router, new WampGate.WampEncoder())
     gate.setAuthHandler(new Auth())
 
-    cli = new Session(gate.getEncoder(), sender, gate.makeSessionId())
+    ctx = router.newContext()
+    cli = router.newSession(gate, sender)
   })
 
   afterEach(function () {
@@ -49,16 +48,16 @@ describe('wamp-authenticate', function() {
         expect(msg[1]).to.equal('ticket')
       }
     )
-    gate.handle(cli, [WAMP.HELLO, 'test', {authid: 'joe', authmethods:['ticket']}])
+    cli.handle(ctx, [ WAMP.HELLO, 'test', { authid: 'joe', authmethods: [ 'ticket' ] } ])
     expect(sender.send).to.have.been.called.once()
 
     sender.send = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.ABORT)
-//        callback()
+        // callback()
       }
     )
-    gate.handle(cli, [WAMP.AUTHENTICATE, 'incorrect-secret'])
+    cli.handle(ctx, [WAMP.AUTHENTICATE, 'incorrect-secret'])
     expect(sender.send).to.have.been.called.once()
   })
 
@@ -69,7 +68,7 @@ describe('wamp-authenticate', function() {
         expect(msg[1]).to.equal('ticket')
       }
     )
-    gate.handle(cli, [WAMP.HELLO, 'test', {authid: 'joe', authmethods:['ticket']}])
+    cli.handle(ctx, [WAMP.HELLO, 'test', {authid: 'joe', authmethods:['ticket']}])
     expect(sender.send).to.have.been.called.once()
 
     sender.send = chai.spy(
@@ -80,8 +79,7 @@ describe('wamp-authenticate', function() {
         expect(msg[2].authmethod).to.equal('ticket')
       }
     )
-    gate.handle(cli, [WAMP.AUTHENTICATE, 'test-joe-secret'])
+    cli.handle(ctx, [WAMP.AUTHENTICATE, 'test-joe-secret'])
     expect(sender.send).to.have.been.called.once()
   })
-
 })

@@ -1,59 +1,60 @@
-'use strict';
+'use strict'
 
-var
-  chai     = require('chai'),
-  expect   = chai.expect,
-  assert   = chai.assert,
-  promised = require('chai-as-promised'),
-  MemTransport  = require('../lib/hyper/mem_transport'),
-  ServerSession = require('../lib/session'),
-  QueueClient   = require('../lib/hyper/queueClient'),
-  FoxGate       = require("../lib/hyper/gate"),
-  Realm         = require("../lib/realm").Realm,
-  Router        = require('../lib/router');
+const chai = require('chai')
+const expect = chai.expect
+const assert = chai.assert
+const promised = require('chai-as-promised')
 
-chai.use(promised);
+const MemTransport = require('../lib/hyper/mem_transport')
+const QueueClient  = require('../lib/hyper/queueClient')
+const FoxGate      = require('../lib/hyper/gate')
+const Realm        = require('../lib/realm').Realm
+const Router       = require('../lib/router')
 
-describe('pub-worker', function() {
+chai.use(promised)
+
+describe('pub-worker', function () {
   let
+    memServer,
     router,
     gate,
     realm,
     client,
     worker;
 
-  function connect(realm, gate, id) {
-    let result = new QueueClient.QueueClient();
-    let serverSession = new ServerSession(gate, new MemTransport.Sender(result), id);
-    result.sender = new MemTransport.Sender(serverSession);
-    serverSession.realm = realm;
-    realm.joinSession(serverSession);
-    return result;
+  function connect (realm, gate) {
+    let result = new QueueClient.QueueClient()
+    let serverSession = router.newSession(gate, new MemTransport.Sender(memServer, result))
+    result.sender = new MemTransport.Sender(memServer, serverSession)
+    serverSession.realm = realm
+    realm.joinSession(serverSession)
+    return result
   }
 
-  beforeEach(function(){
-    router = new Router();
-    realm = new Realm(router);
-    gate = new FoxGate(router);
-    client = connect(realm, gate, gate.makeSessionId());
-    worker = connect(realm, gate, gate.makeSessionId());
-  });
+  beforeEach(function () {
+    router = new Router()
+    memServer = new MemTransport.Server(router)
+    realm = new Realm(router)
+    gate = new FoxGate(router)
+    client = connect(realm, gate)
+    worker = connect(realm, gate)
+  })
 
-  afterEach(function(){
-    router = null;
-    gate = null;
-    realm = null;
-    client = null;
-    worker = null;
-  });
+  afterEach(function () {
+    router = null
+    gate = null
+    realm = null
+    client = null
+    worker = null
+  })
 
   it('echo should return OK with sent data', function (done) {
     assert.becomes(
       client.echo('test'),
       'test',
       'echo done'
-    ).notify(done);
-  });
+    ).notify(done)
+  })
 
   it('call to not existed function has to be failed', function (done) {
     assert.isRejected(

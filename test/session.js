@@ -1,33 +1,34 @@
 'use strict'
 
-let
-  chai      = require('chai'),
-  spies     = require('chai-spies'),
-  expect    = chai.expect,
-  WAMP      = require('../lib/wamp/protocol'),
-  WampGate  = require('../lib/wamp/gate'),
-  Session   = require('../lib/session'),
-  FoxRouter = require('../lib/fox_router')
+const chai = require('chai')
+const spies = require('chai-spies')
+const expect = chai.expect
+
+const WAMP      = require('../lib/wamp/protocol')
+const WampGate  = require('../lib/wamp/gate')
+const FoxRouter = require('../lib/fox_router')
 
 chai.use(spies)
 
-describe('wamp-session', function() {
+describe('wamp-session', function () {
   var
     sessionId,
     router,
     gate,
     sender,
+    ctx,
     cli
 
-  beforeEach(function(){
+  beforeEach(function () {
     sender = {}
     router = new FoxRouter()
     gate = new WampGate.WampHandler(router, new WampGate.WampEncoder())
-    sessionId = gate.makeSessionId()
-    cli = new Session(gate.getEncoder(), sender, sessionId)
+    ctx = router.newContext()
+    cli = router.newSession(gate, sender)
+    sessionId = cli.sessionId
   })
 
-  afterEach(function(){
+  afterEach(function () {
   })
 
   it('HELLO/WELCOME', function () {
@@ -38,13 +39,13 @@ describe('wamp-session', function() {
         // console.log(msg[2].roles)
       }
     )
-    gate.handle(cli, [WAMP.HELLO, 'test', {}])
+    cli.handle(ctx, [WAMP.HELLO, 'test', {}])
     expect(sender.send).to.have.been.called.once()
 
     // second hello command raises error and disconnects the user
     sender.send = chai.spy(function (msg, callback) {})
     sender.close = chai.spy(function (error, reason) {})
-    gate.handle(cli, [WAMP.HELLO, 'test', {}])
+    cli.handle(ctx, [WAMP.HELLO, 'test', {}])
     expect(sender.send).to.not.have.been.called()
     expect(sender.close).to.have.been.called.once()
   })
@@ -59,10 +60,10 @@ describe('wamp-session', function() {
     sender.close = chai.spy(
       function (error) {}
     )
-    gate.handle(cli, [WAMP.GOODBYE])
+    cli.handle(ctx, [WAMP.GOODBYE])
     expect(sender.send).to.have.been.called.once()
     expect(sender.close).to.have.been.called.once()
-  });
+  })
 
   it('CALL to no realm RPC', function () {
     sender.send = chai.spy(
@@ -73,9 +74,9 @@ describe('wamp-session', function() {
         expect(msg[4]).to.equal('wamp.error.not_authorized')
       }
     )
-    gate.handle(cli, [WAMP.CALL, 1234, {}, 'any.function.name', []])
+    cli.handle(ctx, [WAMP.CALL, 1234, {}, 'any.function.name', []])
     expect(sender.send).to.have.been.called.once()
-  });
+  })
 
   it('REGISTER to no realm', function () {
     sender.send = chai.spy(
@@ -86,7 +87,7 @@ describe('wamp-session', function() {
         expect(msg[4]).to.equal('wamp.error.not_authorized')
       }
     )
-    gate.handle(cli, [WAMP.REGISTER, 1234, {}, 'func1'])
+    cli.handle(ctx, [WAMP.REGISTER, 1234, {}, 'func1'])
     expect(sender.send, 'registration failed').to.have.been.called.once()
   })
 })
