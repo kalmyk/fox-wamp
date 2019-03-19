@@ -48,6 +48,13 @@ describe('wamp-session', function () {
     cli.handle(ctx, [WAMP.HELLO, 'test', {}])
     expect(sender.send).to.not.have.been.called()
     expect(sender.close).to.have.been.called.once()
+
+    // wamp session unlimited task count
+    expect(cli.isAble()).to.equal(true)
+    cli.taskRequested()
+    cli.taskRequested()
+    cli.taskRequested()
+    expect(cli.isAble()).to.equal(true)
   })
 
   it('GOODBYE', function () {
