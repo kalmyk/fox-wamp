@@ -25,8 +25,8 @@ describe('hyper-broker', function () {
     router = new Router()
     realm = new Realm(router)
     gate = new FoxGate(router)
-    ctx = router.newContext()
-    session = router.newSession(gate, sender)
+    ctx = router.createContext()
+    session = router.createSession(gate, sender)
     realm.joinSession(session)
   })
 
@@ -117,7 +117,8 @@ describe('hyper-broker', function () {
     session.handle(ctx, {
       ft: 'REG',
       uri: 'testQ',
-      id: idSub
+      id: idSub,
+      opt: {}
     })
 
     session.handle(ctx, {

@@ -28,8 +28,8 @@ describe('wamp-realm', function () {
     api = realm.wampApi()
 
     gate = new WampGate.WampHandler(router, new WampGate.WampEncoder())
-    ctx = router.newContext()
-    cli = router.newSession(gate, sender)
+    ctx = router.createContext()
+    cli = router.createSession(gate, sender)
     realm.joinSession(cli)
   })
 
@@ -204,6 +204,30 @@ describe('wamp-realm', function () {
       expect(callSpy, 'error delivered').to.have.been.called.once()
     })
 
+    it('CALL-set-concurrency', function () {
+      sender.send = function () {}
+      cli.handle(ctx, [WAMP.REGISTER, 1234, { concurrency: 2 }, 'func1'])
+
+      sender.send = chai.spy((msg, callback) => {})
+      api.callrpc('func1', [], {})
+      api.callrpc('func1', [], {})
+      api.callrpc('func1', [], {})
+
+      expect(sender.send).to.have.been.called.twice()
+    })
+
+    it('CALL-concurrency-unlimited', function () {
+      sender.send = function () {}
+      cli.handle(ctx, [WAMP.REGISTER, 1234, {}, 'func1'])
+
+      sender.send = chai.spy((msg, callback) => {})
+      api.callrpc('func1', [], {})
+      api.callrpc('func1', [], {})
+      api.callrpc('func1', [], {})
+
+      expect(sender.send).to.have.been.called.exactly(3)
+    })
+
     it('progress-remote-CALL', function () {
       sender.send = function (msg, callback) {}
       cli.handle(ctx, [WAMP.REGISTER, 1234, {}, 'func1'])
@@ -220,7 +244,7 @@ describe('wamp-realm', function () {
       let result
       let options
       let callResponse = chai.spy(function (err, args, kwargs, opt) {
-        expect(err).to.be.undefined
+        expect(err).to.equal(undefined)
         expect(args).to.deep.equal(result)
         expect(opt).to.deep.equal(options)
       })

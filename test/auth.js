@@ -34,8 +34,8 @@ describe('wamp-authenticate', function () {
     gate = new WampGate.WampHandler(router, new WampGate.WampEncoder())
     gate.setAuthHandler(new Auth())
 
-    ctx = router.newContext()
-    cli = router.newSession(gate, sender)
+    ctx = router.createContext()
+    cli = router.createSession(gate, sender)
   })
 
   afterEach(function () {

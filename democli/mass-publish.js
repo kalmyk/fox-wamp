@@ -3,17 +3,17 @@ const autobahn = require('autobahn')
 const program = require('commander')
 
 program
-.option('-s, --server <server>', 'Server URI address', 'ws://127.0.0.1:9000/wamp')
-.parse(process.argv)
+  .option('-s, --server <server>', 'Server URI address', 'ws://127.0.0.1:9000/wamp')
+  .parse(process.argv)
 
 console.log('connect to server:', program.server)
 
-var user = "joe"
-var key = "joe-secret"
+var user = 'joe'
+var key = 'joe-secret'
 
 // this callback is fired during authentication
 function onchallenge (session, method, extra) {
-  if (method === "ticket") {
+  if (method === 'ticket') {
     return key
   } else {
     throw "don't know how to authenticate using '" + method + "'"
@@ -23,8 +23,9 @@ function onchallenge (session, method, extra) {
 var connection = new autobahn.Connection({
   url: program.server,
   realm: 'realm1',
-  authmethods: ["ticket", "wampcra"],
+  authmethods: ['ticket', 'wampcra'],
   authid: user,
+  tlsConfiguration: {},
   onchallenge: onchallenge
 })
 

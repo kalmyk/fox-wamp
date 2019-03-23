@@ -25,6 +25,7 @@ let connection = new autobahn.Connection({
   realm: 'realm1',
   authmethods: ['ticket', 'wampcra'],
   authid: user,
+  tlsConfiguration: {},
   onchallenge: onchallenge
 })
 

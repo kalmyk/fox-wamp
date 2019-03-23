@@ -23,8 +23,8 @@ describe('wamp-session', function () {
     sender = {}
     router = new FoxRouter()
     gate = new WampGate.WampHandler(router, new WampGate.WampEncoder())
-    ctx = router.newContext()
-    cli = router.newSession(gate, sender)
+    ctx = router.createContext()
+    cli = router.createSession(gate, sender)
     sessionId = cli.sessionId
   })
 
@@ -44,17 +44,10 @@ describe('wamp-session', function () {
 
     // second hello command raises error and disconnects the user
     sender.send = chai.spy(function (msg, callback) {})
-    sender.close = chai.spy(function (error, reason) {})
+    sender.close = chai.spy(function (errObj, reason) {})
     cli.handle(ctx, [WAMP.HELLO, 'test', {}])
     expect(sender.send).to.not.have.been.called()
     expect(sender.close).to.have.been.called.once()
-
-    // wamp session unlimited task count
-    expect(cli.isAble()).to.equal(true)
-    cli.taskRequested()
-    cli.taskRequested()
-    cli.taskRequested()
-    expect(cli.isAble()).to.equal(true)
   })
 
   it('GOODBYE', function () {

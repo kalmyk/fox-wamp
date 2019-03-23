@@ -24,9 +24,8 @@ describe('pub-worker', function () {
 
   function connect (realm, gate) {
     let result = new QueueClient.QueueClient()
-    let serverSession = router.newSession(gate, new MemTransport.Sender(memServer, result))
+    let serverSession = router.createSession(gate, new MemTransport.Sender(memServer, result))
     result.sender = new MemTransport.Sender(memServer, serverSession)
-    serverSession.realm = realm
     realm.joinSession(serverSession)
     return result
   }
@@ -68,8 +67,8 @@ describe('pub-worker', function () {
     worker.register(
       'test.func', function(args, task) {
         expect(task.getUri()).to.equal('test.func');
-        expect(args).to.deep.equal({attr1:1, attr2:2});
-        task.resolve({result:'done'});
+        expect(args).to.deep.equal({attr1:1, attr2:2})
+        task.resolve({result:'done'})
     }).then(
       function(result) {
         return assert.becomes(
@@ -150,20 +149,20 @@ describe('pub-worker', function () {
   it('omit-tasks-of-terminated-sessions', function (done) {
     worker.register(
       'func1', function (args, task) {
-        task.resolve('any-result');
-        client.close();
+        task.resolve('any-result')
+        client.close()
       }
-    ).then(function(registration){
+    ).then(function (registration) {
       client.call('func1', 'call-1').then(() => {
-        expect(realm.rpc.getPendingTaskCount()).to.equal(0);
-        done();
-      });
+        expect(realm.rpc.getPendingTaskCount()).to.equal(0)
+        done()
+      })
       client.call('func1', 'call-2').then(() => {
-        done();
-      });
-      client.call('func1', 'call-3');
-    });
-  });
+        done()
+      })
+      client.call('func1', 'call-3')
+    })
+  })
 
   it('trace-push-untrace', function () {
     let regTrace;

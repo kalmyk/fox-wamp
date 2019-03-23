@@ -27,8 +27,8 @@ describe('mqtt-realm', function () {
     api = realm.wampApi()
 
     gate = new MqttGate(router)
-    ctx = router.newContext()
-    cli = router.newSession(gate, sender)
+    ctx = router.createContext()
+    cli = router.createSession(gate, sender)
     realm.joinSession(cli)
     cli.realm = realm
   })
