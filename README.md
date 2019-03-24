@@ -147,6 +147,9 @@ publish('the.key', [ 'args' ], { kwArgs: false }, {
 Take a look for more use cases at http://jeta.host/
 
 ## Changes:
+2019-03-22
+- WAMP registration option.concurrency supported.
+
 2018-07-19
 - MQTT gate added. Functionality allows to subscribe to the MQTT messages.
 
