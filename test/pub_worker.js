@@ -166,28 +166,32 @@ describe('pub-worker', function () {
 
   it('trace-push-untrace', function () {
     let regTrace;
-    let traceSpy = chai.spy(function (data, task) {
-      expect(task.getUri()).to.equal('customer');
-      task.resolve(null);
-    });
+    let traceSpy = chai.spy((data, task) => {
+      expect(task.getUri()).to.equal('customer')
+      task.resolve(null)
+    })
+
     return worker.trace('customer', traceSpy, {someOpt:987}).
       then((trace) => {
-          regTrace = trace;
-        }).
+          regTrace = trace
+      }).
       then(() => {
         return assert.becomes(
           client.push('customer', {data1:'value1', data2:'value2'}),
           undefined,
           'push done'
-        );}).
+        )
+      }).
       then(() => {
-        expect(traceSpy).to.have.been.called.once();
         return assert.becomes(
           worker.unTrace(regTrace),
           undefined,
           'unTrace done'
-        );
-      });
-  });
+        )
+      }).
+      then(() => {
+        expect(traceSpy).to.have.been.called.once()
+      })
+  })
 
-});
+})
