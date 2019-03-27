@@ -63,6 +63,78 @@ describe('mqtt-realm', function () {
       expect(subSpy, 'publication done').to.have.been.called.once()
       expect(api.unsubscribe(subId)).to.equal('topic1')
     })
+
+    it('SUBSCRIBE-to-retain', function (done) {
+      sender.send = chai.spy((msg, callback) => {})
+      cli.handle(ctx, {
+        cmd: 'publish',
+        retain: true,
+        qos: 0,
+        dup: false,
+        length: 17,
+        topic: 'topic1',
+        payload: Buffer.from('{"the":"text"}')
+      })
+      expect(sender.send, 'no publish confirmation').to.not.have.been.called()
+
+      let subSpy = chai.spy(
+        function (publicationId, args, kwargs) {
+          expect(args).to.deep.equal([])
+          expect(kwargs).to.deep.equal({ the: 'text' })
+          done()
+        }
+      )
+      api.subscribe('topic1', subSpy)
+    })
+
+    it('SUBSCRIBE-retain-clean', function (done) {
+      sender.send = chai.spy((msg, callback) => {})
+
+      cli.handle(ctx, {
+        cmd: 'publish',
+        retain: true,
+        qos: 0,
+        dup: false,
+        length: 17,
+        topic: 'topic-to-retain',
+        payload: Buffer.from('{"the":"text"}')
+      })
+
+      cli.handle(ctx, {
+        cmd: 'publish',
+        retain: true,
+        qos: 0,
+        dup: false,
+        length: 17,
+        topic: 'topic-to-clean',
+        payload: Buffer.from('{"the":"text"}')
+      })
+
+      cli.handle(ctx, {
+        cmd: 'publish',
+        retain: true,
+        qos: 0,
+        dup: false,
+        length: 17,
+        topic: 'topic-to-clean',
+        payload: Buffer.from('')
+      })
+
+      let spyClean = chai.spy(() => {})
+      api.subscribe('topic-to-clean', spyClean)
+
+      let spyRetain = chai.spy(
+        function (publicationId, args, kwargs) {
+          expect(args).to.deep.equal([])
+          expect(kwargs).to.deep.equal({ the: 'text' })
+
+          expect(spyClean, 'retain value must be cleaned').to.not.have.been.called()
+
+          done()
+        }
+      )
+      api.subscribe('topic-to-retain', spyRetain)
+    })
   })
 
 })
