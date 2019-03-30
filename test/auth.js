@@ -5,7 +5,6 @@ const spies     = require('chai-spies')
 const expect    = chai.expect
 const WAMP      = require('../lib/wamp/protocol')
 const WampGate  = require('../lib/wamp/gate')
-const Session   = require('../lib/session')
 const FoxRouter = require('../lib/fox_router')
 
 chai.use(spies)
@@ -68,7 +67,7 @@ describe('wamp-authenticate', function () {
         expect(msg[1]).to.equal('ticket')
       }
     )
-    cli.handle(ctx, [WAMP.HELLO, 'test', {authid: 'joe', authmethods:['ticket']}])
+    cli.handle(ctx, [WAMP.HELLO, 'test', { authid: 'joe', authmethods: ['ticket'] }])
     expect(sender.send).to.have.been.called.once()
 
     sender.send = chai.spy(
