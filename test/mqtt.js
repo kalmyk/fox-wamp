@@ -1,12 +1,12 @@
 'use strict'
 
-const
-  chai     = require('chai'),
-  spies    = require('chai-spies'),
-  expect   = chai.expect,
-  Realm    = require('../lib/realm').Realm,
-  MqttGate = require('../lib/mqtt/gate'),
-  Router   = require('../lib/router')
+const chai = require('chai')
+const spies = require('chai-spies')
+const expect = chai.expect
+
+const Realm    = require('../lib/realm').Realm
+const MqttGate = require('../lib/mqtt/gate')
+const Router   = require('../lib/router')
 
 chai.use(spies)
 
@@ -127,14 +127,49 @@ describe('mqtt-realm', function () {
         function (publicationId, args, kwargs) {
           expect(args).to.deep.equal([])
           expect(kwargs).to.deep.equal({ the: 'text' })
-
           expect(spyClean, 'retain value must be cleaned').to.not.have.been.called()
-
           done()
         }
       )
       api.subscribe('topic-to-retain', spyRetain)
     })
-  })
 
+    it('SUBSCRIBE-retain-batch', function () {
+      sender.send = chai.spy((msg, callback) => {})
+
+      cli.handle(ctx, {
+        cmd: 'publish',
+        retain: true,
+        qos: 0,
+        dup: false,
+        length: 17,
+        topic: 'batch.k1',
+        payload: Buffer.from('{"the":"text k1"}')
+      })
+
+      cli.handle(ctx, {
+        cmd: 'publish',
+        retain: true,
+        qos: 0,
+        dup: false,
+        length: 17,
+        topic: 'batch.k2',
+        payload: Buffer.from('{"the":"text k2"}')
+      })
+
+      cli.handle(ctx, {
+        cmd: 'publish',
+        retain: true,
+        qos: 0,
+        dup: false,
+        length: 17,
+        topic: 'batch.k3',
+        payload: Buffer.from('{"the":"text k3"}')
+      })
+
+      let spyRetain = chai.spy(() => {})
+      api.subscribe('batch.#', spyRetain)
+      expect(spyRetain).to.have.been.called.exactly(3)
+    })
+  })
 })

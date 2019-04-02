@@ -56,7 +56,7 @@ describe('clent', function () {
   it('create-PUSH-command', function () {
     expectCommand = {
       ft: 'PUSH',
-      uri: 'function.queue.name',
+      uri: ['function', 'queue', 'name'],
       ack: true,
       opt: { some: 'option' },
       id: 1,
@@ -69,7 +69,7 @@ describe('clent', function () {
   it('create-PUSH-no-opt', function () {
     expectCommand = {
       ft: 'PUSH',
-      uri: 'function.queue.name',
+      uri: ['function', 'queue', 'name'],
       ack: true,
       opt: {},
       id: 1,
@@ -88,13 +88,13 @@ describe('clent', function () {
 
     expectCommand = {
       ft: 'TRACE',
-      uri: 'function.queue.name',
+      uri: ['function/queue/name'],
       opt: { some: 'option' },
       id: 1 // client generated ID
     }
 
     assert.becomes(
-      client.trace('function.queue.name', trace, { some: 'option' }),
+      client.trace('function/queue/name', trace, { some: 'option' }),
       undefined,
       'trace resolved'
     ).notify(done)

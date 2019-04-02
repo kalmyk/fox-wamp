@@ -148,7 +148,7 @@ describe('hyper-broker', function () {
     })
     session.handle(ctx, {
       ft: 'TRACE',
-      uri: 'testQ',
+      uri: ['testQ'],
       id: idTrace
     })
 
@@ -185,7 +185,7 @@ describe('hyper-broker', function () {
 
     session.handle(ctx, {
       ft: 'TRACE',
-      uri: 'testQ',
+      uri: ['testQ'],
       id: idTrace
     })
     expect(sender.send).to.have.been.called.once()
@@ -194,7 +194,7 @@ describe('hyper-broker', function () {
       regPush = msg.qid
       expect(msg).to.deep.equal({
         id: idTrace,
-        uri: 'testQ',
+        uri: ['testQ'],
         qid: regPush,
         opt: {},
         rsp: 'EVENT',
@@ -204,7 +204,7 @@ describe('hyper-broker', function () {
 
     session.handle(ctx, {
       ft: 'PUSH',
-      uri: 'testQ',
+      uri: ['testQ'],
       ack: true,
       data: 'published-data',
       id: idPush

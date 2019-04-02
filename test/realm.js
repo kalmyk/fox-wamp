@@ -334,7 +334,7 @@ describe('wamp-realm', function () {
       expect(subSpy).to.have.been.called.once()
     })
 
-    it('PUBLISH to pattern', function () {
+    it('PUBLISH-to-pattern', function () {
       var subSpy = chai.spy(function (a, b, c, d) {
         // console.log('Publish Event', a,b,c,d)
       })
@@ -343,7 +343,7 @@ describe('wamp-realm', function () {
       expect(subSpy).to.have.been.called.once()
     })
 
-    it('to-remote', function () {
+    it('PUBLISH-to-remote', function () {
       var subscriptionId = null
 
       sender.send = chai.spy(
