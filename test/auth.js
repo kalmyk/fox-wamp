@@ -11,12 +11,15 @@ const FoxRouter = require('../lib/fox_router')
 chai.use(spies)
 
 const Auth = function () {
-  this.authenticate = function (realmName, secureDetails, secret, callback) {
+  this.authTicket = function (realmName, secureDetails, secret, callback) {
     if (realmName + '-' + secureDetails.authid + '-secret' === secret) {
       callback()
     } else {
       callback('authorization_failed')
     }
+  }
+  this.getWampExtra = function () {
+    return {serverDefinedExtra:'the-value'}
   }
 }
 
@@ -54,6 +57,7 @@ describe('wamp-authenticate', function () {
     sender.send = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.ABORT)
+        expect(msg[2]).to.equal('wamp.error.authorization_failed')
         // callback()
       }
     )
@@ -66,6 +70,7 @@ describe('wamp-authenticate', function () {
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.CHALLENGE)
         expect(msg[1]).to.equal('ticket')
+        expect(msg[2]).to.deep.equal({serverDefinedExtra:'the-value'})
       }
     )
     cli.handle(ctx, [WAMP.HELLO, 'test', { authid: 'joe', authmethods: ['ticket'] }])
@@ -79,7 +84,7 @@ describe('wamp-authenticate', function () {
         expect(msg[2].authmethod).to.equal('ticket')
       }
     )
-    cli.handle(ctx, [WAMP.AUTHENTICATE, 'test-joe-secret'])
+    cli.handle(ctx, [WAMP.AUTHENTICATE, 'test-joe-secret'], {extraField:'some-extra-value'})
     expect(sender.send).to.have.been.called.once()
   })
 })

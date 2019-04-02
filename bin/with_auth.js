@@ -10,7 +10,7 @@ program
   .parse(process.argv)
 
 var Auth = function () {
-  this.authenticate = function (realmName, secureDetails, secret, callback) {
+  this.authTicket = function (realmName, secureDetails, secret, callback) {
     console.log('AUTH:', secureDetails, secret)
     if (secureDetails.authid + '-secret' === secret) {
       callback()
