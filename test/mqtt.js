@@ -30,7 +30,6 @@ describe('mqtt-realm', function () {
     ctx = router.createContext()
     cli = router.createSession(gate, sender)
     realm.joinSession(cli)
-    cli.realm = realm
   })
 
   afterEach(function () {

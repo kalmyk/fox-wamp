@@ -11,7 +11,7 @@ const QueueClient = require('../lib/hyper/queueClient')
 
 chai.use(spies)
 
-describe('clent', function () {
+describe('02. clent', function () {
   var
     sender,
     client,
