@@ -40,7 +40,7 @@ describe('02. clent', function () {
     }
     client.echo(1234)
     expect(sender.send).to.have.been.called.once()
-  });
+  })
 
   it('create CALL command', function () {
     expectCommand = {

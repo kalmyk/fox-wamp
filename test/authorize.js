@@ -29,8 +29,7 @@ describe('authorize', function () {
     wampSender,
     ctx,
     mqttCli,
-    wampCli,
-    api
+    wampCli
 
   beforeEach(function () {
     let auth = new Auth()
@@ -38,13 +37,12 @@ describe('authorize', function () {
     wampSender = {}
     router = new Router()
     realm = new Realm(router)
-    api = realm.wampApi()
     ctx = router.createContext()
 
     mqttGate = new MqttGate(router)
     mqttGate.setAuthHandler(auth)
 
-    wampGate = new WampGate.WampHandler(router, new WampGate.WampEncoder())
+    wampGate = new WampGate(router)
     wampGate.setAuthHandler(auth)
 
     mqttCli = router.createSession(mqttGate, mqttSender)

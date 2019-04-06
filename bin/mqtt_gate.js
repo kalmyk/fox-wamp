@@ -27,7 +27,6 @@ router.getRealm('realm1', function (realm) {
 router.listenMQTT({ port: program.mqtt })
 console.log('MQTT Listening port', program.mqtt)
 
-
 const wssWAMP = router.listenWAMP({ noServer: true })
 console.log(`WAMP Web Socket ws://localhost:${program.http}:/wamp`)
 
@@ -35,27 +34,26 @@ const wssMQTT = router.listenWsMQTT({ noServer: true })
 console.log(`MQTT Web Socket ws://localhost:${program.http}:/mqtt`)
 
 let httpServer = http.createServer(function (req, res) {
-  res.writeHead(200, {'Content-Type': 'text/html'});
+  res.writeHead(200, { 'Content-Type': 'text/html' })
   console.log(req.headers)
-  res.end('hello!');
+  res.end('hello!')
 })
 
 httpServer.listen(program.http, () => console.log(`HTTP Server Listening on ${program.http}`))
 
 // https://github.com/websockets/ws/pull/885
 httpServer.on('upgrade', (request, socket, head) => {
-  const pathname = url.parse(request.url).pathname;
+  const pathname = url.parse(request.url).pathname
 
   if (pathname === '/wamp') {
     wssWAMP.handleUpgrade(request, socket, head, (ws) => {
-      wssWAMP.emit('connection', ws);
-    });
+      wssWAMP.emit('connection', ws)
+    })
   } else if (pathname === '/mqtt') {
     wssMQTT.handleUpgrade(request, socket, head, (ws) => {
-      wssMQTT.emit('connection', ws);
-    });
+      wssMQTT.emit('connection', ws)
+    })
   } else {
-    socket.destroy();
+    socket.destroy()
   }
 })
-

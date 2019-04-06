@@ -27,7 +27,7 @@ describe('wamp-realm', function () {
     realm = new Realm(router)
     api = realm.wampApi()
 
-    gate = new WampGate.WampHandler(router, new WampGate.WampEncoder())
+    gate = new WampGate(router)
     ctx = router.createContext()
     cli = router.createSession(gate, sender)
     realm.joinSession(cli)
@@ -411,6 +411,7 @@ describe('wamp-realm', function () {
             expect(msg[1]).to.equal(1234)
           } else {
             expect(msg[0]).to.equal(WAMP.EVENT)
+            expect(msg[3]).to.deep.equal({ topic: 'topic1', retained: true })
             expect(msg[5]).to.deep.equal({ data: 'retain-the-value' })
           }
           --counter

@@ -35,7 +35,7 @@ describe('03. wamp-session', function () {
   beforeEach(function () {
     sender = {}
     router = new FoxRouter()
-    gate = new WampGate.WampHandler(router, new WampGate.WampEncoder())
+    gate = new WampGate(router)
     ctx = router.createContext()
     cli = router.createSession(gate, sender)
     sessionId = cli.sessionId
