@@ -377,21 +377,22 @@ describe('wamp-realm', function () {
           expect(kwargs).to.deep.equal({ foo: 'bar' })
         }
       )
-      var subId = api.subscribe('topic1', subSpy)
+      api.subscribe('topic1', subSpy).then((subId) => {
+        sender.send = chai.spy(
+          function (msg, callback) {
+            expect(msg[0]).to.equal(WAMP.PUBLISHED)
+            expect(msg[1]).to.equal(2345)
+          }
+        )
+        cli.handle(ctx, [WAMP.PUBLISH, 1234, {}, 'topic1', ['arg.1', 'arg.2'], { foo: 'bar' }])
+        expect(sender.send, 'published').to.not.have.been.called()
+        cli.handle(ctx, [WAMP.PUBLISH, 2345, { acknowledge: true }, 'topic1', ['arg.1', 'arg.2'], { foo: 'bar' }])
+        expect(sender.send, 'published').to.have.been.called.once()
 
-      sender.send = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.PUBLISHED)
-          expect(msg[1]).to.equal(2345)
-        }
-      )
-      cli.handle(ctx, [WAMP.PUBLISH, 1234, {}, 'topic1', ['arg.1', 'arg.2'], { foo: 'bar' }])
-      expect(sender.send, 'published').to.not.have.been.called()
-      cli.handle(ctx, [WAMP.PUBLISH, 2345, { acknowledge: true }, 'topic1', ['arg.1', 'arg.2'], { foo: 'bar' }])
-      expect(sender.send, 'published').to.have.been.called.once()
+        expect(subSpy, 'publication done').to.have.been.called.twice()
+        expect(api.unsubscribe(subId)).to.equal('topic1')
+      })
 
-      expect(subSpy, 'publication done').to.have.been.called.twice()
-      expect(api.unsubscribe(subId)).to.equal('topic1')
     })
   })
 

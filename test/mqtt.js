@@ -43,24 +43,25 @@ describe('mqtt-realm', function () {
           expect(kwargs).to.deep.equal({ the: 'text' })
         }
       )
-      var subId = api.subscribe('topic1', subSpy)
+      api.subscribe('topic1', subSpy).then((subId) => {
+        sender.send = chai.spy(
+          function (msg, callback) {}
+        )
+        cli.handle(ctx, {
+          cmd: 'publish',
+          retain: false,
+          qos: 0,
+          dup: false,
+          length: 17,
+          topic: 'topic1',
+          payload: Buffer.from('{"the":"text"}')
+        })
+        expect(sender.send, 'no publish confirmation').to.not.have.been.called()
 
-      sender.send = chai.spy(
-        function (msg, callback) {}
-      )
-      cli.handle(ctx, {
-        cmd: 'publish',
-        retain: false,
-        qos: 0,
-        dup: false,
-        length: 17,
-        topic: 'topic1',
-        payload: Buffer.from('{"the":"text"}')
+        expect(subSpy, 'publication done').to.have.been.called.once()
+        expect(api.unsubscribe(subId)).to.equal('topic1')
       })
-      expect(sender.send, 'no publish confirmation').to.not.have.been.called()
 
-      expect(subSpy, 'publication done').to.have.been.called.once()
-      expect(api.unsubscribe(subId)).to.equal('topic1')
     })
 
     it('SUBSCRIBE-to-retain', function (done) {
