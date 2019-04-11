@@ -112,6 +112,15 @@ connection.onopen = function (session) {
     }
   )
 
+  session.subscribe('sys.user.#', onEvent).then(
+    function (subscription) {
+      console.log('user subscription passed', subscription.topic)
+    },
+    function (error) {
+      console.log('access to user password is denied')
+    }
+  )
+
   setTimeout(
     function () {
       console.log('Unregistration')

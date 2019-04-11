@@ -3,6 +3,7 @@
 //
 
 var Router = require('../index')
+var TopicPattern = require('../lib/topic_pattern')
 var program = require('commander')
 
 program
@@ -16,7 +17,7 @@ let Auth = function () {
     app.getRealm(realmName, (realm) => {
         let api = realm.wampApi()
         let found = false
-        api.subscribe('sys.user.'+secureDetails.authid, (id, args, kwargs) => {
+        api.subscribe('sys.user.info.'+secureDetails.authid, (id, args, kwargs) => {
           if (kwargs.password === secret) {
             callback()
           } else {
@@ -31,6 +32,9 @@ let Auth = function () {
         })
     })
   }
+  this.authorize = function (session, funcClass, uniUri) {
+    return !TopicPattern.intersect(uniUri, ['sys', 'user', 'info', '#'])
+  }
 }
 
 app = new Router(new Auth())
@@ -38,7 +42,7 @@ app.setLogTrace(true)
 
 app.getRealm('realm1', function (realm) {
   var api = realm.wampApi()
-  api.publish('sys.user.joe', [], { password: 'joe-secret' }, { retain:true })
+  api.publish('sys.user.info.joe', [], { password: 'joe-secret' }, { retain:true })
 })
 
 console.log('Listening port:', program.port)
