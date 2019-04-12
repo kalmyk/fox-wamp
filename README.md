@@ -147,6 +147,9 @@ publish('the.key', [ 'args' ], { kwArgs: false }, {
 Take a look for more use cases at http://jeta.host/
 
 ## Changes:
+2019-04-11
+- authorize function supported for SUBSCRIBE & PUBLISH
+
 2019-03-22
 - WAMP registration option.concurrency supported.
 
