@@ -68,7 +68,20 @@ includes frontend part on React JS and backend server on Fox-WAMP.
 
 https://github.com/kalmyk/reflux-chat
 
-## The Roadmap
+## Map-Reduce
+Map-Reduce processing in terms of message queue is tranforming of the input stream
+to be passed to the corresponding event topic and reduced there.
+As Map function is possible to use any regular function registration. 
+Reduce is the function that gather events published to topic to the ratained dataset.
+
+```javascript
+register('reduce.the.key.#', (args, kwargs, options) => {
+        return options.retained + kwargs.value
+    },
+    {reducer: true})
+```
+
+## Retained Storage Roadmap
 It is good to have some storage to keep last published message. The server
 has to maintain persistence of keys and provide the value as immediate first
 message for the subscription. And here what could be implemented
