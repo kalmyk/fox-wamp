@@ -6,6 +6,8 @@ Message router has pluggable interface to the several message protocols. As for 
 * [WAMP V2 Basic Profile](http://wamp-proto.org/)
 * [MQTT](http://mqtt.org/)
 
+It means that event could be send through MQTT interface and handled by WAMP client.
+
 ## Build Instructions
 
 Install using npm. Depending on what you want to do.
