@@ -153,7 +153,7 @@ describe('pub-worker', function () {
       }
     ).then(function (registration) {
       client.call('func1', 'call-1').then(() => {
-        expect(realm.rpc.getPendingTaskCount()).to.equal(0)
+        expect(realm.engine.getPendingTaskCount()).to.equal(0)
         done()
       })
       client.call('func1', 'call-2').then(() => {

@@ -63,8 +63,8 @@ describe('wamp-realm', function () {
     it('cleanup RPC API', function () {
       var procSpy = chai.spy(function () {})
       api.register('func1', procSpy)
-      expect(api.cleanupReg(realm.rpc)).to.equal(1)
-      expect(api.cleanupReg(realm.rpc)).to.equal(0)
+      expect(api.cleanupReg(realm.engine)).to.equal(1)
+      expect(api.cleanupReg(realm.engine)).to.equal(0)
       expect(procSpy).to.not.have.been.called()
     })
 
@@ -315,8 +315,8 @@ describe('wamp-realm', function () {
     it('cleanup Topic API', function () {
       var subSpy = chai.spy(function () {})
       api.subscribe('topic1', subSpy)
-      expect(api.cleanupTrace(realm.push)).to.equal(1)
-      expect(api.cleanupTrace(realm.push)).to.equal(0)
+      expect(api.cleanupTrace(realm.engine)).to.equal(1)
+      expect(api.cleanupTrace(realm.engine)).to.equal(0)
       expect(subSpy).to.not.have.been.called()
     })
 
@@ -429,6 +429,18 @@ describe('wamp-realm', function () {
       // console.log('key', realm.getKey('topic2'))
       realm.cleanupSession(cli)
       // console.log('key', realm.getKey('topic2'))
+    })
+
+    it('reduce-one', function () {
+      sender.send = chai.spy((msg, callback) => {
+        console.log('REDUCE-CALL', msg);
+      })
+
+      cli.handle(ctx, [WAMP.REGISTER, 1234, { reducer:true }, 'storage'])
+      api.publish('storage', [], { data: 'init-value', count: 1 }, { retain: true })
+      api.publish('storage', [], { data: 'value-to-reduce', count: 2 }, { retain: true })
+
+      expect(sender.send).to.have.been.called.exactly(3)
     })
   })
 })

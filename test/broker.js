@@ -168,9 +168,9 @@ describe('hyper-broker', function () {
     let regPush
 
     // make realm replicable
-    realm.push.actorConfirm = (actor, cmd) => {};
+    realm.engine.actorConfirm = (actor, cmd) => {};
 
-    realm.push.doConfirm = (actor, cmd) => {
+    realm.engine.doConfirm = (actor, cmd) => {
       actor.confirm(cmd)
     }
 
