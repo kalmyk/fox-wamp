@@ -22,9 +22,9 @@
     "subscribe"
   ],
   "dependencies": {
-    "commander": "^2.20.0",
-    "jsonschema": "^1.2.4",
-    "mqtt-packet": "^6.1.2",
+    "commander": "^2.20.3",
+    "jsonschema": "^1.2.5",
+    "mqtt-packet": "^6.3.0",
     "node-statsd": "*",
     "qlobber": "^3.1.0",
     "ws": "^6.2.1"
