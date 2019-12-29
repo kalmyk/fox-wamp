@@ -68,7 +68,7 @@ describe('wamp-realm', function () {
       expect(procSpy).to.not.have.been.called()
     })
 
-    it('CALL to router', function () {
+    it('CALL-to-router', function () {
       var procSpy = chai.spy(function (id, args, kwargs) {
         api.resrpc(id, undefined, ['result.1', 'result.2'], { kVal: 'kRes' })
       })
@@ -433,10 +433,10 @@ describe('wamp-realm', function () {
 
     it('reduce-one', function () {
       sender.send = chai.spy((msg, callback) => {
-        console.log('REDUCE-CALL', msg);
+//        console.log('REDUCE-CALL', msg);
       })
 
-      cli.handle(ctx, [WAMP.REGISTER, 1234, { reducer:true }, 'storage'])
+      cli.handle(ctx, [WAMP.REGISTER, 1234, { reducer: true }, 'storage'])
       api.publish('storage', [], { data: 'init-value', count: 1 }, { retain: true })
       api.publish('storage', [], { data: 'value-to-reduce', count: 2 }, { retain: true })
 

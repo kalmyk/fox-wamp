@@ -91,7 +91,7 @@ describe('hyper-broker', function () {
 
     session.handle(ctx, {
       ft: 'CALL',
-      uri: 'testQ',
+      uri: ['testQ'],
       id: id
     })
     expect(sender.send).to.have.been.called.once()
@@ -116,7 +116,7 @@ describe('hyper-broker', function () {
     })
     session.handle(ctx, {
       ft: 'REG',
-      uri: 'testQ',
+      uri: ['testQ'],
       id: idSub,
       opt: {}
     })

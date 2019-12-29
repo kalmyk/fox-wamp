@@ -44,7 +44,7 @@ describe('03. wamp-session', function () {
   afterEach(function () {
   })
 
-  it('Joe AUTH:FAIL', function () {
+  it('Joe-AUTH-FAIL', function () {
     gate.setAuthHandler(new Auth())
     sender.send = chai.spy(
       function (msg, callback) {
@@ -66,7 +66,7 @@ describe('03. wamp-session', function () {
     expect(sender.send).to.have.been.called.once()
   })
 
-  it ('Joe AUTH:OK', function () {
+  it ('Joe-AUTH-OK', function () {
     gate.setAuthHandler(new Auth())
     sender.send = chai.spy(
       function (msg, callback) {

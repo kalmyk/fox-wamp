@@ -66,7 +66,7 @@ describe('pub-worker', function () {
   it('remote-procedure-call', function (done) {
     worker.register(
       'test.func', function (args, task) {
-        expect(task.getUri()).to.equal('test.func')
+        expect(task.getUri()).to.deep.equal([ 'test', 'func' ])
         expect(args).to.deep.equal({ attr1: 1, attr2: 2 })
         task.resolve({ result: 'done' })
       }
@@ -87,7 +87,7 @@ describe('pub-worker', function () {
   it('call-progress', function (done) {
     worker.register(
       'test.func', function (args, task) {
-        expect(task.getUri()).to.equal('test.func')
+        expect(task.getUri()).to.deep.equal([ 'test', 'func' ])
         expect(args).to.deep.equal({ attr1: 1, attr2: 2 })
         task.notify({ progress: 1 })
         task.notify({ progress: 2 })

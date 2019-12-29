@@ -45,7 +45,7 @@ describe('02. clent', function () {
   it('create CALL command', function () {
     expectCommand = {
       ft: 'CALL',
-      uri: 'function.queue.name',
+      uri: ['function','queue','name'],
       id: 1,
       data: { attr1: 1, attr2: 'value' }
     }
