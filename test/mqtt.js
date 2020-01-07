@@ -36,6 +36,22 @@ describe('mqtt-realm', function () {
   })
 
   describe('publish', function () {
+    it('to-qos1', function () {
+      sender.send = chai.spy(
+        function (msg, callback) {}
+      )
+      cli.handle(ctx, {
+        cmd: 'publish',
+        retain: false,
+        qos: 1,
+        dup: false,
+        length: 17,
+        topic: 'topic1',
+        payload: Buffer.from('{"the":"text"}')
+      })
+      expect(sender.send, 'publish confirmed').to.have.been.called()
+    })
+
     it('SUBSCRIBE-to-remote-mqtt', function () {
       var subSpy = chai.spy(
         function (publicationId, args, kwargs) {
@@ -61,7 +77,6 @@ describe('mqtt-realm', function () {
         expect(subSpy, 'publication done').to.have.been.called.once()
         expect(api.unsubscribe(subId)).to.equal('topic1')
       })
-
     })
 
     it('SUBSCRIBE-to-retain', function (done) {
