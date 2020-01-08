@@ -13,7 +13,6 @@ chai.use(spies)
 describe('mqtt-realm', function () {
   var
     router,
-    gate,
     realm,
     sender,
     ctx,
@@ -26,9 +25,8 @@ describe('mqtt-realm', function () {
     realm = new Realm(router)
     api = realm.wampApi()
 
-    gate = new MqttGate(router)
     ctx = router.createContext()
-    cli = router.createSession(gate, sender)
+    cli = router.createSession(new MqttGate(router), sender)
     realm.joinSession(cli)
   })
 
@@ -49,7 +47,7 @@ describe('mqtt-realm', function () {
         topic: 'topic1',
         payload: Buffer.from('{"the":"text"}')
       })
-      expect(sender.send, 'publish confirmed').to.have.been.called()
+      expect(sender.send, 'publish confirmed').to.have.been.called.once()
     })
 
     it('SUBSCRIBE-to-remote-mqtt', function () {
@@ -185,6 +183,42 @@ describe('mqtt-realm', function () {
       let spyRetain = chai.spy(() => {})
       api.subscribe('batch.#', spyRetain)
       expect(spyRetain).to.have.been.called.exactly(3)
+    })
+  })
+
+  it('at-connection-fail-will-publish', function (done) {
+    realm.cleanupSession(cli)
+    router.getRealm = (realmName, cb) => {cb(realm)}
+
+    sender.send = chai.spy(
+      function (msg, callback) {}
+    )
+    cli.handle(ctx, {
+      cmd: 'connect',
+      retain: false,
+      qos: 0,
+      dup: false,
+      length: 17,
+      topic: null,
+      payload: null,
+      will: 
+      { retain: false,
+        qos: 0,
+        topic: 'disconnect',
+        payload: Buffer.from('{"text":"some-test-text"}')
+      }
+    })
+
+    var subSpy = chai.spy(
+      function (publicationId, args, kwargs) {
+        expect(args).to.deep.equal([])
+        expect(kwargs).to.deep.equal({ text: "some-test-text" })
+      }
+    )
+    api.subscribe('disconnect', subSpy).then((subId) => {
+      cli.cleanup()
+      expect(subSpy).to.have.been.called.once()
+      done()
     })
   })
 })
