@@ -25,7 +25,6 @@ const Auth = function () {
 
 describe('03. wamp-session', function () {
   var
-    sessionId,
     router,
     gate,
     sender,
@@ -36,9 +35,8 @@ describe('03. wamp-session', function () {
     sender = {}
     router = new FoxRouter()
     gate = new WampGate(router)
-    ctx = router.createContext()
     cli = router.createSession(gate, sender)
-    sessionId = cli.sessionId
+    ctx = gate.createContext(cli)
   })
 
   afterEach(function () {
@@ -94,7 +92,7 @@ describe('03. wamp-session', function () {
     sender.send = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.WELCOME)
-        expect(msg[1]).to.equal(sessionId)
+        expect(msg[1]).to.equal(cli.sessionId)
         // console.log(msg[2].roles)
       }
     )

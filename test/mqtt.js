@@ -25,8 +25,10 @@ describe('mqtt-realm', function () {
     realm = new Realm(router)
     api = realm.wampApi()
 
-    ctx = router.createContext()
-    cli = router.createSession(new MqttGate(router), sender)
+    let mqttGate = new MqttGate(router)
+
+    cli = router.createSession(mqttGate, sender)
+    ctx = mqttGate.createContext(cli)
     realm.joinSession(cli)
   })
 
@@ -75,6 +77,35 @@ describe('mqtt-realm', function () {
         expect(subSpy, 'publication done').to.have.been.called.once()
         expect(api.unsubscribe(subId)).to.equal('topic1')
       })
+    })
+
+    it('SUBSCRIBE-mqtt', function () {
+      sender.send = chai.spy(
+        function (msg, callback) {
+          expect(msg.cmd).to.equal('suback')
+        }
+      )
+      cli.handle(ctx, {
+        cmd: 'subscribe',
+        retain: false,
+        qos: 1,
+        dup: false,
+        length: 17,
+        topic: null,
+        payload: null,
+        subscriptions: [ { topic: 'topic1', qos: 0 } ],
+        messageId: 1
+      })
+      expect(sender.send, 'subscribe').to.have.been.called.once()
+
+      sender.send = chai.spy(
+        function (msg, callback) {
+          expect(msg.cmd).to.equal('publish')
+          expect(msg.topic).to.equal('topic1')
+        }
+      )
+      api.publish('topic1', '{ data: 1 }')
+      expect(sender.send, 'published').to.have.been.called.once()
     })
 
     it('SUBSCRIBE-to-retain', function (done) {

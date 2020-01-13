@@ -37,7 +37,6 @@ describe('authorize', function () {
     wampSender = {}
     router = new Router()
     realm = new Realm(router)
-    ctx = router.createContext()
 
     mqttGate = new MqttGate(router)
     mqttGate.setAuthHandler(auth)
@@ -49,6 +48,7 @@ describe('authorize', function () {
     realm.joinSession(mqttCli)
 
     wampCli = router.createSession(wampGate, wampSender)
+    ctx = wampGate.createContext(wampCli)
     realm.joinSession(wampCli)
   })
 

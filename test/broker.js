@@ -25,8 +25,8 @@ describe('hyper-broker', function () {
     router = new Router()
     realm = new Realm(router)
     gate = new FoxGate(router)
-    ctx = router.createContext()
     session = router.createSession(gate, sender)
+    ctx = gate.createContext(session)
     realm.joinSession(session)
   })
 

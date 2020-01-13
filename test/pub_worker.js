@@ -32,9 +32,9 @@ describe('pub-worker', function () {
 
   beforeEach(function () {
     router = new Router()
-    memServer = new MemTransport.Server(router)
     realm = new Realm(router)
     gate = new FoxGate(router)
+    memServer = new MemTransport.Server(gate)
     client = connect(realm, gate)
     worker = connect(realm, gate)
   })
