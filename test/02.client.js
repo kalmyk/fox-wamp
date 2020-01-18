@@ -102,7 +102,7 @@ describe('02. clent', function () {
     expect(sender.send).to.have.been.called.once()
 
     // server response that TRACE is SET
-    client.handle(null, {
+    client.handle({
       rsp: RESULT_ACK,
       id: 1
     })
@@ -116,7 +116,7 @@ describe('02. clent', function () {
     }
 
     // some PUBLISH occurred and data arrived
-    client.handle(null, {
+    client.handle({
       id: 1,
       uri: 'any-text',
       rsp: REQUEST_EVENT,
@@ -128,7 +128,7 @@ describe('02. clent', function () {
     expect(trace).to.have.been.called.once()
 
     // server decided to remove subscription
-    client.handle(null, {
+    client.handle({
       rsp: RESULT_OK,
       id: 1
     })

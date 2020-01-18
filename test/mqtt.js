@@ -27,8 +27,8 @@ describe('mqtt-realm', function () {
 
     let mqttGate = new MqttGate(router)
 
-    cli = router.createSession(mqttGate, sender)
-    ctx = mqttGate.createContext(cli)
+    cli = mqttGate.createSession()
+    ctx = mqttGate.createContext(cli, sender)
     realm.joinSession(cli)
   })
 
@@ -81,7 +81,7 @@ describe('mqtt-realm', function () {
 
     it('SUBSCRIBE-mqtt', function () {
       sender.send = chai.spy(
-        function (msg, callback) {
+        function (msg) {
           expect(msg.cmd).to.equal('suback')
         }
       )
@@ -99,7 +99,7 @@ describe('mqtt-realm', function () {
       expect(sender.send, 'subscribe').to.have.been.called.once()
 
       sender.send = chai.spy(
-        function (msg, callback) {
+        function (msg) {
           expect(msg.cmd).to.equal('publish')
           expect(msg.topic).to.equal('topic1')
         }

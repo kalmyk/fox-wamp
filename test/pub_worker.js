@@ -4,14 +4,12 @@ const chai = require('chai')
 const expect = chai.expect
 const assert = chai.assert
 const promised = require('chai-as-promised')
+chai.use(promised)
 
 const MemTransport = require('../lib/hyper/mem_transport')
-const QueueClient  = require('../lib/hyper/queueClient')
 const FoxGate      = require('../lib/hyper/gate')
 const Realm        = require('../lib/realm').Realm
 const Router       = require('../lib/router')
-
-chai.use(promised)
 
 describe('pub-worker', function () {
   let
@@ -22,21 +20,13 @@ describe('pub-worker', function () {
     client,
     worker;
 
-  function connect (realm, gate) {
-    let result = new QueueClient.QueueClient()
-    let serverSession = router.createSession(gate, new MemTransport.Sender(memServer, result))
-    result.sender = new MemTransport.Sender(memServer, serverSession)
-    realm.joinSession(serverSession)
-    return result
-  }
-
   beforeEach(function () {
     router = new Router()
     realm = new Realm(router)
     gate = new FoxGate(router)
-    memServer = new MemTransport.Server(gate)
-    client = connect(realm, gate)
-    worker = connect(realm, gate)
+    memServer = new MemTransport.MemServer(gate)
+    client = memServer.createClient(realm)
+    worker = memServer.createClient(realm)
   })
 
   afterEach(function () {

@@ -9,14 +9,15 @@ program
 var app = new Router()
 app.setLogTrace(true)
 
-app.on(MSG.ON_REGISTERED, function (realm, registeration) {
-  console.log('onRPCRegistered RPC registered', registeration.getUri())
-})
-app.on(MSG.ON_UNREGISTERED, function (realm, registeration) {
-  console.log('onRPCUnregistered RPC unregistered', registeration.getUri())
-})
 app.on(MSG.REALM_CREATED, function (realm, realmName) {
   console.log('new Relm:', realmName)
+
+  realm.on(MSG.ON_REGISTERED, function (registeration) {
+    console.log('onRPCRegistered RPC registered', registeration.getUri())
+  })
+  realm.on(MSG.ON_UNREGISTERED, function (registeration) {
+    console.log('onRPCUnregistered RPC unregistered', registeration.getUri())
+  })
 })
 
 app.getRealm('realm1', function (realm) {

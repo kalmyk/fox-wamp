@@ -25,8 +25,8 @@ describe('hyper-broker', function () {
     router = new Router()
     realm = new Realm(router)
     gate = new FoxGate(router)
-    session = router.createSession(gate, sender)
-    ctx = gate.createContext(session)
+    session = gate.createSession()
+    ctx = gate.createContext(session, sender)
     realm.joinSession(session)
   })
 
@@ -186,7 +186,8 @@ describe('hyper-broker', function () {
     session.handle(ctx, {
       ft: 'TRACE',
       uri: ['testQ'],
-      id: idTrace
+      id: idTrace,
+      opt: {}
     })
     expect(sender.send).to.have.been.called.once()
 

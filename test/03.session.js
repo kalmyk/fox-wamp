@@ -35,8 +35,8 @@ describe('03. wamp-session', function () {
     sender = {}
     router = new FoxRouter()
     gate = new WampGate(router)
-    cli = router.createSession(gate, sender)
-    ctx = gate.createContext(cli)
+    cli = gate.createSession()
+    ctx = gate.createContext(cli, sender)
   })
 
   afterEach(function () {

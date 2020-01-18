@@ -28,10 +28,10 @@ router.listenMQTT({ port: program.mqtt })
 console.log('MQTT Listening port', program.mqtt)
 
 const wssWAMP = router.listenWAMP({ noServer: true })
-console.log(`WAMP Web Socket ws://localhost:${program.http}:/wamp`)
+console.log(`WAMP Web Socket ws://localhost:${program.http}/wamp`)
 
 const wssMQTT = router.listenWsMQTT({ noServer: true })
-console.log(`MQTT Web Socket ws://localhost:${program.http}:/mqtt`)
+console.log(`MQTT Web Socket ws://localhost:${program.http}/mqtt`)
 
 let httpServer = http.createServer(function (req, res) {
   res.writeHead(200, { 'Content-Type': 'text/html' })

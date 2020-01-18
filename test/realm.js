@@ -28,8 +28,8 @@ describe('wamp-realm', function () {
     api = realm.wampApi()
 
     gate = new WampGate(router)
-    cli = router.createSession(gate, sender)
-    ctx = gate.createContext(cli)
+    cli = gate.createSession()
+    ctx = gate.createContext(cli, sender)
     realm.joinSession(cli)
   })
 

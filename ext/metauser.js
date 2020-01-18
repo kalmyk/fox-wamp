@@ -21,21 +21,21 @@ function registerHandlers (router) {
         api.resrpc(id, 'unable to get session id')
       }
     })
-  })
 
-  router.on(MSG.SESSION_JOIN, function (realm, session) {
-    var sessionData = {
-      session: session.sessionId,
-      authmethod: session.authmethod,
-      transport: {
-        protocol: session.getGateProtocol()
+    realm.on(MSG.SESSION_JOIN, function (session) {
+      var sessionData = {
+        session: session.sessionId,
+        authmethod: session.authmethod,
+        transport: {
+          protocol: session.getGateProtocol()
+        }
       }
-    }
-    realm.wampApi().publish('wamp.session.on_join', [], sessionData)
-  })
-
-  router.on(MSG.SESSION_LEAVE, function (realm, session) {
-    realm.wampApi().publish('wamp.session.on_leave', [session.sessionId])
+      api.publish('wamp.session.on_join', [], sessionData)
+    })
+  
+    realm.on(MSG.SESSION_LEAVE, function (session) {
+      api.publish('wamp.session.on_leave', [session.sessionId])
+    })  
   })
 }
 

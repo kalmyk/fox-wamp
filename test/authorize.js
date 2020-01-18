@@ -27,7 +27,8 @@ describe('authorize', function () {
     realm,
     mqttSender,
     wampSender,
-    ctx,
+    wampCtx,
+    mqttCtx,
     mqttCli,
     wampCli
 
@@ -44,11 +45,12 @@ describe('authorize', function () {
     wampGate = new WampGate(router)
     wampGate.setAuthHandler(auth)
 
-    mqttCli = router.createSession(mqttGate, mqttSender)
+    mqttCli = mqttGate.createSession()
+    mqttCtx = mqttGate.createContext(mqttCli, mqttSender)
     realm.joinSession(mqttCli)
 
-    wampCli = router.createSession(wampGate, wampSender)
-    ctx = wampGate.createContext(wampCli)
+    wampCli = wampGate.createSession()
+    wampCtx = wampGate.createContext(wampCli, wampSender)
     realm.joinSession(wampCli)
   })
 
@@ -63,7 +65,7 @@ describe('authorize', function () {
           expect(msg[1]).to.equal(1234)
         }
       )
-      wampCli.handle(ctx, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.passed'])
+      wampCli.handle(wampCtx, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.passed'])
       expect(wampSender.send, 'subscription confirmed').to.have.been.called.once()
 
       wampSender.send = chai.spy(
@@ -74,26 +76,31 @@ describe('authorize', function () {
           expect(msg[4]).to.equal('wamp.error.authorization_failed')
         }
       )
-      wampCli.handle(ctx, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.denied'])
+      wampCli.handle(wampCtx, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.denied'])
       expect(wampSender.send, 'subscription confirmed').to.have.been.called.once()
     })
   })
 
   describe('mqtt', function () {
     it('subscribe', function () {
-      mqttSender.send = chai.spy((msg, callback) => {
-        // console.log(msg)
+      mqttSender.send = chai.spy((msg) => {
+        expect(msg).to.deep.equal({cmd: 'suback', messageId: 321, granted: [ 128, 1 ]})
       })
-      mqttCli.handle(ctx, {
+      mqttCli.handle(mqttCtx, {
         cmd: 'subscribe',
-        retain: true,
-        qos: 0,
+        retain: false,
+        qos: 1,
         dup: false,
         length: 17,
-        topic: 'topic1/denied',
-        payload: Buffer.from('{"the":"text"}')
+        topic: null,
+        payload: null,
+        subscriptions: [
+          { topic: 'topic1/denied', qos: 0 },
+          { topic: 'topic1/passed', qos: 2 }
+        ],
+        messageId: 321
       })
-      expect(mqttSender.send, 'no publish confirmation').to.not.have.been.called()
+      expect(mqttSender.send).to.have.been.called.once()
     })
   })
 })

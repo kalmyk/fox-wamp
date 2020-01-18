@@ -15,21 +15,21 @@ let Auth = function () {
   this.authTicket = function (realmName, secureDetails, secret, callback) {
     console.log('AUTH:', secureDetails, secret)
     app.getRealm(realmName, (realm) => {
-        let api = realm.wampApi()
-        let found = false
-        api.subscribe('sys.user.info.'+secureDetails.authid, (id, args, kwargs) => {
-          if (kwargs.password === secret) {
-            callback()
-          } else {
-            callback(new Error('authentication_failed'))
-          }
-          found = true
-        }).then((subId) => {
-          if (!found) {
-            callback(new Error('authentication_failed'))
-          }
-          api.unsubscribe(subId)
-        })
+      let api = realm.wampApi()
+      let found = false
+      api.subscribe('sys.user.info.'+secureDetails.authid, (id, args, kwargs) => {
+        if (kwargs.password === secret) {
+          callback()
+        } else {
+          callback(new Error('authentication_failed'))
+        }
+        found = true
+      }).then((subId) => {
+        if (!found) {
+          callback(new Error('authentication_failed'))
+        }
+        api.unsubscribe(subId)
+      })
     })
   }
   this.authorize = function (session, funcClass, uniUri) {
