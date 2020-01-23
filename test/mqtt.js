@@ -108,6 +108,76 @@ describe('mqtt-realm', function () {
       expect(sender.send, 'published').to.have.been.called.once()
     })
 
+    it('SUBSCRIBE-multi-mqtt', function () {
+      sender.send = chai.spy(
+        function (msg) {
+          expect(msg.cmd).to.equal('suback')
+        }
+      )
+      cli.handle(ctx, {
+        cmd: 'subscribe',
+        retain: false,
+        qos: 1,
+        dup: false,
+        length: 17,
+        topic: null,
+        payload: null,
+        subscriptions: [ { topic: 'topic/#', qos: 0 }, { topic: '+/one', qos: 1 } ],
+        messageId: 1
+      })
+      expect(sender.send, 'subscribe').to.have.been.called.once()
+
+      sender.send = chai.spy(
+        function (msg) {
+          expect(msg.cmd).to.equal('publish')
+          expect(msg.topic).to.equal('topic/one')
+        }
+      )
+      api.publish('topic.one', '{ data: 1 }')
+      expect(sender.send, 'published').to.have.been.called.once()
+    })
+
+    it('puback', function () {
+      sender.send = chai.spy(
+        function (msg) {
+          expect(msg.cmd).to.equal('suback')
+        }
+      )
+      cli.handle(ctx, {
+        cmd: 'subscribe',
+        retain: false,
+        qos: 1,
+        dup: false,
+        length: 17,
+        topic: null,
+        payload: null,
+        subscriptions: [ { topic: 'topic1', qos: 0 }],
+        messageId: 1
+      })
+      expect(sender.send, 'subscribe').to.have.been.called.once()
+
+      sender.send = chai.spy(
+        function (msg) {
+          expect(msg.cmd).to.equal('publish')
+          expect(msg.topic).to.equal('topic1')
+        }
+      )
+      api.publish('topic1', '{ data: 1 }')
+      expect(sender.send, 'published').to.have.been.called.once()
+
+      cli.handle(ctx, {
+        cmd: 'puback',
+        retain: false,
+        qos: 0,
+        dup: false,
+        length: 2,
+        topic: null,
+        payload: null,
+        messageId: 1
+      })
+      expect(sender.send, 'puback').to.have.been.called.once()
+    })
+
     it('SUBSCRIBE-to-retain', function (done) {
       sender.send = chai.spy((msg, callback) => {})
       cli.handle(ctx, {
