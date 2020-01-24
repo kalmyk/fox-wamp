@@ -11,15 +11,18 @@ const FoxRouter = require('../lib/fox_router')
 chai.use(spies)
 
 const Auth = function () {
-  this.authTicket = function (realmName, secureDetails, secret, callback) {
+  this.testonly_auth = function (realmName, secureDetails, secret, extra, callback) {
     if (realmName + '-' + secureDetails.authid + '-secret' === secret) {
       callback()
     } else {
       callback('authorization_failed')
     }
   }
-  this.getWampExtra = function () {
+  this.testonly_extra = function () {
     return { serverDefinedExtra: 'the-value' }
+  }
+  this.getAuthMethods = function () {
+    return ['notfound', 'testonly']
   }
 }
 
@@ -42,15 +45,27 @@ describe('03. wamp-session', function () {
   afterEach(function () {
   })
 
+  it('Joe-NOAUTH', function () {
+    gate.setAuthHandler(new Auth())
+    sender.send = chai.spy(
+      function (msg, callback) {
+        expect(msg[0]).to.equal(WAMP.ABORT)
+        expect(msg[2]).to.equal('wamp.error.no_auth_method')
+      }
+    )
+    cli.handle(ctx, [ WAMP.HELLO, 'test', { authid: 'joe', authmethods: [ 'notexists' ] } ])
+    expect(sender.send).to.have.been.called.once()
+  })
+
   it('Joe-AUTH-FAIL', function () {
     gate.setAuthHandler(new Auth())
     sender.send = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.CHALLENGE)
-        expect(msg[1]).to.equal('ticket')
+        expect(msg[1]).to.equal('testonly')
       }
     )
-    cli.handle(ctx, [ WAMP.HELLO, 'test', { authid: 'joe', authmethods: [ 'ticket' ] } ])
+    cli.handle(ctx, [ WAMP.HELLO, 'test', { authid: 'joe', authmethods: [ 'testonly' ] } ])
     expect(sender.send).to.have.been.called.once()
 
     sender.send = chai.spy(
@@ -69,11 +84,11 @@ describe('03. wamp-session', function () {
     sender.send = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.CHALLENGE)
-        expect(msg[1]).to.equal('ticket')
+        expect(msg[1]).to.equal('testonly')
         expect(msg[2]).to.deep.equal({ serverDefinedExtra: 'the-value' })
       }
     )
-    cli.handle(ctx, [WAMP.HELLO, 'test', { authid: 'joe', authmethods: ['ticket'] }])
+    cli.handle(ctx, [WAMP.HELLO, 'test', { authid: 'joe', authmethods: ['somecrypto', 'testonly'] }])
     expect(sender.send).to.have.been.called.once()
 
     sender.send = chai.spy(
@@ -81,7 +96,7 @@ describe('03. wamp-session', function () {
         expect(msg[0]).to.equal(WAMP.WELCOME)
         expect(msg[2].realm).to.equal('test')
         expect(msg[2].authid).to.equal('joe')
-        expect(msg[2].authmethod).to.equal('ticket')
+        expect(msg[2].authmethod).to.equal('testonly')
       }
     )
     cli.handle(ctx, [WAMP.AUTHENTICATE, 'test-joe-secret'], { extraField: 'some-extra-value' })

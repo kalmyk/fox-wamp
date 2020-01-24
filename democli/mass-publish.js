@@ -15,7 +15,11 @@ var key = 'joe-secret'
 function onchallenge (session, method, extra) {
   if (method === 'ticket') {
     return key
-  } else {
+  }
+  else if (method === 'wampcra') {
+    return autobahn.auth_cra.sign(key, extra.challenge)
+  }
+  else {
     throw "don't know how to authenticate using '" + method + "'"
   }
 }
