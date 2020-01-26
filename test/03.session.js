@@ -18,8 +18,8 @@ const Auth = function () {
       callback('authorization_failed')
     }
   }
-  this.testonly_extra = function () {
-    return { serverDefinedExtra: 'the-value' }
+  this.testonly_extra = function (realmName, secureDetails, cb) {
+    cb(undefined, { serverDefinedExtra: 'the-value' })
   }
   this.getAuthMethods = function () {
     return ['notfound', 'testonly']

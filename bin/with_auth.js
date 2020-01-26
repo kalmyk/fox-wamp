@@ -10,30 +10,39 @@ program
   .option('-p, --port <port>', 'Server IP port', 9000)
   .parse(process.argv)
 
-let app
+let app = new Router()
+app.setLogTrace(true)
+
 let WampAuth = function () {
   this.getAuthMethods = function () {
     return ['ticket']
   }
-  this.ticket_auth = function (realmName, secureDetails, secret, extra, callback) {
+  this.ticket_auth = function (realmName, secureDetails, secret, extra, cb) {
     console.log('TICKET_AUTH:', secureDetails, secret, extra)
     app.getRealm(realmName, (realm) => {
       let api = realm.wampApi()
       let found = false
       api.subscribe('sys.user.info.'+secureDetails.authid, (id, args, kwargs) => {
         if (kwargs.password === secret) {
-          callback(undefined, kwargs)
+          cb(undefined, kwargs)
         } else {
-          callback(new Error('authentication_failed'))
+          cb(new Error('authentication_failed'))
         }
         found = true
       }).then((subId) => {
         if (!found) {
-          callback(new Error('authentication_failed'))
+          cb(new Error('authentication_failed'))
         }
         api.unsubscribe(subId)
       })
     })
+  }
+  this.wampcra_extra = function (realmName, secureDetails, cb) {
+    cb(undefined, 'some-random-string')
+  }
+  this.wampcra_auth = function (realmName, secureDetails, secret, extra, cb) {
+    console.log(realmName, secureDetails, secret, extra)
+    
   }
   this.authorize = function (session, funcClass, uniUri) {
     let userDetails = session.getUserDetails()
@@ -46,9 +55,6 @@ let WampAuth = function () {
     }
   }
 }
-
-app = new Router()
-app.setLogTrace(true)
 
 app.getRealm('realm1', function (realm) {
   var api = realm.wampApi()
