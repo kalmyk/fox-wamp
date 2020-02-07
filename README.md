@@ -35,19 +35,20 @@ const FoxRouter = require('fox-wamp')
 const PORT = process.env.PORT || 5000
 
 let app = express()
+app.get('/', (req, res) => res.send('Hello World!'))
 
 let httpServer = http.createServer(app)
 httpServer.listen(PORT, () => console.log(`Listening on ${ PORT }`))
 
 router = new FoxRouter()
-router.listenWAMP({server: httpServer, path: "/wss"})
+router.listenWAMP({server: httpServer, path: "/wamp"})
 ```
 
 and correspondingly the web socket client connection will look like as
 ```javascript
 let autobahn = require('autobahn')
 let connection = new autobahn.Connection({
-    url: 'ws:localhost:5000/wss',
+    url: 'ws:localhost:5000/wamp',
     realm: 'realm1'
 })
 ```

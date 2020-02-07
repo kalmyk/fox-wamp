@@ -2,18 +2,18 @@
 // This is authenticate router example
 //
 
-var Router = require('../index')
-var TopicPattern = require('../lib/topic_pattern')
-var program = require('commander')
+const Router = require('../index')
+const TopicPattern = require('../lib/topic_pattern')
+const program = require('commander')
 
 program
   .option('-p, --port <port>', 'Server IP port', 9000)
   .parse(process.argv)
 
-let app = new Router()
+const app = new Router()
 app.setLogTrace(true)
 
-let WampAuth = function () {
+const WampAuth = function () {
   this.getAuthMethods = function () {
     return ['ticket']
   }
@@ -42,15 +42,13 @@ let WampAuth = function () {
   }
   this.wampcra_auth = function (realmName, secureDetails, secret, extra, cb) {
     console.log(realmName, secureDetails, secret, extra)
-    
   }
   this.authorize = function (session, funcClass, uniUri) {
-    let userDetails = session.getUserDetails()
+    const userDetails = session.getUserDetails()
     console.log('authorize:', funcClass, uniUri, 'userDetails:', userDetails)
     if (userDetails.role === 'admin') {
       return true
-    }
-    else {
+    } else {
       return !TopicPattern.intersect(uniUri, ['sys', 'user', 'info', '#'])
     }
   }
