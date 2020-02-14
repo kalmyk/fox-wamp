@@ -8,6 +8,7 @@ const WAMP     = require('../lib/wamp/protocol')
 const Realm    = require('../lib/realm').Realm
 const WampGate = require('../lib/wamp/gate')
 const Router   = require('../lib/router')
+const MemKeyValueStorage = require('../lib/realm').MemKeyValueStorage
 
 chai.use(spies)
 
@@ -441,6 +442,30 @@ describe('wamp-realm', function () {
       api.publish('storage', [], { data: 'value-to-reduce', count: 2 }, { retain: true })
 
       expect(sender.send).to.have.been.called.exactly(3)
+    })
+
+    it('custom-key-value', function () {
+      let app = new MemKeyValueStorage()
+      realm.registerKeyValueEngine(['cache', '*', 'name', '#'], app)
+
+      api.publish('cache.user.name.john', [], { fullName: 'John Doe' }, { retain: true })
+
+      let row = chai.spy((aKey, data) => {
+        expect(aKey).to.deep.equal(['user', 'john'])
+        expect(data).to.deep.equal({ args: [], kwargs: { fullName: 'John Doe' } })
+      })
+      app.getKey(row, () => {}, ['*', 'john'])      
+      expect(row).to.have.been.called.exactly(1)
+
+      sender.send = chai.spy((msg, callback) => {
+        if (msg[1] === WAMP.EVENT) {
+          expect(msg[3]).to.deep.equal({ topic: 'cache.user.name.john', retained: true })
+          expect(msg[4]).to.deep.equal([])
+          expect(msg[5]).to.deep.equal({ fullName: 'John Doe' })
+        }
+      })
+      cli.handle(ctx, [WAMP.SUBSCRIBE, 1234, {}, 'cache.*.name.#'])
+      expect(sender.send).to.have.been.called.exactly(2)
     })
   })
 })

@@ -8,6 +8,7 @@ const TopicPattern = require('../lib/topic_pattern')
 function mqttmatch (topic, pattern, result) {
   expect(TopicPattern.mqttMatch(topic, pattern), "mqttmatch('" + topic + "', '" + pattern + "')").to.equal(true)
   expect(TopicPattern.mqttExtract(topic, pattern), "mqttmatch('" + topic + "', '" + pattern + "')").to.deep.equal(result)
+  expect(TopicPattern.merge(result,TopicPattern.mqttParse(pattern)),'merge(' + JSON.stringify(result) + ", '" + pattern + "')").to.deep.equal(TopicPattern.mqttParse(topic))
 }
 
 function mqttmis (topic, pattern) {
@@ -24,12 +25,14 @@ describe('01. topic pattern', function () {
     expect(TopicPattern.mqttParse('foo/bar/#')).to.deep.equal(['foo','bar', '#'])
 
     expect(TopicPattern.match(['foo', 'bar'], ['#'])).to.equal(true)
+  })
 
-    expect(TopicPattern.intersect(['+'], ['foo', '+'])).to.equal(false)
-    expect(TopicPattern.intersect(['+'], ['foo', '#'])).to.equal(true)
-    expect(TopicPattern.intersect(['+', 'bar', '#'], ['foo', '+', 'bar', '#'])).to.equal(true)
-    expect(TopicPattern.intersect(['foo', '+', 'bar', '#'], ['foo', '+', 'bar', '#'])).to.equal(true)
-    expect(TopicPattern.intersect(['foo', '+', 'baz', '#'], ['foo', '+', 'bar', '#'])).to.equal(false)
+  it('intersect', function () {
+    expect(TopicPattern.intersect(['*'], ['foo', '*'])).to.equal(false)
+    expect(TopicPattern.intersect(['*'], ['foo', '#'])).to.equal(true)
+    expect(TopicPattern.intersect(['*', 'bar', '#'], ['foo', '*', 'bar', '#'])).to.equal(true)
+    expect(TopicPattern.intersect(['foo', '*', 'bar', '#'], ['foo', '*', 'bar', '#'])).to.equal(true)
+    expect(TopicPattern.intersect(['foo', '*', 'baz', '#'], ['foo', '*', 'bar', '#'])).to.equal(false)
   })
 
   it('mqtt trivial matching/mismatching', function () {
@@ -51,20 +54,20 @@ describe('01. topic pattern', function () {
 
   it('wildcard # matching/mismatching', function () {
     mqttmatch('test', '#', ['test'])
-    mqttmatch('test/test', '#', ['test/test'])
-    mqttmatch('test/test/test', '#', ['test/test/test'])
+    mqttmatch('test/test', '#', ['test', 'test'])
+    mqttmatch('test/test/test', '#', ['test', 'test', 'test'])
     mqttmatch('test/test', 'test/#', ['test'])
-    mqttmatch('test/foo/bar', 'test/#', ['foo/bar'])
+    mqttmatch('test/foo/bar', 'test/#', ['foo', 'bar'])
     mqttmatch('test/test/test', 'test/test/#', ['test'])
     mqttmatch('/', '/#', [''])
     mqttmatch('/test', '/#', ['test'])
-    mqttmatch('/test/', '/#', ['test/'])
-    mqttmatch('/foo/bar', '/#', ['foo/bar'])
+    mqttmatch('/test/', '/#', ['test', ''])
+    mqttmatch('/foo/bar', '/#', ['foo', 'bar'])
     mqttmatch('test/', 'test/#', [''])
     mqttmatch('test', 'test/#', [])
     mqttmatch('foo/bar', 'foo/bar/#', [])
 
-    mqttmatch('foo/abcd/bar/1234', 'foo/#', ['abcd/bar/1234'])
+    mqttmatch('foo/abcd/bar/1234', 'foo/#', ['abcd', 'bar', '1234'])
     mqttmatch('foo', 'foo/#', [])
 
     mqttmis('test', '/#')
@@ -100,13 +103,13 @@ describe('01. topic pattern', function () {
     mqttmis('fooo/abcd/bar/1234', 'foo/#')
     mqttmis('foo', 'foo/+/#')
 
-    mqttmatch('foo/bar/baz', '#', ['foo/bar/baz'])
+    mqttmatch('foo/bar/baz', '#', ['foo', 'bar', 'baz'])
     mqttmatch('foo/bar', '+/#', ['foo', 'bar'])
     mqttmatch('foo/bar/', '+/bar/#', ['foo', ''])
     mqttmatch('foo/bar/', 'foo/+/#', ['bar', ''])
     mqttmatch('test/test/test', '+/test/#', ['test', 'test'])
     mqttmatch('test/foo/bar', 'test/+/#', ['foo', 'bar'])
-    mqttmatch('test/foo/bar/baz', 'test/+/#', ['foo', 'bar/baz'])
+    mqttmatch('test/foo/bar/baz', 'test/+/#', ['foo', 'bar', 'baz'])
     mqttmatch('foo/bar/test', '+/+/#', ['foo', 'bar', 'test'])
     mqttmatch('foo/bar/baz/test', 'foo/+/+/#', ['bar', 'baz', 'test'])
     mqttmatch('test', '+/#', ['test'])
