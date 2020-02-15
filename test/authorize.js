@@ -4,7 +4,6 @@ const chai = require('chai')
 const spies = require('chai-spies')
 const expect = chai.expect
 
-const Realm    = require('../lib/realm').Realm
 const WAMP     = require('../lib/wamp/protocol')
 const WampGate = require('../lib/wamp/gate')
 const MqttGate = require('../lib/mqtt/gate')
@@ -37,7 +36,7 @@ describe('authorize', function () {
     mqttSender = {}
     wampSender = {}
     router = new Router()
-    realm = new Realm(router)
+    realm = router.createRealm('test-realm')
 
     mqttGate = new MqttGate(router)
     mqttGate.setAuthHandler(auth)

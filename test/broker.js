@@ -6,7 +6,6 @@ const expect      = chai.expect
 const { RESULT_OK, RESULT_ACK, RESULT_ERR } = require('../lib/messages')
 const errorCodes  = require('../lib/realm_error').errorCodes
 const FoxGate     = require('../lib/hyper/gate')
-const Realm       = require('../lib/realm').Realm
 const Router      = require('../lib/router')
 
 chai.use(spies)
@@ -23,7 +22,7 @@ describe('hyper-broker', function () {
   beforeEach(function () {
     sender = {}
     router = new Router()
-    realm = new Realm(router)
+    realm = router.createRealm('test-realm')
     gate = new FoxGate(router)
     session = gate.createSession()
     ctx = gate.createContext(session, sender)

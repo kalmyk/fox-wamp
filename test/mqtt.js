@@ -4,7 +4,6 @@ const chai = require('chai')
 const spies = require('chai-spies')
 const expect = chai.expect
 
-const Realm    = require('../lib/realm').Realm
 const MqttGate = require('../lib/mqtt/gate')
 const Router   = require('../lib/router')
 
@@ -22,7 +21,7 @@ describe('mqtt-realm', function () {
   beforeEach(function () {
     sender = {}
     router = new Router()
-    realm = new Realm(router)
+    realm = router.createRealm('test-realm')
     api = realm.wampApi()
 
     let mqttGate = new MqttGate(router)

@@ -5,7 +5,6 @@ const spies = require('chai-spies')
 const expect = chai.expect
 
 const WAMP     = require('../lib/wamp/protocol')
-const Realm    = require('../lib/realm').Realm
 const WampGate = require('../lib/wamp/gate')
 const Router   = require('../lib/router')
 const MemKeyValueStorage = require('../lib/realm').MemKeyValueStorage
@@ -25,7 +24,7 @@ describe('wamp-realm', function () {
   beforeEach(function () {
     sender = {}
     router = new Router()
-    realm = new Realm(router)
+    realm = router.createRealm('test-realm')
     api = realm.wampApi()
 
     gate = new WampGate(router)
