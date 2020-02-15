@@ -80,6 +80,8 @@ describe('mqtt-realm', function () {
     })
 
     it('SUBSCRIBE-mqtt', function () {
+      api.publish('topic1', [], '{ data: 1 }', { retain: true })
+
       sender.send = chai.spy(
         function (msg) {
           expect(msg.cmd).to.equal('suback')
@@ -106,6 +108,39 @@ describe('mqtt-realm', function () {
       )
       api.publish('topic1', '{ data: 1 }')
       expect(sender.send, 'published').to.have.been.called.once()
+    })
+
+
+    it('SUBSCRIBE-retain', function () {
+      api.publish('topic1', [], '{ data: 1 }', { retain: true })
+
+      const pubSpy = chai.spy(
+        function (msg) {
+          expect(msg.cmd).to.equal('publish')
+          expect(msg.topic).to.equal('topic1')
+        }
+      )
+      const subSpy = chai.spy(
+        function (msg) {
+          expect(msg.cmd).to.equal('suback')
+          sender.send = pubSpy
+        }
+      )
+      sender.send = subSpy
+
+      cli.handle(ctx, {
+        cmd: 'subscribe',
+        retain: true,
+        qos: 1,
+        dup: false,
+        length: 17,
+        topic: null,
+        payload: null,
+        subscriptions: [{ topic: 'topic1', qos: 0 }],
+        messageId: 1
+      })
+      expect(subSpy, 'call-subscribed').to.have.been.called.once()
+      expect(pubSpy, 'call-published').to.have.been.called.once()
     })
 
     it('SUBSCRIBE-multi-mqtt', function () {
@@ -178,7 +213,7 @@ describe('mqtt-realm', function () {
       expect(sender.send, 'puback').to.have.been.called.once()
     })
 
-    it('SUBSCRIBE-to-retain', function (done) {
+    it('PUBLISH-to-retain', function (done) {
       sender.send = chai.spy((msg, callback) => {})
       cli.handle(ctx, {
         cmd: 'publish',
@@ -198,10 +233,10 @@ describe('mqtt-realm', function () {
           done()
         }
       )
-      api.subscribe('topic1', subSpy)
+      api.subscribe('topic1', subSpy, { retained: true })
     })
 
-    it('SUBSCRIBE-retain-clean', function (done) {
+    it('PUBLISH-retain-clean', function (done) {
       sender.send = chai.spy((msg, callback) => {})
 
       cli.handle(ctx, {
@@ -234,10 +269,10 @@ describe('mqtt-realm', function () {
         payload: Buffer.from('')
       })
 
-      let spyClean = chai.spy(() => {})
-      api.subscribe('topic-to-clean', spyClean)
+      const spyClean = chai.spy(() => {})
+      api.subscribe('topic-to-clean', spyClean, { retained: true })
 
-      let spyRetain = chai.spy(
+      const spyRetain = chai.spy(
         function (publicationId, args, kwargs) {
           expect(args).to.deep.equal([])
           expect(kwargs).to.deep.equal({ the: 'text' })
@@ -245,7 +280,7 @@ describe('mqtt-realm', function () {
           done()
         }
       )
-      api.subscribe('topic-to-retain', spyRetain)
+      api.subscribe('topic-to-retain', spyRetain, { retained: true })
     })
 
     it('SUBSCRIBE-retain-batch', function () {
@@ -281,8 +316,8 @@ describe('mqtt-realm', function () {
         payload: Buffer.from('{"the":"text k3"}')
       })
 
-      let spyRetain = chai.spy(() => {})
-      api.subscribe('batch.#', spyRetain)
+      const spyRetain = chai.spy(() => {})
+      api.subscribe('batch.#', spyRetain, { retained: true })
       expect(spyRetain).to.have.been.called.exactly(3)
     })
   })
@@ -302,8 +337,8 @@ describe('mqtt-realm', function () {
       length: 17,
       topic: null,
       payload: null,
-      will: 
-      { retain: false,
+      will: {
+        retain: false,
         qos: 0,
         topic: 'disconnect',
         payload: Buffer.from('{"text":"some-test-text"}')

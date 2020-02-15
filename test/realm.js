@@ -422,7 +422,7 @@ describe('wamp-realm', function () {
           }
         }
       )
-      cli.handle(ctx, [WAMP.SUBSCRIBE, 1234, {}, 'topic1'])
+      cli.handle(ctx, [WAMP.SUBSCRIBE, 1234, { retained: true }, 'topic1'])
     })
 
     it('retain-weak', function () {
@@ -445,16 +445,16 @@ describe('wamp-realm', function () {
     })
 
     it('custom-key-value', function () {
-      let app = new MemKeyValueStorage()
+      const app = new MemKeyValueStorage()
       realm.registerKeyValueEngine(['cache', '*', 'name', '#'], app)
 
       api.publish('cache.user.name.john', [], { fullName: 'John Doe' }, { retain: true })
 
-      let row = chai.spy((aKey, data) => {
+      const row = chai.spy((aKey, data) => {
         expect(aKey).to.deep.equal(['user', 'john'])
         expect(data).to.deep.equal({ args: [], kwargs: { fullName: 'John Doe' } })
       })
-      app.getKey(row, () => {}, ['*', 'john'])      
+      app.getKey(['*', 'john'], row)
       expect(row).to.have.been.called.exactly(1)
 
       sender.send = chai.spy((msg, callback) => {
@@ -464,7 +464,7 @@ describe('wamp-realm', function () {
           expect(msg[5]).to.deep.equal({ fullName: 'John Doe' })
         }
       })
-      cli.handle(ctx, [WAMP.SUBSCRIBE, 1234, {}, 'cache.*.name.#'])
+      cli.handle(ctx, [WAMP.SUBSCRIBE, 1234, { retained: true }, 'cache.*.name.#'])
       expect(sender.send).to.have.been.called.exactly(2)
     })
   })

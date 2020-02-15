@@ -27,13 +27,18 @@ describe('01. topic pattern', function () {
     expect(TopicPattern.match(['foo', 'bar'], ['#'])).to.equal(true)
   })
 
-  it('intersect', function () {
+  it('pattern-intersect', function () {
     expect(TopicPattern.intersect(['*'], ['foo', '*'])).to.equal(false)
     expect(TopicPattern.intersect(['*'], ['foo', '#'])).to.equal(true)
     expect(TopicPattern.intersect(['*', 'bar', '#'], ['foo', '*', 'bar', '#'])).to.equal(true)
     expect(TopicPattern.intersect(['foo', '*', 'bar', '#'], ['foo', '*', 'bar', '#'])).to.equal(true)
     expect(TopicPattern.intersect(['foo', '*', 'baz', '#'], ['foo', '*', 'bar', '#'])).to.equal(false)
   })
+
+  // it('topic-extract', function () {
+  //   expect().to.deep.equal(['*', '#'])
+  //   console.log('EXTRACT', TopicPattern.extract(['cache', '#'], ['cache', '*', 'name', '#']))
+  // })
 
   it('mqtt trivial matching/mismatching', function () {
     mqttmatch('test/123', 'test/123', [])
