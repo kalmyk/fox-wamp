@@ -356,4 +356,101 @@ describe('mqtt-realm', function () {
       done()
     })
   })
+
+/*  it('connect-clientid', function () {
+    realm.cleanupSession(cli)
+    router.getRealm = (realmName, cb) => {cb(realm)}
+
+    let i = 0
+    sender.send = chai.spy((msg, callback) => {
+      sender.send = nextPublish
+      console.log('TEST-MSG', ++i, msg)
+
+      cli.handle(ctx, {
+        cmd: 'subscribe',
+        retain: false,
+        qos: 1,
+        dup: false,
+        length: 17,
+        topic: null,
+        payload: null,
+        subscriptions: [{ topic: 'topic1', qos: 1 }],
+        messageId: 1
+      })
+    })
+
+    const nextPublish = chai.spy((msg) => {
+      sender.send = nextConnect
+      console.log('TEST-MSG', ++i, msg)
+
+      api.publish('topic1', [], { data: 1 }, { trace: true })
+      expect(realm.engine._messages.length, 'trace message need to be saved').to.equal(1)
+
+      cli.handle(ctx, {
+        cmd: 'disconnect',
+        retain: false,
+        qos: 0,
+        dup: false,
+        length: 0,
+        topic: null,
+        payload: null
+      })
+    })
+
+    const nextConnect = chai.spy((msg) => {
+      sender.send = nextConnack2
+      console.log('TEST-MSG', ++i, msg)
+
+      // api.publish('topic1', [], { data: 2 }, { trace: true })
+
+      cli.handle(ctx, {
+        cmd: 'connect',
+        retain: false,
+        qos: 0,
+        dup: false,
+        length: 17,
+        topic: null,
+        payload: null,
+        clean: false,
+        username: 'user@realm',
+        clientId: 'agent-state'
+      })
+    })
+
+    const nextConnack2 = chai.spy((msg) => {
+      sender.send = nextEventReceive
+      console.log('RTEST-MSG', ++i, msg)
+
+      cli.handle(ctx, {
+        cmd: 'subscribe',
+        retain: false,
+        qos: 1,
+        dup: false,
+        length: 17,
+        topic: null,
+        payload: null,
+        subscriptions: [{ topic: 'topic1', qos: 1 }],
+        messageId: 1
+      })
+    })
+
+    const nextEventReceive = chai.spy((msg) => {
+      console.log('NTEST-MSG', ++i, msg)
+    })
+
+    // START HERE
+    cli.handle(ctx, {
+      cmd: 'connect',
+      retain: false,
+      qos: 0,
+      dup: false,
+      length: 17,
+      topic: null,
+      payload: null,
+      clean: false,
+      username: 'user@realm',
+      clientId: 'agent-state'
+    })
+
+  }) */
 })

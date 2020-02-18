@@ -1,3 +1,6 @@
+//
+// demo how to register custom function inside the router
+//
 const MSG = require('../lib/messages')
 const Router = require('../index')
 const program = require('commander')
@@ -6,10 +9,10 @@ program
   .option('-p, --port <port>', 'Server IP port', 9000)
   .parse(process.argv)
 
-var app = new Router()
-app.setLogTrace(true)
+const router = new Router()
+router.setLogTrace(true)
 
-app.on(MSG.REALM_CREATED, function (realm, realmName) {
+router.on(MSG.REALM_CREATED, function (realm, realmName) {
   console.log('new Relm:', realmName)
 
   realm.on(MSG.ON_REGISTERED, function (registeration) {
@@ -20,13 +23,13 @@ app.on(MSG.REALM_CREATED, function (realm, realmName) {
   })
 })
 
-app.getRealm('realm1', function (realm) {
-  var api = realm.wampApi()
-  api.register('test.foo', function (id, args, kwargs) {
-    console.log('called with ', args, kwargs)
-    api.resrpc(id, null /* no error */, [ 'bar', 'bar2' ], { 'key1': 'bar1', 'key2': 'bar2' })
+router.getRealm('realm1', function (realm) {
+  const api = realm.wampApi()
+  api.register('test.foo', function (id, args, kwargs, opt) {
+    console.log('function "test.foo" called with ', args, kwargs, opt)
+    api.resrpc(id, null /* no error */, ['bar', 'bar2'], { key1: 'bar1', key2: 'bar2' })
   })
 })
 
 console.log('Listening port:', program.port)
-app.listenWAMP({ port: program.port })
+router.listenWAMP({ port: program.port })
