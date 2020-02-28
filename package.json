@@ -1,6 +1,6 @@
 {
   "name": "fox-wamp",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Web Application Message Router/Server WAMP/MQTT",
   "author": {
     "name": "Anatoly Tsapkov",
@@ -26,6 +26,7 @@
     "jsonschema": "^1.2.5",
     "mqtt-packet": "^6.3.0",
     "node-statsd": "*",
+    "msgpack-lite": "*",
     "qlobber": "^3.1.0",
     "ws": "^6.2.1"
   },

@@ -7,7 +7,7 @@ const expect = chai.expect
 const WAMP     = require('../lib/wamp/protocol')
 const WampGate = require('../lib/wamp/gate')
 const Router   = require('../lib/router')
-const MemKeyValueStorage = require('../lib/realm').MemKeyValueStorage
+const MemKeyValueStorage = require('../lib/memkv').MemKeyValueStorage
 
 chai.use(spies)
 
@@ -53,7 +53,7 @@ describe('wamp-realm', function () {
           expect(msg[1]).to.equal(WAMP.CALL)
           expect(msg[2]).to.equal(1234)
           expect(msg[4]).to.equal('wamp.error.no_such_procedure')
-          expect(msg[5]).to.deep.equal([ 'no callee registered for procedure <any.function.name>' ])
+          expect(msg[5]).to.deep.equal(['no callee registered for procedure <any.function.name>'])
         }
       )
       cli.handle(ctx, [WAMP.CALL, 1234, {}, 'any.function.name', []])
@@ -431,9 +431,31 @@ describe('wamp-realm', function () {
       // console.log('key', realm.getKey('topic2'))
     })
 
+    it('wamp-key-remove', function () {
+      cli.handle(ctx, [WAMP.PUBLISH, 1234, { retain: true }, 'topic2', [], { some: 'value' }])
+
+      const gotRow = chai.spy((key, value) => {
+        expect(key).to.deep.equal(['topic2'])
+        expect(value).to.deep.equal({ args: [], kwargs: { some: 'value' } })
+      })
+
+      const noRow = chai.spy(() => {})
+
+      return realm.getKey(['topic2'], gotRow).then(() => {
+        expect(gotRow).to.have.been.called.exactly(1)
+
+        // no kwargs sent if kwargs passed as null
+        cli.handle(ctx, [WAMP.PUBLISH, 1234, { retain: true }, 'topic2', []])
+
+        return realm.getKey(['topic2'], noRow)
+      }).then(() => {
+        expect(noRow, 'row need to be removed').to.have.not.been.called()
+      })
+    })
+
     it('reduce-one', function () {
       sender.send = chai.spy((msg, callback) => {
-//        console.log('REDUCE-CALL', msg);
+        // console.log('REDUCE-CALL', msg);
       })
 
       cli.handle(ctx, [WAMP.REGISTER, 1234, { reducer: true }, 'storage'])
@@ -454,7 +476,7 @@ describe('wamp-realm', function () {
         expect(data).to.deep.equal({ args: [], kwargs: { fullName: 'John Doe' } })
       })
       app.getKey(['*', 'john'], row)
-      expect(row).to.have.been.called.exactly(1)
+      expect(row, 'data has to be saved').to.have.been.called.exactly(1)
 
       sender.send = chai.spy((msg, callback) => {
         if (msg[1] === WAMP.EVENT) {

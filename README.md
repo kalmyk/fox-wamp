@@ -4,7 +4,7 @@ The Web Application Message Server goal is to provide durable message source for
 
 Message router has pluggable interface to the several message protocols. As for now it could interact by
 * [WAMP V2 Basic Profile](http://wamp-proto.org/)
-* [MQTT](http://mqtt.org/)
+* [MQTT 3.1](http://mqtt.org/)
 
 It means that event could be send through MQTT interface and handled by WAMP client.
 
@@ -90,11 +90,12 @@ has to maintain persistence of keys and provide the value as immediate first
 message for the subscription. And here what could be implemented
 
 ```javascript
-publish('the.key', [ 'args' ], { kwArgs: false }, {
+publish('the.key', [ 'args' ], { kwArgs: true }, {
     retain: 100,
-    weak: 'public',
+    // weak: 'public',
     when: { status: 'started' },
     watch: false
+    will: { value: 'to', publish: 'at', session: 'disconnect' }
   })
 ```
 

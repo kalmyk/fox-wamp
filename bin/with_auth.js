@@ -20,16 +20,16 @@ const WampAuth = function () {
   this.ticket_auth = function (realmName, secureDetails, secret, extra, cb) {
     console.log('TICKET_AUTH:', secureDetails, secret, extra)
     app.getRealm(realmName, (realm) => {
-      let api = realm.wampApi()
+      const api = realm.wampApi()
       let found = false
-      api.subscribe('sys.user.info.'+secureDetails.authid, (id, args, kwargs) => {
+      api.subscribe('sys.user.info.' + secureDetails.authid, (id, args, kwargs) => {
         if (kwargs.password === secret) {
           cb(undefined, kwargs)
         } else {
           cb(new Error('authentication_failed'))
         }
         found = true
-      }).then((subId) => {
+      }, { retained: true }).then((subId) => {
         if (!found) {
           cb(new Error('authentication_failed'))
         }
@@ -57,8 +57,8 @@ const WampAuth = function () {
 app.getRealm('realm1', function (realm) {
   var api = realm.wampApi()
   // create demo database
-  api.publish('sys.user.info.joe', [], { role: 'user', password: 'joe-secret' }, { retain:true })
-  api.publish('sys.user.info.admin', [], { role: 'admin', password: 'admin-secret' }, { retain:true })
+  api.publish('sys.user.info.joe', [], { role: 'user', password: 'joe-secret' }, { retain: true })
+  api.publish('sys.user.info.admin', [], { role: 'admin', password: 'admin-secret' }, { retain: true })
 })
 
 console.log('Listening port:', program.port)

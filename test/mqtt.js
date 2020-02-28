@@ -24,7 +24,7 @@ describe('mqtt-realm', function () {
     realm = router.createRealm('test-realm')
     api = realm.wampApi()
 
-    let mqttGate = new MqttGate(router)
+    const mqttGate = new MqttGate(router)
 
     cli = mqttGate.createSession()
     ctx = mqttGate.createContext(cli, sender)
@@ -323,11 +323,9 @@ describe('mqtt-realm', function () {
 
   it('at-connection-fail-will-publish', function (done) {
     realm.cleanupSession(cli)
-    router.getRealm = (realmName, cb) => {cb(realm)}
+    router.getRealm = (realmName, cb) => { cb(realm) }
 
-    sender.send = chai.spy(
-      function (msg, callback) {}
-    )
+    sender.send = chai.spy(() => {})
     cli.handle(ctx, {
       cmd: 'connect',
       retain: false,
@@ -339,7 +337,7 @@ describe('mqtt-realm', function () {
       will: {
         retain: false,
         qos: 0,
-        topic: 'disconnect',
+        topic: 'topic-test-disconnect',
         payload: Buffer.from('{"text":"some-test-text"}')
       }
     })
@@ -347,24 +345,26 @@ describe('mqtt-realm', function () {
     var subSpy = chai.spy(
       function (publicationId, args, kwargs) {
         expect(args).to.deep.equal([])
-        expect(kwargs).to.deep.equal({ text: "some-test-text" })
+        expect(kwargs).to.deep.equal({ text: 'some-test-text' })
       }
     )
-    api.subscribe('disconnect', subSpy).then((subId) => {
+    api.subscribe('topic-test-disconnect', subSpy).then((subId) => {
       cli.cleanup()
       expect(subSpy).to.have.been.called.once()
       done()
     })
   })
 
-/*  it('connect-clientid', function () {
+  it('connect-clientid', function (done) {
     realm.cleanupSession(cli)
-    router.getRealm = (realmName, cb) => {cb(realm)}
+    router.getRealm = (realmName, cb) => { cb(realm) }
 
     let i = 0
-    sender.send = chai.spy((msg, callback) => {
+    sender.send = chai.spy((msg) => {
       sender.send = nextPublish
-      console.log('TEST-MSG', ++i, msg)
+
+      expect(msg.cmd).to.equal('connack')
+      expect(msg.sessionPresent).to.equal(false)
 
       cli.handle(ctx, {
         cmd: 'subscribe',
@@ -379,29 +379,47 @@ describe('mqtt-realm', function () {
       })
     })
 
+    let pubMsgId
+
     const nextPublish = chai.spy((msg) => {
-      sender.send = nextConnect
-      console.log('TEST-MSG', ++i, msg)
+      sender.send = nextPuback
+
+      expect(msg.cmd).to.equal('suback')
+      pubMsgId = msg.messageId
 
       api.publish('topic1', [], { data: 1 }, { trace: true })
       expect(realm.engine._messages.length, 'trace message need to be saved').to.equal(1)
+    })
+
+    const nextPuback = chai.spy((msg) => {
+      sender.send = nextConnect
+
+      expect(msg.cmd).to.equal('publish')
+      expect(msg.topic).to.equal('topic1')
+      expect(msg.qos).to.equal(1)
+      expect(msg.payload.toString()).to.equal('{"data":1}')
 
       cli.handle(ctx, {
-        cmd: 'disconnect',
+        cmd: 'puback',
         retain: false,
         qos: 0,
         dup: false,
-        length: 0,
+        length: 2,
         topic: null,
-        payload: null
+        payload: null,
+        messageId: pubMsgId
       })
-    })
 
-    const nextConnect = chai.spy((msg) => {
-      sender.send = nextConnack2
-      console.log('TEST-MSG', ++i, msg)
+      const gotRow = chai.spy((key, value) => {
+        expect(key).to.deep.equal(['$FOX', 'clientOffset', 'agent-state'])
+        expect(value).to.equal(pubMsgId)
+      })
 
-      // api.publish('topic1', [], { data: 2 }, { trace: true })
+      realm.getKey(['$FOX', 'clientOffset', 'agent-state'], gotRow)
+      expect(gotRow).to.have.been.called.once()
+
+      cli.cleanup()
+      api.publish('topic1', [], { data: 2 }, { trace: true })
 
       cli.handle(ctx, {
         cmd: 'connect',
@@ -412,14 +430,16 @@ describe('mqtt-realm', function () {
         topic: null,
         payload: null,
         clean: false,
-        username: 'user@realm',
+        username: 'user@test-realm',
         clientId: 'agent-state'
       })
     })
 
-    const nextConnack2 = chai.spy((msg) => {
-      sender.send = nextEventReceive
-      console.log('RTEST-MSG', ++i, msg)
+    const nextConnect = chai.spy((msg) => {
+      sender.send = nextSubReceive
+
+      expect(msg.cmd).to.equal('connack')
+      expect(msg.sessionPresent).to.equal(true)
 
       cli.handle(ctx, {
         cmd: 'subscribe',
@@ -434,8 +454,17 @@ describe('mqtt-realm', function () {
       })
     })
 
-    const nextEventReceive = chai.spy((msg) => {
-      console.log('NTEST-MSG', ++i, msg)
+    const nextSubReceive = chai.spy((msg) => {
+      sender.send = doneEventReceive
+      expect(msg.cmd).to.equal('suback')
+    })
+
+    const doneEventReceive = chai.spy((msg) => {
+      expect(msg.cmd).to.equal('publish')
+      expect(msg.topic).to.equal('topic1')
+//      expect(msg.qos).to.equal(1)
+      expect(msg.payload.toString()).to.equal('{"data":2}')
+      done()
     })
 
     // START HERE
@@ -448,9 +477,8 @@ describe('mqtt-realm', function () {
       topic: null,
       payload: null,
       clean: false,
-      username: 'user@realm',
+      username: 'user@test-realm',
       clientId: 'agent-state'
     })
-
-  }) */
+  })
 })
