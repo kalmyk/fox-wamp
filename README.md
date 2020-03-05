@@ -91,8 +91,7 @@ message for the subscription. And here what could be implemented
 
 ```javascript
 publish('the.key', [ 'args' ], { kwArgs: true }, {
-    retain: 100,
-    // weak: 'public',
+    retain: true,
     when: { status: 'started' },
     watch: false
     will: { value: 'to', publish: 'at', session: 'disconnect' }
@@ -100,11 +99,9 @@ publish('the.key', [ 'args' ], { kwArgs: true }, {
 ```
 
 ### Options Description
-* retain: time in seconds to keep the message in the server memory. Zero means forever. Default value is false that means message does no retain.
-* weak: The key disappears then client disconnects. (private|public) who could see the message, public by default
-* when: publish only if the key meets requirements. null means that key should not be exists.
-* watch: applicable if `when` option defined. Provide ability to wait the necesssary condition and do action immediately. If several clients waits for that the only one achieves acknowledge message.
-* sequence: generate unique key
+* retain: boolean, keep in Key Value storage. Default value is false that means message does not retain.
+* when: struct, publish only if the key meets requirements. null means that key should not be exists.
+* watch: boolean, applicable if `when` option defined. Provide ability to wait the necesssary condition and do action immediately. If several clients waits for that the only one achieves acknowledge message.
 
 ### Aggregate Engine for the data streams
 

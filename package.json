@@ -1,6 +1,6 @@
 {
   "name": "fox-wamp",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Web Application Message Router/Server WAMP/MQTT",
   "author": {
     "name": "Anatoly Tsapkov",

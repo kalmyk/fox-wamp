@@ -36,20 +36,20 @@ describe('pub-worker', function () {
     worker = null
   })
 
-  it('echo should return OK with sent data', function (done) {
-    assert.becomes(
+  it('echo should return OK with sent data', function () {
+    return assert.becomes(
       client.echo('test'),
       'test',
       'echo done'
-    ).notify(done)
+    )
   })
 
-  it('call to not existed function has to be failed', function (done) {
-    assert.isRejected(
-      client.call('test.func', { attr1: 1, attr2: 2 }),
+  it('call to not existed function has to be failed', function () {
+    return assert.isRejected(
+      client.call('test.func', { attr1: 1 }),
       /no callee registered for procedure/,
       'call rejected'
-    ).notify(done)
+    )
   });
 
   it('remote-procedure-call', function (done) {
@@ -73,8 +73,8 @@ describe('pub-worker', function () {
     )
   })
 
-  it('call-progress', function (done) {
-    worker.register(
+  it('call-progress', function () {
+    return worker.register(
       'test.func', function (args, task) {
         expect(task.getUri()).to.deep.equal([ 'test', 'func' ])
         expect(args).to.deep.equal({ attr1: 1, attr2: 2 })
@@ -88,7 +88,7 @@ describe('pub-worker', function () {
           client.call('test.func', { attr1: 1, attr2: 2 }),
           { result: 'done' },
           'call should be processed'
-        ).notify(done)
+        )
       },
       function (reason) {
         assert(false, 'unable to register')
