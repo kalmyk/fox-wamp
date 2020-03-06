@@ -84,13 +84,11 @@ register('reduce.the.key.#', (args, kwargs, options) => {
     {reducer: true})
 ```
 
-## Retained Storage Roadmap
-It is good to have some storage to keep last published message. The server
-has to maintain persistence of keys and provide the value as immediate first
-message for the subscription. And here what could be implemented
+## Retained Storage
+There is storage to keep last published message. The server maintains persistence of keys. The values are provided as immediate first message for the subscription if `retained` flag is pecified.
 
 ```javascript
-publish('the.key', [ 'args' ], { kwArgs: true }, {
+session.publish('the.key', [ 'args' ], { kwArgs: true }, {
     retain: true,
     when: { status: 'started' },
     watch: false
@@ -98,10 +96,15 @@ publish('the.key', [ 'args' ], { kwArgs: true }, {
   })
 ```
 
-### Options Description
+### Publish Options Description
 * retain: boolean, keep in Key Value storage. Default value is false that means message does not retain.
 * when: struct, publish only if the key meets requirements. null means that key should not be exists.
-* watch: boolean, applicable if `when` option defined. Provide ability to wait the necesssary condition and do action immediately. If several clients waits for that the only one achieves acknowledge message.
+* watch: boolean, applicable if `when` option defined. Provide ability to wait for the necesssary condition and then do action immediately. If several clients waits for same value the only one achieves acknowledge of message.
+* will: value that will be assigned at the session disconnect. If the value is changed by another
+process the will value is cleaned.
+
+### Subscribe Options
+* retained: boolean, corresponding values from key value storage will be returned as immidiate events.
 
 ### Aggregate Engine for the data streams
 
