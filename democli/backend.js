@@ -98,24 +98,6 @@ connection.onopen = function (session) {
     }
   )
 
-  session.subscribe('wamp.session.on_join', onEvent).then(
-    function (subscription) {
-      console.log('subscription successfull', subscription.topic)
-    },
-    function (error) {
-      console.log('subscription failed', error)
-    }
-  )
-
-  session.subscribe('wamp.session.on_leave', onEvent).then(
-    function (subscription) {
-      console.log('subscription successfull', subscription.topic)
-    },
-    function (error) {
-      console.log('subscription failed', error)
-    }
-  )
-
   session.subscribe('sys.user.#', onEvent).then(
     function (subscription) {
       console.log('user subscription passed', subscription.topic)

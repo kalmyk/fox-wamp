@@ -16,19 +16,11 @@ var connection = new autobahn.Connection({
 connection.onopen = function (session, details) {
   session.log('Session open.')
 
-  session.subscribe('wamp.session.on_join', function (publishArgs, kwargs, opts) {
+  session.subscribe('wamp.session.#', function (publishArgs, kwargs, opts) {
     console.log('Event', opts.topic, 'received args', publishArgs, 'kwargs ', kwargs)
   }).then(
     function (subscription) {
       console.log('subscription successfull wamp.session.on_join')
-    }
-  )
-
-  session.subscribe('wamp.session.on_leave', function (publishArgs, kwargs, opts) {
-    console.log('Event', opts.topic, 'received args', publishArgs, 'kwargs ', kwargs)
-  }).then(
-    function (subscription) {
-      console.log('subscription successfull wamp.session.on_leave')
     }
   )
 
