@@ -71,7 +71,44 @@ includes frontend part on React JS and backend server on Fox-WAMP.
 
 https://github.com/kalmyk/reflux-chat
 
-## Map-Reduce
+## Retained Storage
+There is a storage to keep last content of published message.
+The values from the storage could be retrived as immediate initial messages for the subscription if `retained` flag is pecified.
+
+```javascript
+register('key.value.#', (args, kwargs, options) => {
+        console.log('event-handler', args, kwargs)
+    },
+    { retained: true }
+)
+```
+
+and corresponding client code that consumes such retained events could be as following
+
+```javascript
+session.publish('key.value.1', [ 'args' ], { kwArgs: true }, {
+    retain: true,
+    when: { status: 'started' },
+    watch: false
+    will: { value: 'to', publish: 'at', session: 'disconnect' }
+  })
+```
+
+### Publish Options Description
+* retain: boolean, keep in Key Value storage. Default value is false that means message does
+  not retain.
+* when: struct, publish only if the key meets requirements. null means that key should not be exists.
+* watch: boolean, applicable if `when` option defined. Provide ability to wait for the necesssary
+  condition and then do action immediately. If several clients waits for same value the only one achieves acknowledge of message.
+* will: value that will be assigned at the session disconnect. If the value is changed by any
+  process the `will` value is cleaned.
+
+### Synchronization Service
+The options above provide ability to use the server as Synchronization Service. The `watch` option
+is designed to delay acknowledge response of publish due to necessary conditions achieved that
+is described in `when` option. See the demo in `democli\resource-lock.js`
+
+## Map-Reduce, coming soon
 Map-Reduce processing in terms of message queue is tranforming of the input stream
 to be passed to the corresponding event topic and reduced there.
 As Map function is possible to use any regular function registration. 
@@ -81,30 +118,13 @@ Reduce is the function that gather events published to topic to the ratained dat
 register('reduce.the.key.#', (args, kwargs, options) => {
         return options.retained + kwargs.value
     },
-    {reducer: true})
+    { reducer: true }
+)
 ```
-
-## Retained Storage
-There is storage to keep last published message. The server maintains persistence of keys. The values are provided as immediate first message for the subscription if `retained` flag is pecified.
-
-```javascript
-session.publish('the.key', [ 'args' ], { kwArgs: true }, {
-    retain: true,
-    when: { status: 'started' },
-    watch: false
-    will: { value: 'to', publish: 'at', session: 'disconnect' }
-  })
-```
-
-### Publish Options Description
-* retain: boolean, keep in Key Value storage. Default value is false that means message does not retain.
-* when: struct, publish only if the key meets requirements. null means that key should not be exists.
-* watch: boolean, applicable if `when` option defined. Provide ability to wait for the necesssary condition and then do action immediately. If several clients waits for same value the only one achieves acknowledge of message.
-* will: value that will be assigned at the session disconnect. If the value is changed by another
-process the will value is cleaned.
 
 ### Subscribe Options
 * retained: boolean, corresponding values from key value storage will be returned as immidiate events.
+* reducer:
 
 ### Aggregate Engine for the data streams
 
@@ -157,7 +177,7 @@ process the will value is cleaned.
             "total": { "type": "string" }
         },
         "primary_key": [ "customer" ],
-        "sum": [ "amount" ]
+        "sum": [ "total" ]
     }
 ```
 
