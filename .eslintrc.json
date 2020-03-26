@@ -13,6 +13,7 @@
   },
   "rules": {
     "mocha/no-exclusive-tests": "error",
+    "no-unused-vars": ["error", { "args": "none" }],
     "no-console": "off",
     "indent": [
       "error",

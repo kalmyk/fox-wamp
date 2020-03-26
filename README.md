@@ -108,6 +108,17 @@ The options above provide ability to use the server as Synchronization Service. 
 is designed to delay acknowledge response of publish due to necessary conditions achieved that
 is described in `when` option. See the demo in `democli\resource-lock.js`
 
+## Event Filter, coming soon
+Subscribtion able to filter messages before firing out to reduce network consumption.
+
+```javascript
+register('some.key.#', (args, kwargs) => {
+        // do some action here
+    },
+    { filter: { type: 'post' } }
+)
+```
+
 ## Map-Reduce, coming soon
 Map-Reduce processing in terms of message queue is tranforming of the input stream
 to be passed to the corresponding event topic and reduced there.
@@ -125,6 +136,7 @@ register('reduce.the.key.#', (args, kwargs, options) => {
 ### Subscribe Options
 * retained: boolean, corresponding values from key value storage will be returned as immidiate events.
 * reducer:
+* filter: condition to filter messages that accepted by the subscription
 
 ### Aggregate Engine for the data streams
 
