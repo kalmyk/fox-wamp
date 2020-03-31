@@ -53,7 +53,7 @@ connection.onopen = function (session, details) {
         console.log('FAILED', reason)
         connection.close()
       }
-    )  
+    )
   }
 
   function unlockResource () {

@@ -108,8 +108,42 @@ The options above provide ability to use the server as Synchronization Service. 
 is designed to delay acknowledge response of publish due to necessary conditions achieved that
 is described in `when` option. See the demo in `democli\resource-lock.js`
 
-## Event Filter, coming soon
-Subscribtion able to filter messages before firing out to reduce network consumption.
+#### lock mutex
+The code below will lock resource mutex if it is available
+and unlock it automatically if connection lost
+
+```javascript
+    session.publish(
+      'myapp.resource',
+      [],
+      { pid: process.pid, value: 'handle-resource' },
+      { acknowledge: true, retain: true, trace: true, when: null, will: null, watch: true }
+    ).then(
+      (result) => {
+        console.log('Resource Locked', result)
+      }, (reason) => {
+        console.log('FAILED', reason)
+        connection.close()
+      }
+    )
+```
+
+#### unlock mutex
+To force unlock the resource need to simple publish necessary value to the resource channel.
+The same function is invoked on disconnect if `will` value is specified.
+
+```javascript
+    session.publish(
+      'myapp.resource',
+      [],
+      null,
+      { acknowledge: true, retain: true, trace: true }
+    )
+```
+
+## Event Filter
+Subscription is able to filter messages before firing on the server side.
+This could dramatically reduce network consumption.
 
 ```javascript
 register('some.key.#', (args, kwargs) => {
@@ -141,7 +175,8 @@ register('reduce.the.key.#', (args, kwargs, options) => {
 ### Aggregate Engine for the data streams
 
 <p>
-    What if to define table structure with aggregation functions in the same information schema?
+    What if to define table structure along with aggregation functions in the same information schema?
+    That could look like some kind of transaction definition that is represent in json schema.
 </p>
 <p>
     The idea is to have definitions of cross table relations and calculation rules in one place. 
@@ -177,7 +212,8 @@ register('reduce.the.key.#', (args, kwargs, options) => {
         "propagate":{
             "detail":[{
                 "key": [ "customer" ],
-                "fields": { "total": "amount" }
+                "fields": { "total": "amount" },
+                "filter": {"type":"sale"}
             }]
         }
     },
