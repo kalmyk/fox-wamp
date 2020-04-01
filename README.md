@@ -1,5 +1,7 @@
 # FOX-WAMP is a The Web Application Message Server
 
+[![Build Status](https://travis-ci.org/kalmyk/fox-wamp.svg?branch=master)](https://travis-ci.org/kalmyk/fox-wamp)
+
 The Web Application Message Server goal is to provide durable message source for the actual web applications.
 
 Message router has pluggable interface to the several message protocols. As for now it could interact by
