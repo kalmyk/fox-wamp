@@ -359,7 +359,6 @@ describe('mqtt-realm', function () {
     realm.cleanupSession(cli)
     router.getRealm = (realmName, cb) => { cb(realm) }
 
-    let i = 0
     sender.send = chai.spy((msg) => {
       sender.send = nextPublish
 
@@ -462,7 +461,7 @@ describe('mqtt-realm', function () {
     const doneEventReceive = chai.spy((msg) => {
       expect(msg.cmd).to.equal('publish')
       expect(msg.topic).to.equal('topic1')
-//      expect(msg.qos).to.equal(1)
+      // expect(msg.qos).to.equal(1)
       expect(msg.payload.toString()).to.equal('{"data":2}')
       done()
     })

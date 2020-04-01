@@ -17,7 +17,7 @@ describe('pub-worker', function () {
     gate,
     realm,
     client,
-    worker;
+    worker
 
   beforeEach(function () {
     router = new Router()
@@ -50,7 +50,7 @@ describe('pub-worker', function () {
       /no callee registered for procedure/,
       'call rejected'
     )
-  });
+  })
 
   it('remote-procedure-call', function (done) {
     worker.register(

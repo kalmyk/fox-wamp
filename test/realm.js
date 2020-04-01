@@ -117,7 +117,7 @@ describe('wamp-realm', function () {
           // 3 options
           expect(msg[4]).to.equal('wamp.error.no_such_registration')
         }
-      );
+      )
       cli.handle(ctx, [WAMP.UNREGISTER, 2345, 1234567890])
       expect(sender.send, 'unregistration confirmed').to.have.been.called.once()
     })

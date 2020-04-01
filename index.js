@@ -1,1 +1,1 @@
-module.exports = require('./lib/fox_router');
+module.exports = require('./lib/fox_router')

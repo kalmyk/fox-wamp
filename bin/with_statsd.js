@@ -15,7 +15,6 @@ program
 console.log('Listening port:', program.port)
 
 let app = new Router()
-
-let trace = new StatsD.TraceRouter(program, app)
+StatsD.traceRouter(app)
 
 app.listenWAMP({ port: program.port })

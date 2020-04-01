@@ -56,7 +56,7 @@ connection.onopen = function (session, details) {
   // when progressive call and acknowledge publish done
   Promise.all(res).then(function () {
     console.log('total rec/sec:', msgCount/(Date.now() - starttime)*1000 )
-    connection.close();
+    connection.close()
   })
 }
 
