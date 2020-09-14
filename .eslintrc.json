@@ -13,6 +13,7 @@
     "sourceType": "module"
   },
   "rules": {
+    "no-prototype-builtins": "off",
     "mocha/no-exclusive-tests": "error",
     "no-unused-vars": ["error", { "args": "none" }],
     "no-console": "off",
