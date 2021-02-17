@@ -169,7 +169,7 @@ describe('hyper-broker', function () {
     const api = realm.foxApi()
 
     let n = 0
-    const event = chai.spy((id, event) => {
+    const event = chai.spy((event, opt) => {
       n++
       if (n === 1) {
         expect(event).to.deep.equal({ kv: { event: 'value' } })
@@ -206,7 +206,7 @@ describe('hyper-broker', function () {
     const api = realm.foxApi()
 
     let m = 0
-    const event = chai.spy((id, event) => {
+    const event = chai.spy((event, opt) => {
       m++
       if (m === 1) {
         expect(event).to.deep.equal({ kv: { event: 'value' } })
