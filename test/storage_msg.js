@@ -7,6 +7,7 @@ const assert   = chai.assert
 chai.use(spies)
 chai.use(promised)
 
+const sqlite3 = require('sqlite3')
 const sqlite = require('sqlite')
 const Msg = require('../lib/sqlite/msg')
 
@@ -15,7 +16,10 @@ describe('message-storage', function () {
   let msg
 
   before(async function () {
-    const db = await sqlite.open(':memory:')
+    const db = await sqlite.open({
+      filename: ':memory:',
+      driver: sqlite3.Database
+    })
     msg = new Msg(db)
     return db
   })
