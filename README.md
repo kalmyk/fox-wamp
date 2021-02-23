@@ -8,7 +8,7 @@ Message router has pluggable interface to the several message protocols. As for 
 * [WAMP V2 Basic Profile](http://wamp-proto.org/)
 * [MQTT 3.1](http://mqtt.org/)
 
-It means that event could be send through MQTT interface and handled by WAMP client.
+It means that event could be send through MQTT interface and handled by WAMP client. Topic notation is translated automatically from "app/topic/name" in MQTT to "app.topic.name" in WAMP.
 
 ## Build Instructions
 
@@ -46,7 +46,7 @@ router = new FoxRouter()
 router.listenWAMP({server: httpServer, path: "/wamp"})
 ```
 
-and correspondingly the web socket client connection will look like as
+and correspondingly the web socket client connection string will look like
 ```javascript
 let autobahn = require('autobahn')
 let connection = new autobahn.Connection({
@@ -75,7 +75,7 @@ https://github.com/kalmyk/reflux-chat
 
 ## Retained Storage
 There is a storage to keep last content of published message.
-The values from the storage could be retrived as immediate initial messages for the subscription if `retained` flag is pecified.
+The values from the storage is retrived as immediate initial messages for the subscription if `retained` flag is pecified.
 
 ```javascript
 register('key.value.#', (args, kwargs, options) => {
@@ -84,8 +84,7 @@ register('key.value.#', (args, kwargs, options) => {
     { retained: true }
 )
 ```
-
-and corresponding client code that consumes such retained events could be as following
+to store event in the storage publisher should specify `retain` flag
 
 ```javascript
 session.publish('key.value.1', [ 'args' ], { kwArgs: true }, {
@@ -99,16 +98,13 @@ session.publish('key.value.1', [ 'args' ], { kwArgs: true }, {
 ### Publish Options Description
 * retain: boolean, keep in Key Value storage. Default value is false that means message does
   not retain.
-* when: struct, publish only if the key meets requirements. null means that key should not be exists.
-* watch: boolean, applicable if `when` option defined. Provide ability to wait for the necesssary
-  condition and then do action immediately. If several clients waits for same value the only one achieves acknowledge of message.
-* will: value that will be assigned at the session disconnect. If the value is changed by any
-  process the `will` value is cleaned.
+* when: struct, publish the event only if value in the storage meets the value. If the `when` key is `null` that means the key not exists in stored value or value is not present.
+* watch: boolean, applicable if `when` option defined. Provides ability to wait for the required condition in storage and then do the publish immediately. If several clients waits for same value the only one achieves acknowledge of publish.
+* will: value that will be assigned at session unexpected disconnect. If the value is changed by any process the `will` value is cleaned.
 
 ### Synchronization Service
 The options above provide ability to use the server as Synchronization Service. The `watch` option
-is designed to delay acknowledge response of publish due to necessary conditions achieved that
-is described in `when` option. See the demo in `democli\resource-lock.js`
+is designed to delay acknowledge response of publish due to necessary conditions described in `when` option achieved. See the demo in `democli\resource-lock.js`. If the demo is started in several terminal session it is possible to see where master is.
 
 #### lock mutex
 The code below will lock resource mutex if it is available
@@ -119,10 +115,10 @@ and unlock it automatically if connection lost
       'myapp.resource',
       [],
       { pid: process.pid, value: 'handle-resource' },
-      { acknowledge: true, retain: true, trace: true, when: null, will: null, watch: true }
+      { acknowledge: true, retain: true, when: null, will: null, watch: true }
     ).then(
       (result) => {
-        console.log('Resource Locked', result)
+        console.log('Master Resource Locked', result)
       }, (reason) => {
         console.log('FAILED', reason)
         connection.close()
@@ -139,7 +135,7 @@ The same function is invoked on disconnect if `will` value is specified.
       'myapp.resource',
       [],
       null,
-      { acknowledge: true, retain: true, trace: true }
+      { acknowledge: true, retain: true }
     )
 ```
 

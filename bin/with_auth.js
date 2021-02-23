@@ -22,6 +22,7 @@ const WampAuth = function () {
     app.getRealm(realmName, (realm) => {
       const api = realm.wampApi()
       let found = false
+      // check user in own table
       api.subscribe('sys.user.info.' + secureDetails.authid, (id, args, kwargs) => {
         if (kwargs.password === secret) {
           cb(undefined, kwargs)
@@ -56,7 +57,7 @@ const WampAuth = function () {
 
 app.getRealm('realm1', function (realm) {
   var api = realm.wampApi()
-  // create demo database
+  // create demo user table
   api.publish('sys.user.info.joe', [], { role: 'user', password: 'joe-secret' }, { retain: true })
   api.publish('sys.user.info.admin', [], { role: 'admin', password: 'admin-secret' }, { retain: true })
 })

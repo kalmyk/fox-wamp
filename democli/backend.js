@@ -85,11 +85,11 @@ connection.onopen = function (session) {
 
   // Define an event handler
   function onEvent (publishArgs, kwargs, opts) {
-    console.log('Event', opts.topic, 'received args', publishArgs, 'kwargs ', kwargs)
+    console.log('Event', opts.topic, 'received args', publishArgs, 'kwargs', kwargs, 'opts', opts)
   }
 
   // Subscribe to a topic
-  session.subscribe('com.myapp.topic1', onEvent).then(
+  session.subscribe('com.myapp.topic1', onEvent/*, {filter:{type:1}}*/).then(
     function (subscription) {
       console.log('subscription successfull', subscription.topic)
     },

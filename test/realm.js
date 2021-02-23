@@ -7,7 +7,7 @@ const expect = chai.expect
 const WAMP     = require('../lib/wamp/protocol')
 const WampGate = require('../lib/wamp/gate')
 const Router   = require('../lib/router')
-const MemKeyValueStorage = require('../lib/memkv').MemKeyValueStorage
+const MemKeyValueStorage = require('../lib/mono/memkv').MemKeyValueStorage
 
 chai.use(spies)
 
@@ -361,7 +361,8 @@ describe('wamp-realm', function () {
           expect(msg[0]).to.equal(WAMP.EVENT)
           expect(msg[1]).to.equal(subscriptionId)
           // 2 published message Id
-          expect(msg[3]).to.deep.equal({ topic: 'topic1' })
+          expect(msg[3].topic).to.equal('topic1')
+          expect(msg[3].publisher).to.equal(api.getSid())
           expect(msg[4]).to.deep.equal(['arg.1', 'arg.2'])
           expect(msg[5]).to.deep.equal({ foo: 'bar' })
         }
@@ -412,7 +413,8 @@ describe('wamp-realm', function () {
             expect(msg[1]).to.equal(1234)
           } else {
             expect(msg[0]).to.equal(WAMP.EVENT)
-            expect(msg[3]).to.deep.equal({ topic: 'topic1', retained: true })
+            expect(msg[3].topic).to.equal('topic1')
+            expect(msg[3].retained).to.equal(true)
             expect(msg[5]).to.deep.equal({ data: 'retain-the-value' })
           }
           --counter

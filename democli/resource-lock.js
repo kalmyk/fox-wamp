@@ -41,10 +41,10 @@ connection.onopen = function (session, details) {
       'myapp.resource',
       [],
       { pid: process.pid, value: 'handle-resource' },
-      { acknowledge: true, retain: true, trace: true, when: null, will: null, watch: true }
+      { acknowledge: true, retain: true, when: null, will: null, watch: true }
     ).then(
       (result) => {
-        console.log('Resource Locked', result)
+        console.log('Master Resource Locked', result)
         setTimeout(
           unlockResource,
           5000
@@ -62,7 +62,7 @@ connection.onopen = function (session, details) {
       'myapp.resource',
       [],
       null,
-      { acknowledge: true, retain: true, trace: true }
+      { acknowledge: true, retain: true }
     ).then(() => {
       setTimeout(
         waitForLockResource,
