@@ -8,6 +8,7 @@ const WAMP     = require('../lib/wamp/protocol')
 const WampGate = require('../lib/wamp/gate')
 const MqttGate = require('../lib/mqtt/gate')
 const Router   = require('../lib/router')
+const {ZeroBinder} = require('../lib/realm')
 
 chai.use(spies)
 
@@ -35,8 +36,9 @@ describe('authorize', function () {
     let auth = new Auth()
     mqttSender = {}
     wampSender = {}
-    router = new Router()
-    realm = router.createRealm('test-realm')
+    router = new Router(new ZeroBinder())
+    realm = router.createRealm()
+    router.addRealm('test-realm', realm)
 
     mqttGate = new MqttGate(router)
     mqttGate.setAuthHandler(auth)

@@ -9,6 +9,7 @@ chai.use(promised)
 const MemTransport = require('../lib/hyper/mem_transport')
 const FoxGate      = require('../lib/hyper/gate')
 const Router       = require('../lib/router')
+const {MemBinder} = require('../lib/mono/membinder')
 
 describe('pub-worker', function () {
   let
@@ -20,8 +21,8 @@ describe('pub-worker', function () {
     worker
 
   beforeEach(function () {
-    router = new Router()
-    realm = router.createRealm('test-realm')
+    router = new Router(new MemBinder())
+    realm = router.createRealm()
     gate = new FoxGate(router)
     memServer = new MemTransport.MemServer(gate)
     client = memServer.createClient(realm)
