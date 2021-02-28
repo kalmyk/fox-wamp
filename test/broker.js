@@ -10,6 +10,7 @@ const { RESULT_OK, RESULT_ACK, RESULT_ERR } = require('../lib/messages')
 const errorCodes  = require('../lib/realm_error').errorCodes
 const FoxGate     = require('../lib/hyper/gate')
 const Router      = require('../lib/router')
+const {MemBinder} = require('../lib/mono/membinder')
 
 chai.use(promised)
 chai.use(spies)
@@ -25,7 +26,7 @@ describe('hyper-broker', function () {
 
   beforeEach(function () {
     sender = {}
-    router = new Router()
+    router = new Router(new MemBinder())
     realm = router.createRealm('test-realm')
     gate = new FoxGate(router)
     session = gate.createSession()

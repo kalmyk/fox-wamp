@@ -7,6 +7,7 @@ const expect = chai.expect
 const WAMP     = require('../lib/wamp/protocol')
 const WampGate = require('../lib/wamp/gate')
 const Router   = require('../lib/router')
+const {MemBinder} = require('../lib/mono/membinder')
 const MemKeyValueStorage = require('../lib/mono/memkv').MemKeyValueStorage
 
 chai.use(spies)
@@ -23,8 +24,8 @@ describe('wamp-realm', function () {
 
   beforeEach(function () {
     sender = {}
-    router = new Router()
-    realm = router.createRealm('test-realm')
+    router = new Router(new MemBinder())
+    realm = router.createRealm()
     api = realm.wampApi()
 
     gate = new WampGate(router)
