@@ -1,9 +1,14 @@
+const sqlite3 = require('sqlite3')
 const sqlite = require('sqlite')
 const Msg = require('../lib/sqlite/msg')
 const DbRouter = require('../lib/sqlite/dbrouter').DbRouter
 
 async function main () {
-  const db = await sqlite.open('../dbfiles/msgdb.sqlite')
+  const db = await sqlite.open({
+    filename: '../dbfiles/msgdb.sqlite',
+    driver: sqlite3.Database
+  })
+
   const data = new Msg(db)
 
   await data.createTables()
