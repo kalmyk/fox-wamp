@@ -9,99 +9,105 @@ const WampGate = require('../lib/wamp/gate')
 const MqttGate = require('../lib/mqtt/gate')
 const Router   = require('../lib/router')
 const {ZeroBinder} = require('../lib/realm')
+const {MemBinder}  = require('../lib/mono/membinder')
 
 chai.use(spies)
 
-const Auth = function () {
-  this.authorize = function (session, funcClass, uniUri) {
+class TestAuth {
+  authorize (session, funcClass, uniUri) {
     // console.log('!authorize', funcClass, uniUri)
     return uniUri[1] !== 'denied'
   }
 }
 
-describe('authorize', function () {
-  var
-    router,
-    mqttGate,
-    wampGate,
-    realm,
-    mqttSender,
-    wampSender,
-    wampCtx,
-    mqttCtx,
-    mqttCli,
-    wampCli
+const runs = [
+  {it: 'zero', mkBinder: () => new ZeroBinder()},
+  {it: 'mem',  mkBinder: () => new MemBinder()},
+]
 
-  beforeEach(function () {
-    let auth = new Auth()
-    mqttSender = {}
-    wampSender = {}
-    router = new Router(new ZeroBinder())
-    realm = router.createRealm()
-    router.addRealm('test-realm', realm)
+describe('authorize-topic', function () {
+  runs.forEach(function (run) {
+    describe('authorize:' + run.it, function () {
+      var
+        router,
+        mqttGate,
+        wampGate,
+        realm,
+        mqttSender,
+        wampSender,
+        wampCtx,
+        mqttCtx,
+        mqttCli,
+        wampCli
 
-    mqttGate = new MqttGate(router)
-    mqttGate.setAuthHandler(auth)
+      beforeEach(function () {
+        let auth = new TestAuth()
+        mqttSender = {}
+        wampSender = {}
+        router = new Router(run.mkBinder())
+        realm = router.createRealm()
+        router.addRealm('test-realm', realm)
 
-    wampGate = new WampGate(router)
-    wampGate.setAuthHandler(auth)
+        mqttGate = new MqttGate(router)
+        mqttGate.setAuthHandler(auth)
 
-    mqttCli = mqttGate.createSession()
-    mqttCtx = mqttGate.createContext(mqttCli, mqttSender)
-    realm.joinSession(mqttCli)
+        wampGate = new WampGate(router)
+        wampGate.setAuthHandler(auth)
 
-    wampCli = wampGate.createSession()
-    wampCtx = wampGate.createContext(wampCli, wampSender)
-    realm.joinSession(wampCli)
-  })
+        mqttCli = mqttGate.createSession()
+        mqttCtx = mqttGate.createContext(mqttCli, mqttSender)
+        realm.joinSession(mqttCli)
 
-  afterEach(function () {
-  })
-
-  describe('wamp', function () {
-    it('subscribe', function () {
-      wampSender.send = chai.spy(
-        function (msg) {
-          expect(msg[0]).to.equal(WAMP.SUBSCRIBED)
-          expect(msg[1]).to.equal(1234)
-        }
-      )
-      wampCli.handle(wampCtx, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.passed'])
-      expect(wampSender.send, 'subscription confirmed').to.have.been.called.once()
-
-      wampSender.send = chai.spy(
-        function (msg) {
-          expect(msg[0]).to.equal(WAMP.ERROR)
-          expect(msg[1]).to.equal(WAMP.SUBSCRIBE)
-          expect(msg[2]).to.equal(1234)
-          expect(msg[4]).to.equal('wamp.error.authorization_failed')
-        }
-      )
-      wampCli.handle(wampCtx, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.denied'])
-      expect(wampSender.send, 'subscription confirmed').to.have.been.called.once()
-    })
-  })
-
-  describe('mqtt', function () {
-    it('subscribe', function () {
-      mqttSender.send = chai.spy((msg) => {
-        expect(msg).to.deep.equal({cmd: 'suback', messageId: 321, granted: [ 128, 1 ]})
+        wampCli = wampGate.createSession()
+        wampCtx = wampGate.createContext(wampCli, wampSender)
+        realm.joinSession(wampCli)
       })
-      mqttCli.handle(mqttCtx, {
-        cmd: 'subscribe',
-        retain: false,
-        qos: 1,
-        dup: false,
-        length: 17,
-        topic: null,
-        payload: null,
-        subscriptions: [
-          { topic: 'topic1/denied', qos: 0 },
-          { topic: 'topic1/passed', qos: 2 }
-        ],
-        messageId: 321
+
+      afterEach(function () {
       })
-      expect(mqttSender.send).to.have.been.called.once()
+
+      it('wamp-subscribe:' + run.it, function () {
+        wampSender.send = chai.spy(
+          function (msg) {
+            expect(msg[0]).to.equal(WAMP.SUBSCRIBED)
+            expect(msg[1]).to.equal(1234)
+          }
+        )
+        wampCli.handle(wampCtx, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.passed'])
+        expect(wampSender.send, 'subscription confirmed').to.have.been.called.once()
+
+        wampSender.send = chai.spy(
+          function (msg) {
+            expect(msg[0]).to.equal(WAMP.ERROR)
+            expect(msg[1]).to.equal(WAMP.SUBSCRIBE)
+            expect(msg[2]).to.equal(1234)
+            expect(msg[4]).to.equal('wamp.error.authorization_failed')
+          }
+        )
+        wampCli.handle(wampCtx, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.denied'])
+        expect(wampSender.send, 'subscription confirmed').to.have.been.called.once()
+      })
+
+      it('mqtt-subscribe:' + run.it, function () {
+        mqttSender.send = chai.spy((msg) => {
+          expect(msg).to.deep.equal({cmd: 'suback', messageId: 321, granted: [ 128, 1 ]})
+        })
+        mqttCli.handle(mqttCtx, {
+          cmd: 'subscribe',
+          retain: false,
+          qos: 1,
+          dup: false,
+          length: 17,
+          topic: null,
+          payload: null,
+          subscriptions: [
+            { topic: 'topic1/denied', qos: 0 },
+            { topic: 'topic1/passed', qos: 2 }
+          ],
+          messageId: 321
+        })
+        expect(mqttSender.send).to.have.been.called.once()
+      })
     })
   })
 })

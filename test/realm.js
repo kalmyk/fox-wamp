@@ -23,11 +23,11 @@ describe('wamp-realm', function () {
     api
 
   beforeEach(function () {
-    sender = {}
     router = new Router(new MemBinder())
     realm = router.createRealm()
     api = realm.wampApi()
 
+    sender = {}
     gate = new WampGate(router)
     cli = gate.createSession()
     ctx = gate.createContext(cli, sender)
@@ -38,6 +38,7 @@ describe('wamp-realm', function () {
   })
 
   it('empty cleanup', function () {
+    realm.cleanupSession(cli)
     realm.cleanupSession(api)
   })
 
