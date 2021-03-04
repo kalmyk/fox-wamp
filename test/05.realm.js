@@ -12,7 +12,7 @@ const MemKeyValueStorage = require('../lib/mono/memkv').MemKeyValueStorage
 
 chai.use(spies)
 
-describe('wamp-realm', function () {
+describe('05. wamp-realm', function () {
   let
     router,
     gate,

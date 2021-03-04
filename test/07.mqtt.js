@@ -10,7 +10,7 @@ const {MemBinder} = require('../lib/mono/membinder')
 
 chai.use(spies)
 
-describe('mqtt-realm', function () {
+describe('07. mqtt-realm', function () {
   var
     router,
     realm,

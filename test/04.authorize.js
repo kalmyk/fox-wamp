@@ -25,7 +25,7 @@ const runs = [
   {it: 'mem',  mkBinder: () => new MemBinder()},
 ]
 
-describe('authorize-topic', function () {
+describe('04. authorize-topic', function () {
   runs.forEach(function (run) {
     describe('authorize:' + run.it, function () {
       var

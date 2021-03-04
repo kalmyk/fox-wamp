@@ -20,7 +20,7 @@ const runs = [
   {it: 'mem',  mkBinder: () => new MemBinder()},
 ]
 
-describe('hyper-broker', function () {
+describe('06. hyper-broker', function () {
   runs.forEach(function (run) {
     describe('binder:' + run.it, function () {
       let
@@ -133,7 +133,7 @@ describe('hyper-broker', function () {
           id: idSub,
           opt: {}
         })
-    
+
         session.handle(ctx, {
           ft: 'UNREG',
           unr: regSub,
@@ -141,12 +141,12 @@ describe('hyper-broker', function () {
         })
         expect(sender.send).to.have.been.called.twice()
       })
-    
+
       it('should-unTrace', function () {
         const idTrace = 11
         const idUnTrace = 12
         let regTrace
-    
+
         sender.send = chai.spy((msg) => {
           if (msg.id === idTrace) {
             expect(msg.rsp).to.equal(RESULT_ACK)
@@ -164,7 +164,7 @@ describe('hyper-broker', function () {
           uri: ['testQ'],
           id: idTrace
         })
-    
+
         session.handle(ctx, {
           ft: 'UNTRACE',
           unr: regTrace,
