@@ -13,7 +13,7 @@ const {MemBinder}  = require('../lib/mono/membinder')
 chai.use(promised)
 chai.use(spies)
 
-describe('hyper-kv', function () {
+describe('09. hyper-kv', function () {
   let
     router,
     gate,
