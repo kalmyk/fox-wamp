@@ -6,12 +6,14 @@ const expect      = chai.expect
 const promised    = require('chai-as-promised')
 
 const Router       = require('../lib/router')
+const WampApi      = require('../lib/wamp/api')
 const {MemBinder}  = require('../lib/mono/membinder')
-const {DbBinder}  = require('../lib/sqlite/dbrouter')
+const {DbBinder}   = require('../lib/sqlite/dbrouter')
 
 const sqlite3 = require('sqlite3')
 const sqlite = require('sqlite')
 const Msg = require('../lib/sqlite/msg')
+const { Kv } = require('../lib/sqlite/kv')
 
 chai.use(promised)
 chai.use(spies)
@@ -22,8 +24,10 @@ const mkDb = async function () {
     driver: sqlite3.Database
   })
   let msg = new Msg(db)
+  let kv = new Kv(db)
   await msg.createTables()
-  return new DbBinder(msg)
+  await kv.createTables()
+  return new DbBinder(msg, kv)
 }
 
 const runs = [
@@ -89,6 +93,32 @@ describe('08. history', function () {
         })
       })
 
+      it('push-will:'+ run.it, async function () {
+        let expectedData = [
+          { event: 'value' },
+          { will: 'value' },
+        ]
+
+        const event = chai.spy((id, args, kwargs) => {
+          expect(kwargs).to.deep.equal(expectedData.shift())
+        })
+        await api.subscribe('will.test', event)
+
+        let cli = new WampApi(realm, router.makeSessionId())
+        realm.joinSession(cli)
+
+        await cli.publish(
+          'will.test',
+          [],
+          { event: 'value' },
+          { retain: true, will: { kv: { will: 'value' } } }
+        )
+
+        expect(event).to.have.been.called.once()
+        cli.cleanup()
+        expect(event).to.have.been.called.twice()
+      })
+    
     })
   })
 })

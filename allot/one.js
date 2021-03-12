@@ -3,6 +3,7 @@
 const sqlite3 = require('sqlite3')
 const sqlite = require('sqlite')
 const Msg = require('../lib/sqlite/msg')
+const { Kv } = require('../lib/sqlite/kv')
 const { DbBinder } = require('../lib/sqlite/dbrouter')
 const Router = require('../index')
 
@@ -13,12 +14,15 @@ async function main () {
   })
 
   const data = new Msg(db)
+  const kv = new Kv(db)
 
   await data.createTables()
+  await kv.createTables()
+
   const id = await data.getMaxId()
   console.log('loaded max id:', id)
 
-  const router = new Router(new DbBinder(data))
+  const router = new Router(new DbBinder(data, kv))
   router.setLogTrace(true)
   router.listenWAMP({ port: 9000 })
   router.listenMQTT({ port: 1883 })

@@ -34,36 +34,9 @@ describe('09. hyper-kv', function () {
 
   afterEach(function () {
     if (session) {
-      session.cleanup()
+      gate.removeSession(session)
       session = null
     }
-  })
-
-  it('push-will', function () {
-    const api = realm.foxApi()
-
-    let n = 0
-    const event = chai.spy((event, opt) => {
-      n++
-      if (n === 1) {
-        expect(event).to.deep.equal({ kv: { event: 'value' } })
-      }
-      if (n === 2) {
-        expect(event).to.deep.equal({ kv: { will: 'value' } })
-      }
-    })
-    api.subscribe(['will', 'test'], event)
-
-    session.handle(ctx, {
-      ft: 'PUSH',
-      data: { kv: { event: 'value' } },
-      uri: ['will', 'test'],
-      opt: { retain: true, will: { kv: { will: 'value' } } }
-    })
-    expect(event).to.have.been.called.once()
-
-    session.cleanup()
-    expect(event).to.have.been.called.twice()
   })
 
   it('push-watch-for-push', function () {
