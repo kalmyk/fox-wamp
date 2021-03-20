@@ -36,10 +36,12 @@ describe('07. mqtt-realm', function () {
   })
 
   describe('publish', function () {
-    it('to-qos1', function () {
-      sender.send = chai.spy(
-        function (msg, callback) {}
-      )
+    it('to-qos1', (done) => {
+      sender.send = (msg) => {
+        expect(msg.messageId).to.equal(9191)
+        expect(msg.cmd).to.equal('puback')
+        done()
+      }
       cli.handle(ctx, {
         cmd: 'publish',
         retain: false,
@@ -47,9 +49,9 @@ describe('07. mqtt-realm', function () {
         dup: false,
         length: 17,
         topic: 'topic1',
+        messageId: 9191,
         payload: Buffer.from('{"the":"text"}')
       })
-      expect(sender.send, 'publish confirmed').to.have.been.called.once()
     })
 
     it('SUBSCRIBE-to-remote-mqtt', function () {
