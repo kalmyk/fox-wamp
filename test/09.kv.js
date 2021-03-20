@@ -8,6 +8,7 @@ const promised    = require('chai-as-promised')
 
 const FoxGate      = require('../lib/hyper/gate')
 const Router       = require('../lib/router')
+const WampApi      = require('../lib/wamp/api')
 const {MemBinder}  = require('../lib/mono/membinder')
 
 chai.use(promised)
@@ -17,19 +18,21 @@ describe('09. hyper-kv', function () {
   let
     router,
     gate,
-    sender,
+    sessionSender,
     realm,
     ctx,
-    session
+    session,
+    api
 
   beforeEach(function () {
-    sender = {}
     router = new Router(new MemBinder())
     realm = router.createRealm('test-realm')
     gate = new FoxGate(router)
     session = gate.createSession()
-    ctx = gate.createContext(session, sender)
+    sessionSender = {}
+    ctx = gate.createContext(session, sessionSender)
     realm.joinSession(session)
+    api = realm.wampApi()
   })
 
   afterEach(function () {
@@ -39,48 +42,50 @@ describe('09. hyper-kv', function () {
     }
   })
 
-  it('push-will', function () {
-    const api = realm.foxApi()
+  it('push-will:'/* + run.it */, async function () {
+    let expectedData = [
+      { event: 'value' },
+      { will: 'value' },
+    ]
 
-    let n = 0
-    const event = chai.spy((event, opt) => {
-      n++
-      if (n === 1) {
-        expect(event).to.deep.equal({ kv: { event: 'value' } })
-      }
-      if (n === 2) {
-        expect(event).to.deep.equal({ kv: { will: 'value' } })
-      }
+    const event = chai.spy((id, args, kwargs) => {
+      expect(kwargs).to.deep.equal(expectedData.shift())
     })
-    api.subscribe(['will', 'test'], event)
+    await api.subscribe('will.test', event)
 
-    session.handle(ctx, {
-      ft: 'PUSH',
-      data: { kv: { event: 'value' } },
-      uri: ['will', 'test'],
-      opt: { retain: true, will: { kv: { will: 'value' } } }
-    })
+    let cli = new WampApi(realm, router.makeSessionId())
+    realm.joinSession(cli)
+
+    await cli.publish(
+      'will.test',
+      [],
+      { event: 'value' },
+      { retain: true, will: { kv: { will: 'value' } } }
+    )
+
     expect(event).to.have.been.called.once()
-
-    session.cleanup()
+    cli.cleanup()
     expect(event).to.have.been.called.twice()
   })
 
-  it('push-watch-for-push', function () {
+  it('push-watch-for-push', async function () {
+    let curPromise
     let n = 0
-    sender.send = chai.spy((msg) => {
+    sessionSender.send = (msg) => {
       n++
       if (n === 1) {
         expect(msg).to.deep.equal({ id: 'init-kv', rsp: 'OK', data: undefined })
       } else if (n === 2) {
         expect(msg).to.deep.equal({ id: 'watch-for-value', rsp: 'OK', data: undefined })
       }
-    })
+      curPromise()
+      curPromise = undefined
+    }
 
     const api = realm.foxApi()
 
     let m = 0
-    const event = chai.spy((event, opt) => {
+    const onEvent = chai.spy((event, opt) => {
       m++
       if (m === 1) {
         expect(event).to.deep.equal({ kv: { event: 'value' } })
@@ -88,21 +93,23 @@ describe('09. hyper-kv', function () {
         expect(event).to.deep.equal({ kv: { event: 'watch-for-empty' } })
       }
     })
-    api.subscribe(['watch', 'test'], event)
 
-    session.handle(ctx, {
-      ft: 'PUSH',
-      data: { kv: { event: 'value' } },
-      uri: ['watch', 'test'],
-      opt: {
-        retain: true,
-        trace: true
-      },
-      ack: true,
-      id: 'init-kv'
+    api.subscribe(['watch', 'test'], onEvent)
+    await new Promise((resolve) => {
+      curPromise = resolve
+      session.handle(ctx, {
+        ft: 'PUSH',
+        data: { kv: { event: 'value' } },
+        uri: ['watch', 'test'],
+        opt: {
+          retain: true,
+          trace: true
+        },
+        ack: true,
+        id: 'init-kv'
+      })
     })
-    expect(event).to.have.been.called.once()
-    expect(sender.send).to.have.been.called.once()
+    expect(onEvent).to.have.been.called.once()
     expect(realm.engine._messages.length).to.equal(1)
 
     session.handle(ctx, {
@@ -118,19 +125,21 @@ describe('09. hyper-kv', function () {
       ack: true,
       id: 'watch-for-value'
     })
-    expect(event).to.have.been.called.once()
-    expect(sender.send).to.have.been.called.once()
+
+    expect(onEvent).to.have.been.called.once()
     expect(realm.engine._messages.length).to.equal(1)
 
-    api.publish(['watch', 'test'], null, { retain: true })
-    expect(event).to.have.been.called.twice()
-    expect(sender.send).to.have.been.called.twice()
+    await new Promise((resolve) => {
+      curPromise = resolve
+      api.publish(['watch', 'test'], null, { retain: true })  
+    })
+    expect(onEvent).to.have.been.called.twice()
     expect(realm.engine._messages.length).to.equal(2)
   })
 
   it('push-watch-for-will', function () {
     let defer = []
-    sender.send = chai.spy((msg) => {})
+    sessionSender.send = chai.spy((msg) => {})
 
     const api = realm.wampApi()
 

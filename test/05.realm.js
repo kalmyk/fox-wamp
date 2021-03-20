@@ -373,30 +373,39 @@ describe('05. wamp-realm', function () {
       expect(sender.send, 'publication received').to.have.been.called.once()
     })
 
-    it('SUBSCRIBE-to-remote', function () {
-      var subSpy = chai.spy(
+    it('SUBSCRIBE-to-remote-wamp', async function () {
+      let waitForEvent
+      let subSpy = chai.spy(
         function (publicationId, args, kwargs) {
           expect(args).to.deep.equal(['arg.1', 'arg.2'])
           expect(kwargs).to.deep.equal({ foo: 'bar' })
+          waitForEvent()
+          waitForEvent = undefined
         }
       )
-      api.subscribe('topic1', subSpy).then((subId) => {
-        sender.send = chai.spy(
-          function (msg, callback) {
-            expect(msg[0]).to.equal(WAMP.PUBLISHED)
-            expect(msg[1]).to.equal(2345)
-          }
-        )
-        cli.handle(ctx, [WAMP.PUBLISH, 1234, {}, 'topic1', ['arg.1', 'arg.2'], { foo: 'bar' }])
-        expect(sender.send, 'published').to.not.have.been.called()
-        cli.handle(ctx, [WAMP.PUBLISH, 2345, { acknowledge: true }, 'topic1', ['arg.1', 'arg.2'], { foo: 'bar' }])
-        expect(sender.send, 'published').to.have.been.called.once()
-
-        expect(subSpy, 'publication done').to.have.been.called.twice()
-        expect(api.unsubscribe(subId)).to.equal('topic1')
+      sender.send = chai.spy((msg, callback) => {
+        expect(msg[0]).to.equal(WAMP.PUBLISHED)
+        expect(msg[1]).to.equal(2345)
       })
 
+      let subId = await api.subscribe('topic1', subSpy)
+
+      await new Promise((resolve, reject) => {
+        waitForEvent = resolve
+        cli.handle(ctx, [WAMP.PUBLISH, 1234, {}, 'topic1', ['arg.1', 'arg.2'], { foo: 'bar' }])
+      })
+      expect(sender.send, 'ack is not requested').to.not.have.been.called()
+
+      await new Promise((resolve, reject) => {
+        waitForEvent = resolve
+        cli.handle(ctx, [WAMP.PUBLISH, 2345, { acknowledge: true }, 'topic1', ['arg.1', 'arg.2'], { foo: 'bar' }])
+      })
+      expect(sender.send, 'ack must be received').to.have.been.called.once()
+
+      expect(subSpy, 'publication done').to.have.been.called.twice()
+      expect(api.unsubscribe(subId)).to.equal('topic1')
     })
+
   })
 
   describe('STORAGE', function () {
