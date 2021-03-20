@@ -22,7 +22,7 @@ async function main () {
   const id = await data.getMaxId()
   console.log('loaded max id:', id)
 
-  const router = new Router(new DbBinder(data, kv))
+  const router = new Router(new DbBinder(data))
   router.setLogTrace(true)
   router.listenWAMP({ port: 9000 })
   router.listenMQTT({ port: 1883 })
