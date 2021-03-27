@@ -5,8 +5,7 @@ const spies = require('chai-spies')
 const expect = chai.expect
 
 const MqttGate = require('../lib/mqtt/gate')
-const Router   = require('../lib/router')
-const {MemBinder} = require('../lib/mono/membinder')
+const FoxRouter = require('../lib/fox_router')
 
 chai.use(spies)
 
@@ -21,7 +20,7 @@ describe('07. mqtt-realm', function () {
 
   beforeEach(function () {
     sender = {}
-    router = new Router(new MemBinder())
+    router = new FoxRouter()
     realm = router.createRealm()
     api = realm.wampApi()
 

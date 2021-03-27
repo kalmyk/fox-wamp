@@ -5,33 +5,30 @@ const spies       = require('chai-spies')
 const expect      = chai.expect
 const promised    = require('chai-as-promised')
 
-const Router       = require('../lib/router')
-const {MemBinder}  = require('../lib/mono/membinder')
-const {DbBinder}   = require('../lib/sqlite/dbrouter')
-
 const sqlite3 = require('sqlite3')
 const sqlite = require('sqlite')
-const Msg = require('../lib/sqlite/msg')
-const { SqliteKv } = require('../lib/sqlite/kv')
+
+const Router       = require('../lib/router')
+const { DbBinder }   = require('../lib/sqlite/dbrouter')
+const { MemEngine } = require('../lib/mono/memengine')
+const { ReactEngine } = require('../lib/binder')
 
 chai.use(promised)
 chai.use(spies)
 
-const mkDb = async function () {
+const mkDbEngine = async () => {
   let db = await sqlite.open({
     filename: ':memory:',
     driver: sqlite3.Database
   })
-  let msg = new Msg(db)
-  let kv = new SqliteKv(db)
-  await msg.createTables()
-  await kv.createTables()
-  return new DbBinder(msg, kv)
+  let binder = new DbBinder(db)
+  await binder.init()
+  return new ReactEngine(binder)
 }
 
 const runs = [
-  {it: 'mem',  mkBinder: async () => new MemBinder()},
-  {it: 'db',  mkBinder: mkDb },
+  {it: 'mem', mkEngine: async () => new MemEngine()},
+  {it: 'db',  mkEngine: mkDbEngine },
 ]
 
 describe('08. history', function () {
@@ -43,9 +40,8 @@ describe('08. history', function () {
         api
 
       beforeEach(async function () {
-        router = new Router(await run.mkBinder())
-        realm = router.createRealm()
-        router.addRealm('test-realm-name', realm)
+        router = new Router()
+        realm = router.addEngine('test-realm', await run.mkEngine())
         api = realm.wampApi()
       })
     

@@ -4,12 +4,11 @@ const chai = require('chai')
 const spies = require('chai-spies')
 const expect = chai.expect
 
-const WAMP     = require('../lib/wamp/protocol')
-const WampGate = require('../lib/wamp/gate')
-const MqttGate = require('../lib/mqtt/gate')
-const Router   = require('../lib/router')
-const {ZeroBinder} = require('../lib/realm')
-const {MemBinder}  = require('../lib/mono/membinder')
+const WAMP      = require('../lib/wamp/protocol')
+const WampGate  = require('../lib/wamp/gate')
+const MqttGate  = require('../lib/mqtt/gate')
+const Router    = require('../lib/router')
+const FoxRouter = require('../lib/fox_router')
 
 chai.use(spies)
 
@@ -21,8 +20,8 @@ class TestAuth {
 }
 
 const runs = [
-  {it: 'zero', mkBinder: () => new ZeroBinder()},
-  {it: 'mem',  mkBinder: () => new MemBinder()},
+  {it: 'zero', mkRouter: () => new Router()},
+  {it: 'mem',  mkRouter: () => new FoxRouter()},
 ]
 
 describe('04. authorize-topic', function () {
@@ -44,7 +43,7 @@ describe('04. authorize-topic', function () {
         let auth = new TestAuth()
         mqttSender = {}
         wampSender = {}
-        router = new Router(run.mkBinder())
+        router = run.mkRouter()
         realm = router.createRealm()
         router.addRealm('test-realm', realm)
 

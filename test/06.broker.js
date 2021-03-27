@@ -9,15 +9,15 @@ const { RESULT_OK, RESULT_ACK, RESULT_ERR } = require('../lib/messages')
 const errorCodes   = require('../lib/realm_error').errorCodes
 const FoxGate      = require('../lib/hyper/gate')
 const Router       = require('../lib/router')
-const {ZeroBinder} = require('../lib/realm')
-const {MemBinder}  = require('../lib/mono/membinder')
+const { BaseEngine } = require('../lib/realm')
+const { MemEngine } = require('../lib/mono/memengine')
 
 chai.use(promised)
 chai.use(spies)
 
 const runs = [
-  {it: 'zero', mkBinder: () => new ZeroBinder()},
-  {it: 'mem',  mkBinder: () => new MemBinder()},
+  {it: 'zero', mkEngine: () => new BaseEngine()},
+  {it: 'mem',  mkEngine: () => new MemEngine()},
 ]
 
 describe('06. hyper-broker', function () {
@@ -33,8 +33,8 @@ describe('06. hyper-broker', function () {
   
       beforeEach(function () {
         sender = {}
-        router = new Router(run.mkBinder())
-        realm = router.createRealm('test-realm')
+        router = new Router()
+        realm = router.addEngine('test-realm', run.mkEngine())
         gate = new FoxGate(router)
         session = gate.createSession()
         ctx = gate.createContext(session, sender)

@@ -6,8 +6,7 @@ const expect = chai.expect
 
 const WAMP     = require('../lib/wamp/protocol')
 const WampGate = require('../lib/wamp/gate')
-const Router   = require('../lib/router')
-const {MemBinder} = require('../lib/mono/membinder')
+const FoxRouter = require('../lib/fox_router')
 const MemKeyValueStorage = require('../lib/mono/memkv').MemKeyValueStorage
 
 chai.use(spies)
@@ -23,8 +22,9 @@ describe('05. wamp-realm', function () {
     api
 
   beforeEach(function () {
-    router = new Router(new MemBinder())
+    router = new FoxRouter()
     realm = router.createRealm()
+    router.addRealm('test-realm', realm)
     api = realm.wampApi()
 
     sender = {}
@@ -63,6 +63,7 @@ describe('05. wamp-realm', function () {
     })
 
     it('cleanup RPC API', function () {
+      api.cleanupReg(realm.engine)  // clean existing wamp/session/? functions
       var procSpy = chai.spy(function () {})
       api.register('func1', procSpy)
       expect(api.cleanupReg(realm.engine)).to.equal(1)
