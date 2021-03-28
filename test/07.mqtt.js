@@ -324,7 +324,7 @@ describe('07. mqtt-realm', function () {
   })
 
   it('at-connection-fail-will-publish', function (done) {
-    realm.cleanupSession(cli)
+    realm.leaveSession(cli)
     router.getRealm = (realmName, cb) => { cb(realm) }
 
     sender.send = chai.spy(() => {})
@@ -358,7 +358,7 @@ describe('07. mqtt-realm', function () {
   })
 
   it('connect-clientid', function (done) {
-    realm.cleanupSession(cli)
+    realm.leaveSession(cli)
     router.getRealm = (realmName, cb) => { cb(realm) }
 
     sender.send = chai.spy((msg) => {
