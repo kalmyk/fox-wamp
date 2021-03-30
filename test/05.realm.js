@@ -6,8 +6,7 @@ const expect = chai.expect
 
 const WAMP     = require('../lib/wamp/protocol')
 const WampGate = require('../lib/wamp/gate')
-const Router   = require('../lib/router')
-const {MemBinder} = require('../lib/mono/membinder')
+const FoxRouter = require('../lib/fox_router')
 const MemKeyValueStorage = require('../lib/mono/memkv').MemKeyValueStorage
 
 chai.use(spies)
@@ -23,8 +22,9 @@ describe('05. wamp-realm', function () {
     api
 
   beforeEach(function () {
-    router = new Router(new MemBinder())
+    router = new FoxRouter()
     realm = router.createRealm()
+    router.addRealm('test-realm', realm)
     api = realm.wampApi()
 
     sender = {}
@@ -38,8 +38,8 @@ describe('05. wamp-realm', function () {
   })
 
   it('empty cleanup', function () {
-    realm.cleanupSession(cli)
-    realm.cleanupSession(api)
+    realm.leaveSession(cli)
+    realm.leaveSession(api)
   })
 
   it('session-list', function () {
@@ -63,6 +63,7 @@ describe('05. wamp-realm', function () {
     })
 
     it('cleanup RPC API', function () {
+      api.cleanupReg(realm.engine)  // clean existing wamp/session/? functions
       var procSpy = chai.spy(function () {})
       api.register('func1', procSpy)
       expect(api.cleanupReg(realm.engine)).to.equal(1)
@@ -409,38 +410,11 @@ describe('05. wamp-realm', function () {
   })
 
   describe('STORAGE', function () {
-    it('retain-get', function (done) {
-      var subSpy = chai.spy(function () {})
-      api.subscribe('topic1', subSpy)
-      api.publish('topic1', [], { data: 'retain-the-value' }, { retain: 100 })
-      api.publish('topic1', [], { data: 'the-value-does-not-retain' })
-
-      let counter = 2
-      sender.send = chai.spy(
-        (msg, callback) => {
-          // console.log('MSG', counter, msg)
-          if (counter === 2) {
-            expect(msg[0]).to.equal(WAMP.SUBSCRIBED)
-            expect(msg[1]).to.equal(1234)
-          } else {
-            expect(msg[0]).to.equal(WAMP.EVENT)
-            expect(msg[3].topic).to.equal('topic1')
-            expect(msg[3].retained).to.equal(true)
-            expect(msg[5]).to.deep.equal({ data: 'retain-the-value' })
-          }
-          --counter
-          if (!counter) {
-            done()
-          }
-        }
-      )
-      cli.handle(ctx, [WAMP.SUBSCRIBE, 1234, { retained: true }, 'topic1'])
-    })
 
     it('retain-weak', function () {
       cli.handle(ctx, [WAMP.PUBLISH, 1234, { retain: 0, weak: 'public' }, 'topic2', ['arg.1', 'arg.2'], {}])
       // console.log('key', realm.getKey('topic2'))
-      realm.cleanupSession(cli)
+      realm.leaveSession(cli)
       // console.log('key', realm.getKey('topic2'))
     })
 

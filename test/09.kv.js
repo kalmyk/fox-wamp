@@ -7,9 +7,8 @@ const assert      = chai.assert
 const promised    = require('chai-as-promised')
 
 const FoxGate      = require('../lib/hyper/gate')
-const Router       = require('../lib/router')
+const FoxRouter    = require('../lib/fox_router')
 const WampApi      = require('../lib/wamp/api')
-const {MemBinder}  = require('../lib/mono/membinder')
 
 chai.use(promised)
 chai.use(spies)
@@ -25,7 +24,7 @@ describe('09. hyper-kv', function () {
     api
 
   beforeEach(function () {
-    router = new Router(new MemBinder())
+    router = new FoxRouter()
     realm = router.createRealm('test-realm')
     gate = new FoxGate(router)
     session = gate.createSession()
@@ -37,7 +36,7 @@ describe('09. hyper-kv', function () {
 
   afterEach(function () {
     if (session) {
-      session.cleanup()
+      gate.removeSession(session)
       session = null
     }
   })
