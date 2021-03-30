@@ -9,7 +9,7 @@ const sqlite3 = require('sqlite3')
 const sqlite = require('sqlite')
 
 const Router       = require('../lib/router')
-const { DbBinder }   = require('../lib/sqlite/dbrouter')
+const { DbBinder }   = require('../lib/sqlite/dbbinder')
 const { MemEngine } = require('../lib/mono/memengine')
 const { ReactEngine } = require('../lib/binder')
 

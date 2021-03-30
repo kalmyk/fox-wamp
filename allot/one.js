@@ -2,7 +2,7 @@
 
 const sqlite3 = require('sqlite3')
 const sqlite = require('sqlite')
-const { DbBinder } = require('../lib/sqlite/dbrouter')
+const { DbBinder } = require('../lib/sqlite/dbbinder')
 const Router = require('../index')
 const { BaseRealm } = require('../lib/realm')
 const { ReactEngine } = require('../lib/binder')
@@ -13,12 +13,13 @@ async function main () {
     driver: sqlite3.Database
   })
 
-  const data = new DbBinder(db)
-  const maxId = await data.init()
+  const binder = new DbBinder(db)
+  const maxId = await binder.init()
+  binder.startIntervalTimer()
   console.log('loaded max id:', maxId)
 
   const router = new Router()
-  router.createRealm = () => new BaseRealm(router, new ReactEngine(data))
+  router.createRealm = () => new BaseRealm(router, new ReactEngine(binder))
   router.setLogTrace(true)
   router.listenWAMP({ port: 9000 })
   router.listenMQTT({ port: 1883 })
