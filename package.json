@@ -34,7 +34,7 @@
     "ws": "^6.2.1"
   },
   "devDependencies": {
-    "autobahn": "^18.10.2",
+    "autobahn": "^20.9.2",
     "chai": "^4.3.4",
     "chai-as-promised": "*",
     "chai-spies": "*",

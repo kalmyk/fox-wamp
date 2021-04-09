@@ -49,15 +49,13 @@ describe('05. wamp-realm', function () {
 
   describe('RPC', function () {
     it('CALL to RPC not exist', function () {
-      sender.send = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.ERROR)
-          expect(msg[1]).to.equal(WAMP.CALL)
-          expect(msg[2]).to.equal(1234)
-          expect(msg[4]).to.equal('wamp.error.no_such_procedure')
-          expect(msg[5]).to.deep.equal(['no callee registered for procedure <any.function.name>'])
-        }
-      )
+      sender.send = chai.spy((msg, callback) => {
+        expect(msg[0]).to.equal(WAMP.ERROR)
+        expect(msg[1]).to.equal(WAMP.CALL)
+        expect(msg[2]).to.equal(1234)
+        expect(msg[4]).to.equal('wamp.error.no_such_procedure')
+        expect(msg[5]).to.deep.equal(['no callee registered for procedure <any.function.name>'])
+      })
       cli.handle(ctx, [WAMP.CALL, 1234, {}, 'any.function.name', []])
       expect(sender.send).to.have.been.called.once()
     })
@@ -197,13 +195,13 @@ describe('05. wamp-realm', function () {
         }
       )
       var callSpy = chai.spy(function (err, args) {
-        expect(err).to.be.an('error')
-        expect(args).to.deep.equal(['err.detail.1', 'err.detail.2'])
+        expect(err).to.equal('wamp.error.callee_failure')
+        // TODO: expect(args).to.deep.equal(['some.error.runtime_error_text'])
       })
       api.callrpc('func1', ['arg.1', 'arg.2'], { kVal: 'kRes' }, callSpy)
       expect(sender.send, 'invocation received').to.have.been.called.once()
 
-      cli.handle(ctx, [WAMP.ERROR, WAMP.INVOCATION, callId, {}, 'wamp.error.runtime_error', ['err.detail.1', 'err.detail.2']])
+      cli.handle(ctx, [WAMP.ERROR, WAMP.INVOCATION, callId, {}, 'some.error.runtime_error_text', ['err.detail.1', 'err.detail.2']])
       expect(callSpy, 'error delivered').to.have.been.called.once()
     })
 
