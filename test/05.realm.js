@@ -3,12 +3,14 @@
 const chai = require('chai')
 const spies = require('chai-spies')
 const expect = chai.expect
+const promised    = require('chai-as-promised')
 
 const WAMP     = require('../lib/wamp/protocol')
 const WampGate = require('../lib/wamp/gate')
 const FoxRouter = require('../lib/fox_router')
 const MemKeyValueStorage = require('../lib/mono/memkv').MemKeyValueStorage
 
+chai.use(promised)
 chai.use(spies)
 
 describe('05. wamp-realm', function () {
@@ -69,20 +71,18 @@ describe('05. wamp-realm', function () {
       expect(procSpy).to.not.have.been.called()
     })
 
-    it('CALL-to-router', function () {
-      var procSpy = chai.spy(function (id, args, kwargs) {
+    it('CALL-to-router', async () => {
+      let procSpy = chai.spy(function (id, args, kwargs) {
         api.resrpc(id, undefined, ['result.1', 'result.2'], { kVal: 'kRes' })
       })
-      var regId = api.register('func1', procSpy)
+      let regId = await api.register('func1', procSpy)
 
-      sender.send = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.RESULT)
-          expect(msg[1]).to.equal(1234)
-          expect(msg[3]).to.deep.equal(['result.1', 'result.2'])
-          expect(msg[4]).to.deep.equal({ kVal: 'kRes' })
-        }
-      )
+      sender.send = chai.spy((msg, callback) => {
+        expect(msg[0]).to.equal(WAMP.RESULT)
+        expect(msg[1]).to.equal(1234)
+        expect(msg[3]).to.deep.equal(['result.1', 'result.2'])
+        expect(msg[4]).to.deep.equal({ kVal: 'kRes' })
+      })
       cli.handle(ctx, [WAMP.CALL, 1234, {}, 'func1', ['arg1', 'arg2'], { kArg: 'kVal' }])
       expect(procSpy, 'RPC delivered').to.have.been.called.once()
       expect(sender.send, 'result delivered').to.have.been.called.once()
@@ -146,63 +146,51 @@ describe('05. wamp-realm', function () {
       expect(sender.send, 'unregistration confirmed').to.have.been.called.once()
     })
 
-    it('CALL-to-remote', function () {
+    it('CALL-to-remote', async () => {
       let qid = null
 
-      sender.send = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.REGISTERED)
-          expect(msg[1]).to.equal(1234)
-          qid = msg[2]
-        }
-      )
+      sender.send = chai.spy((msg, callback) => {
+        expect(msg[0]).to.equal(WAMP.REGISTERED)
+        expect(msg[1]).to.equal(1234)
+        qid = msg[2]
+      })
       cli.handle(ctx, [WAMP.REGISTER, 1234, {}, 'func1'])
       expect(sender.send, 'registration confirmed').to.have.been.called.once()
 
-      var callId = null
-      sender.send = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.INVOCATION)
-          callId = msg[1]
-          expect(msg[2]).to.equal(qid)
-          expect(msg[3]).to.deep.equal({}) // options
-          expect(msg[4]).to.deep.equal(['arg.1', 'arg.2'])
-          expect(msg[5]).to.deep.equal({ kVal: 'kRes' })
-        }
-      )
-      var callResponse = chai.spy(function (err, args, kwargs) {
-        expect(err).to.be.undefined
-        expect(args).to.deep.equal(['result.1', 'result.2'], 'args call spy response')
-        expect(kwargs).to.deep.equal({ foo: 'bar' }, 'kwargs call spy response')
+      sender.send = chai.spy((msg, callback) => {
+        expect(msg[0]).to.equal(WAMP.INVOCATION)
+        let callId = msg[1]
+        expect(msg[2]).to.equal(qid)
+        expect(msg[3]).to.deep.equal({}) // options
+        expect(msg[4]).to.deep.equal(['arg.1', 'arg.2'])
+        expect(msg[5]).to.deep.equal({ kVal: 'kRes' })
+
+        // return the function result
+        cli.handle(ctx, [WAMP.YIELD, callId, {}, ['result.1', 'result.2'], { foo: 'bar' }])
       })
-      api.callrpc('func1', ['arg.1','arg.2'], { kVal: 'kRes' }, callResponse)
+
+      let result = await api.callrpc('func1', ['arg.1','arg.2'], { kVal: 'kRes' })
+      expect(result).to.deep.equal({
+        args: ['result.1', 'result.2'],
+        kwargs: { foo: 'bar' }
+      }, 'response')
+
       expect(sender.send, 'invocation received').to.have.been.called.once()
-
-      // return the function result
-      cli.handle(ctx, [WAMP.YIELD, callId, {}, ['result.1', 'result.2'], { foo: 'bar' }])
-
-      expect(callResponse, 'result delivered').to.have.been.called.once()
     })
 
-    it('CALL error to remote', function () {
-      sender.send = function () {}
+    it('CALL error to remote', async () => {
+      sender.send = () => {}
       cli.handle(ctx, [WAMP.REGISTER, 1234, {}, 'func1'])
 
-      var callId = null
-      sender.send = chai.spy(
-        function (msg, callback) {
-          callId = msg[1]
-        }
-      )
-      var callSpy = chai.spy(function (err, args) {
-        expect(err).to.equal('wamp.error.callee_failure')
-        // TODO: expect(args).to.deep.equal(['some.error.runtime_error_text'])
+      sender.send = chai.spy((msg, callback) => {
+        let callId = msg[1]
+        cli.handle(ctx, [WAMP.ERROR, WAMP.INVOCATION, callId, {}, 'test-error-text', ['err.detail.1', 'err.detail.2']])
       })
-      api.callrpc('func1', ['arg.1', 'arg.2'], { kVal: 'kRes' }, callSpy)
-      expect(sender.send, 'invocation received').to.have.been.called.once()
 
-      cli.handle(ctx, [WAMP.ERROR, WAMP.INVOCATION, callId, {}, 'some.error.runtime_error_text', ['err.detail.1', 'err.detail.2']])
-      expect(callSpy, 'error delivered').to.have.been.called.once()
+      let result = await api.callrpc('func1', ['arg.1']).then(() => 'resolve-not-accepted', (reason) => reason)
+
+      expect(result).to.deep.equal({code:'wamp.error.callee_failure', message:'test-error-text'})
+      expect(sender.send, 'invocation received').to.have.been.called.once()
     })
 
     it('CALL-set-concurrency', function () {
@@ -229,49 +217,39 @@ describe('05. wamp-realm', function () {
       expect(sender.send).to.have.been.called.exactly(3)
     })
 
-    it('progress-remote-CALL', function () {
-      sender.send = function (msg, callback) {}
+    it('progress-remote-CALL', async () => {
+      sender.send = () => {}
       cli.handle(ctx, [WAMP.REGISTER, 1234, {}, 'func1'])
 
       let callId = null
-      sender.send = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.INVOCATION)
-          callId = msg[1]
-          // qid
-          expect(msg[3]).to.deep.equal({ receive_progress: true })
-        }
-      )
-      let result
-      let options
-      let callResponse = chai.spy(function (err, args, kwargs, opt) {
-        expect(err).to.equal(undefined)
-        expect(args).to.deep.equal(result)
-        expect(opt).to.deep.equal(options)
+      sender.send = chai.spy((msg, callback) => {
+        expect(msg[0]).to.equal(WAMP.INVOCATION)
+        callId = msg[1]
+        // qid
+        expect(msg[3]).to.deep.equal({ receive_progress: true })
+
+        cli.handle(ctx, [WAMP.YIELD, callId, { progress: true }, ['result.1'], {kv:1}])
+        cli.handle(ctx, [WAMP.YIELD, callId, { progress: true }, ['result.2'], {kv:2}])
+        cli.handle(ctx, [WAMP.YIELD, callId, {}, ['result.3.final'], {kv:3}])
       })
-      api.callrpc('func1', [], {}, callResponse, { receive_progress: 1 })
+      let progressResult = []
+      let callResponse = (args, kwargs) => {
+        progressResult.push([args, kwargs])
+      }
+      let finalResult = await api.callrpc('func1', [], {}, callResponse, { receive_progress: 1 })
       expect(sender.send, 'invocation received').to.have.been.called.once()
 
-      result = ['result.1']
-      options = { progress: true }
-      cli.handle(ctx, [WAMP.YIELD, callId, { progress: true }, ['result.1']])
+      expect(progressResult).to.deep.equal([
+        [['result.1'], {kv:1}],
+        [['result.2'], {kv:2}]
+      ])
+      expect(finalResult).to.deep.equal({args:['result.3.final'], kwargs: { kv: 3 }})
 
-      result = ['result.2']
-      options = { progress: true }
-      cli.handle(ctx, [WAMP.YIELD, callId, { progress: true }, ['result.2']])
-
-      result = ['result.3.final']
-      options = {}
-      cli.handle(ctx, [WAMP.YIELD, callId, {}, ['result.3.final']])
-
-      sender.send = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.ERROR)
-        }
-      )
+      sender.send = chai.spy((msg, callback) => {
+        expect(msg[0]).to.equal(WAMP.ERROR)
+      })
       cli.handle(ctx, [WAMP.YIELD, callId, {}, ['result.response.error']])
-
-      expect(callResponse, 'result delivered').to.have.been.called.exactly(3)
+      expect(sender.send).to.have.been.called.once()
     })
   })
 
@@ -372,7 +350,7 @@ describe('05. wamp-realm', function () {
       expect(sender.send, 'publication received').to.have.been.called.once()
     })
 
-    it('SUBSCRIBE-to-remote-wamp', async function () {
+    it('SUBSCRIBE-to-remote-wamp', async () => {
       let waitForEvent
       let subSpy = chai.spy(
         function (publicationId, args, kwargs) {
@@ -405,16 +383,27 @@ describe('05. wamp-realm', function () {
       expect(api.unsubscribe(subId)).to.equal('topic1')
     })
 
+    it('omit-tasks-of-terminated-sessions', async () => {
+      let uFunc = chai.spy((id, args, kwargs, opt) => {setImmediate(() => {
+        cli.cleanup().then(() => {
+          api.resrpc(id, null, ['any-result'])
+        })
+      })})
+      await api.register('func1', uFunc)
+
+      sender.send = chai.spy()
+      cli.handle(ctx, [WAMP.CALL, 1231, {}, 'func1', ['call-1']])
+      cli.handle(ctx, [WAMP.CALL, 1232, {}, 'func1', ['call-2']])
+      cli.handle(ctx, [WAMP.CALL, 1233, {}, 'func1', ['call-3']])
+
+      await api.callrpc('func1', ['call-4'])
+      expect(uFunc).to.have.been.called.twice()
+      expect(sender.send).to.have.been.called.once()
+    })
+  
   })
 
   describe('STORAGE', function () {
-
-    it('retain-weak', function () {
-      cli.handle(ctx, [WAMP.PUBLISH, 1234, { retain: 0, weak: 'public' }, 'topic2', ['arg.1', 'arg.2'], {}])
-      // console.log('key', realm.getKey('topic2'))
-      realm.leaveSession(cli)
-      // console.log('key', realm.getKey('topic2'))
-    })
 
     it('wamp-key-remove', function () {
       cli.handle(ctx, [WAMP.PUBLISH, 1234, { retain: true }, 'topic2', [], { some: 'value' }])

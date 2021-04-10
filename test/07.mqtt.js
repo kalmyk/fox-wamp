@@ -323,8 +323,8 @@ describe('07. mqtt-realm', function () {
     })
   })
 
-  it('at-connection-fail-will-publish', function (done) {
-    realm.leaveSession(cli)
+  it('at-connection-fail-will-publish', async () => {
+    await realm.leaveSession(cli)
     router.getRealm = (realmName, cb) => { cb(realm) }
 
     sender.send = chai.spy(() => {})
@@ -350,11 +350,9 @@ describe('07. mqtt-realm', function () {
         expect(kwargs).to.deep.equal({ text: 'some-test-text' })
       }
     )
-    api.subscribe('topic-test-disconnect', subSpy).then((subId) => {
-      cli.cleanup()
-      expect(subSpy).to.have.been.called.once()
-      done()
-    })
+    await api.subscribe('topic-test-disconnect', subSpy)
+    cli.cleanup()
+    expect(subSpy).to.have.been.called.once()
   })
 
   it('connect-clientid', function (done) {

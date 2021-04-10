@@ -100,7 +100,7 @@ session.publish('key.value.1', [ 'args' ], { kwArgs: true }, {
   not retain.
 * when: struct, publish the event only if value in the storage meets the value. If the `when` key is `null` that means the key not exists in stored value or value is not present.
 * watch: boolean, applicable if `when` option defined. Provides ability to wait for the required condition in storage and then do the publish immediately. If several clients waits for same value the only one achieves acknowledge of publish.
-* will: value that will be assigned at session unexpected disconnect. If the value is changed by any process the `will` value is cleaned.
+* will: value that will be assigned at session unexpected disconnect. If the value is changed by any process the `will` value is cleaned. Set `will` to `null` if value need to be erased at disconnect.
 
 ### Synchronization Service
 The options above provide ability to use the server as Synchronization Service. The `watch` option

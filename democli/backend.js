@@ -71,8 +71,8 @@ connection.onopen = function (session) {
   function echo (args, kwargs) {
     console.log('args', args, 'kwargs', kwargs)
     return new autobahn.Result(args, kwargs)
-//    throw new Error("inside backend!")
-//    return new autobahn.Error('Error-text', ['error-args'])   // no error delivered to router, possible bug in autobahn
+    // throw new Error("inside backend!")
+    // return new autobahn.Error('Error-text', ['error-args'])   // no error delivered to router, possible bug in autobahn
   }
 
   session.register('com.echoservice.echo', echo).then(

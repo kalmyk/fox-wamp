@@ -82,7 +82,7 @@ describe('08. KV', function () {
       it('storage-retain-get:' + run.it, async () => {
         var subSpy = chai.spy(function () {})
         await api.subscribe('topic1', subSpy)
-        await api.publish('topic1', [], { data: 'retain-the-value' }, { retain: 100 })
+        await api.publish('topic1', [], { data: 'retain-the-value' }, { retain: true })
         await api.publish('topic1', [], { data: 'the-value-does-not-retain' })
 
         let done
@@ -109,6 +109,19 @@ describe('08. KV', function () {
         )
         cli.handle(ctx, [WAMP.SUBSCRIBE, 1234, { retained: true }, 'topic1'])
         return resultPromise
+      })
+  
+      it('storage-retain-weak:' + run.it, async () => {
+        var spyExists = chai.spy(()=>{})
+        var spyNotExists = chai.spy(()=>{})
+
+        await api.publish('topic2', ['arg.1', 'arg.2'], {}, { retain: true, will: null })
+        await realm.getKey('topic2', spyExists)
+        await api.cleanup()
+        await realm.getKey('topic2', spyNotExists)
+
+        expect(spyExists).to.have.been.called.once()
+        expect(spyNotExists).to.not.have.been.called()
       })
   
     })

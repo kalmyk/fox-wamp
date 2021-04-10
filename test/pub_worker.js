@@ -134,24 +134,6 @@ describe('pub-worker', function () {
     })
   })
 
-  it('omit-tasks-of-terminated-sessions', function (done) {
-    worker.register(
-      'func1', function (args, task) {
-        task.resolve('any-result')
-        client.close()
-      }
-    ).then(function (registration) {
-      client.call('func1', 'call-1').then(() => {
-        expect(realm.engine.getPendingTaskCount()).to.equal(0)
-        done()
-      })
-      client.call('func1', 'call-2').then(() => {
-        done()
-      })
-      client.call('func1', 'call-3')
-    })
-  })
-
   it('trace-push-untrace', function () {
     let regTrace
     let traceSpy = chai.spy((data, task) => {
