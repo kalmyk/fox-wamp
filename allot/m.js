@@ -4,22 +4,22 @@ const autobahn = require('autobahn')
 const {QuorumEdge} = require('../lib/allot/quorum_edge')
 const {mergeMin, mergeMax, makeEmpty} = require('../lib/allot/makeid')
 
-const sync = new Map()
-const gate = new Map()
+const syncMass = new Map()
+const gateMass = new Map()
 
 let maxId = makeEmpty(new Date())
 
 const runQuorum = new QuorumEdge((bundleId, value) => {
   console.log('SYNC:', bundleId, '=>', value)
-  for (let [,ss] of sync) {
+  for (let [,ss] of syncMass) {
     ss.publish('syncId', [], {maxId, bundleId, syncId: value})
   }
 }, mergeMin)
 
-const readyQuorum = new QuorumEdge((bundleId, value) => {
-  console.log('READY:', bundleId, '=>', value)
-  for (let [,gg] of gate) {
-    gg.publish('readyId', [], {bundleId, syncId: value})
+const readyQuorum = new QuorumEdge((bundleId, syncId) => {
+  console.log('READY:', bundleId, '=>', syncId)
+  for (let [,gg] of gateMass) {
+    gg.done(bundleId, syncId)
   }
 }, mergeMin)
 
@@ -29,7 +29,7 @@ function mkSync(uri, ssId) {
 
   connection.onopen = function (session, details) {
     session.log('Session open', ssId)
-    sync.set(ssId, session)
+    syncMass.set(ssId, session)
     runQuorum.addMember(ssId)
     readyQuorum.addMember(ssId)
 
@@ -47,12 +47,60 @@ function mkSync(uri, ssId) {
 
   connection.onclose = function (reason, details) {
     console.log('disconnected '+ssId, reason, details)
-    sync.delete(ssId)
+    syncMass.delete(ssId)
     runQuorum.delMember(ssId)
     readyQuorum.delMember(ssId)
   }
   
   connection.open()
+}
+
+class GateSession {
+  constructor (session) {
+    this.session = session
+    this.stack = []
+    this.waitForValue = undefined
+
+    session.subscribe('mkId', (publishArgs, kwargs, opts) => {
+      this.sync(kwargs.bundleId)
+    })
+
+    session.subscribe('ping', (publishArgs, kwargs, opts) => {
+      session.publish('pong', publishArgs, kwargs)
+    })
+  }
+
+  sendToSync(bundleId) {
+    console.log('mkId', bundleId)
+    for (let [,ss] of syncMass) {
+      ss.publish('mkId', [], {bundleId})
+    }
+  }
+
+  checkLine() {
+    if (this.waitForValue) {
+      return false
+    }
+    this.waitForValue = this.stack.shift()
+    if (this.waitForValue) {
+      this.sendToSync(this.waitForValue)
+      return true
+    }
+    return false
+  }
+
+  sync(bundleId) {
+    this.stack.push(bundleId)
+    return this.checkLine()
+  }
+
+  done(bundleId, syncId) {
+    if (this.waitForValue === bundleId) {
+      this.session.publish('readyId', [], {bundleId, syncId})
+      return this.checkLine()
+    }
+    return false
+  }
 }
 
 function mkGate(uri, gateId) {
@@ -61,19 +109,12 @@ function mkGate(uri, gateId) {
 
   connection.onopen = function (session, details) {
     session.log('Session open '+gateId)
-    gate.set(gateId, session)
-
-    session.subscribe('mkId', (publishArgs, kwargs, opts) => {
-      console.log('mkId', gateId, kwargs)
-      for (let [,ss] of sync) {
-        ss.publish('mkId', [], {bundleId: kwargs.bundleId})
-      }
-    })
+    gateMass.set(gateId, new GateSession(session))
   }
 
   connection.onclose = function (reason, details) {
     console.log('disconnected '+gateId, reason, details)
-    gate.delete(gateId)
+    gateMass.delete(gateId)
   }
   
   connection.open()
