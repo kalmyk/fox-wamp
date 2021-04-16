@@ -405,28 +405,6 @@ describe('05. wamp-realm', function () {
 
   describe('STORAGE', function () {
 
-    it('wamp-key-remove', function () {
-      cli.handle(ctx, [WAMP.PUBLISH, 1234, { retain: true }, 'topic2', [], { some: 'value' }])
-
-      const gotRow = chai.spy((key, value) => {
-        expect(key).to.deep.equal(['topic2'])
-        expect(value).to.deep.equal({ args: [], kwargs: { some: 'value' } })
-      })
-
-      const noRow = chai.spy(() => {})
-
-      return realm.getKey(['topic2'], gotRow).then(() => {
-        expect(gotRow).to.have.been.called.exactly(1)
-
-        // no kwargs sent if kwargs passed as null
-        cli.handle(ctx, [WAMP.PUBLISH, 1234, { retain: true }, 'topic2', []])
-
-        return realm.getKey(['topic2'], noRow)
-      }).then(() => {
-        expect(noRow, 'row need to be removed').to.have.not.been.called()
-      })
-    })
-
     it('reduce-one', function () {
       sender.send = chai.spy((msg, callback) => {
         // console.log('REDUCE-CALL', msg);

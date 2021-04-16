@@ -82,15 +82,15 @@ describe('08. KV', function () {
       it('storage-retain-get:' + run.it, async () => {
         var subSpy = chai.spy(function () {})
         await api.subscribe('topic1', subSpy)
-        await api.publish('topic1', [], { data: 'retain-the-value' }, { retain: true })
-        await api.publish('topic1', [], { data: 'the-value-does-not-retain' })
+        await api.publish('topic1', [], { data: 'retain-the-value' }, { retain: true, exclude_me:false })
+        await api.publish('topic1', [], { data: 'the-value-does-not-retain' }, { exclude_me:false })
 
         let done
         let resultPromise = new Promise((resolve) => done = resolve)
         let counter = 2
         sender.send = chai.spy(
           (msg, callback) => {
-            // console.log('MSG', counter, msg)
+            // console.log('MSG =>', counter, msg)
             if (counter === 2) {
               expect(msg[0]).to.equal(WAMP.SUBSCRIBED)
               expect(msg[1]).to.equal(1234)
@@ -108,7 +108,9 @@ describe('08. KV', function () {
           }
         )
         cli.handle(ctx, [WAMP.SUBSCRIBE, 1234, { retained: true }, 'topic1'])
-        return resultPromise
+        await resultPromise
+
+        expect(subSpy).to.have.been.called.twice()
       })
   
       it('storage-retain-weak:' + run.it, async () => {
@@ -118,6 +120,22 @@ describe('08. KV', function () {
         await api.publish('topic2', ['arg.1', 'arg.2'], {}, { retain: true, will: null })
         await realm.getKey('topic2', spyExists)
         await api.cleanup()
+        await realm.getKey('topic2', spyNotExists)
+
+        expect(spyExists).to.have.been.called.once()
+        expect(spyNotExists).to.not.have.been.called()
+      })
+  
+      it('wamp-key-remove:' + run.it, async () => {
+        await api.publish('topic2', ['arg.1'], { some: 'value' }, { retain: true })
+  
+        var spyExists = chai.spy(()=>{})
+        await realm.getKey('topic2', spyExists)
+
+        // no kwargs is sent if kwargs passed as null
+        await api.publish('topic2', [], null, { retain: true })
+
+        var spyNotExists = chai.spy(()=>{})
         await realm.getKey('topic2', spyNotExists)
 
         expect(spyExists).to.have.been.called.once()
