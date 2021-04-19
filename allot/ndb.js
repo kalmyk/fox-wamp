@@ -1,8 +1,12 @@
 'use strict'
 
+const sqlite3 = require('sqlite3')
+const sqlite = require('sqlite')
 const autobahn = require('autobahn')
-const {QuorumEdge} = require('../lib/allot/quorum_edge')
-const {mergeMin, mergeMax, makeEmpty} = require('../lib/allot/makeid')
+const { QuorumEdge } = require('../lib/allot/quorum_edge')
+const { mergeMin, mergeMax, makeEmpty } = require('../lib/allot/makeid')
+const { EntrySession } = require('../lib/allot/entry_session')
+const { History } = require('../lib/sqlite/history')
 
 const syncMass = new Map()
 const gateMass = new Map()
@@ -55,61 +59,13 @@ function mkSync(uri, ssId) {
   connection.open()
 }
 
-class GateSession {
-  constructor (session) {
-    this.session = session
-    this.stack = []
-    this.waitForValue = undefined
-
-    session.subscribe('mkId', (publishArgs, kwargs, opts) => {
-      this.sync(kwargs.bundleId)
-    })
-
-    session.subscribe('ping', (publishArgs, kwargs, opts) => {
-      session.publish('pong', publishArgs, kwargs)
-    })
-  }
-
-  sendToSync(bundleId) {
-    console.log('mkId', bundleId)
-    for (let [,ss] of syncMass) {
-      ss.publish('mkId', [], {bundleId})
-    }
-  }
-
-  checkLine() {
-    if (this.waitForValue) {
-      return false
-    }
-    this.waitForValue = this.stack.shift()
-    if (this.waitForValue) {
-      this.sendToSync(this.waitForValue)
-      return true
-    }
-    return false
-  }
-
-  sync(bundleId) {
-    this.stack.push(bundleId)
-    return this.checkLine()
-  }
-
-  done(bundleId, syncId) {
-    if (this.waitForValue === bundleId) {
-      this.session.publish('readyId', [], {bundleId, syncId})
-      return this.checkLine()
-    }
-    return false
-  }
-}
-
 function mkGate(uri, gateId) {
   console.log('connect to gate:', uri)
   const connection = new autobahn.Connection({url: uri, realm: 'gate'})
 
   connection.onopen = function (session, details) {
     session.log('Session open '+gateId)
-    gateMass.set(gateId, new GateSession(session))
+    gateMass.set(gateId, new EntrySession(session, syncMass))
   }
 
   connection.onclose = function (reason, details) {
@@ -120,10 +76,26 @@ function mkGate(uri, gateId) {
   connection.open()
 }
 
-mkSync('ws://127.0.0.1:9011/wamp', 1)
-mkSync('ws://127.0.0.1:9012/wamp', 2)
-mkSync('ws://127.0.0.1:9013/wamp', 3)
+async function main () {
+  const db = await sqlite.open({
+    filename: '../dbfiles/msgdb.sqlite',
+    driver: sqlite3.Database
+  })
 
-mkGate('ws://127.0.0.1:9021/wamp', 1)
-mkGate('ws://127.0.0.1:9022/wamp', 2)
-mkGate('ws://127.0.0.1:9023/wamp', 3)
+  const history = new History(db)
+  await history.createTables()
+
+  mkSync('ws://127.0.0.1:9011/wamp', 1)
+  mkSync('ws://127.0.0.1:9012/wamp', 2)
+  mkSync('ws://127.0.0.1:9013/wamp', 3)
+  
+  mkGate('ws://127.0.0.1:9021/wamp', 1)
+  mkGate('ws://127.0.0.1:9022/wamp', 2)
+  mkGate('ws://127.0.0.1:9023/wamp', 3)
+}
+
+main().then(() => {
+  console.log('DONE.')
+}, (err) => {
+  console.error('ERROR:', err, err.stack)
+})

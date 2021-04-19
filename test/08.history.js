@@ -48,7 +48,7 @@ describe('08. history', function () {
       afterEach(function () {
       })
   
-      it('receive-event-history:' + run.it, async function () {
+      it('receive-event-history:' + run.it, async () => {
         let expectedData = [
           {event:'row1'},
           {event:'row2'},

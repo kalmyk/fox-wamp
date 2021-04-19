@@ -34,7 +34,7 @@ const connection = new autobahn.Connection({
 })
 
 connection.onopen = function (session, details) {
-  session.log('Session open.', details)
+  session.log('Session open.')
 
   function waitForLockResource () {
     session.publish(
@@ -67,24 +67,9 @@ connection.onopen = function (session, details) {
       setTimeout(
         waitForLockResource,
         1000
-      )  
+      )
     })
   }
-
-  // Define an event handler
-  function onEvent (publishArgs, kwargs, opts) {
-    console.log('Event', opts.topic, 'received args', publishArgs, 'kwargs ', kwargs)
-  }
-
-  // Subscribe to a topic
-  session.subscribe('myapp.resource', onEvent, { retained: true }).then(
-    function (subscription) {
-      console.log('subscription successfull', subscription.topic)
-    },
-    function (error) {
-      console.log('subscription failed', error)
-    }
-  )
 
   waitForLockResource()
 }

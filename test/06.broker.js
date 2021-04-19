@@ -162,7 +162,8 @@ describe('06. hyper-broker', function () {
         session.handle(ctx, {
           ft: 'TRACE',
           uri: ['testQ'],
-          id: idTrace
+          id: idTrace,
+          opt: {}
         })
 
         session.handle(ctx, {
@@ -172,6 +173,27 @@ describe('06. hyper-broker', function () {
         })
         expect(sender.send).to.have.been.called.twice()
       })
+
+      it('no-storage-error:' + run.it, async function () {
+        sender.send = chai.spy((msg) => {
+          expect(msg).to.deep.equal({
+            id: 123,
+            ft: 'PUSH',
+            rsp: 'ERR',
+            data: { code: 'no_storage_defined', message: 'no_storage_defined' }
+          })
+        })
+
+        session.handle(ctx, {
+          ft: 'PUSH',
+          uri: ['testQ'],
+          opt: { retain: true },
+          id: 123
+        })
+
+        expect(sender.send).to.have.been.called.once()
+      })
+
     })
   })
 })

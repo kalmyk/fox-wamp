@@ -9,7 +9,7 @@ chai.use(promised)
 
 const sqlite3 = require('sqlite3')
 const sqlite = require('sqlite')
-const Msg = require('../lib/sqlite/msg')
+const { History } = require('../lib/sqlite/history')
 
 
 describe('message-storage', function () {
@@ -20,7 +20,7 @@ describe('message-storage', function () {
       filename: ':memory:',
       driver: sqlite3.Database
     })
-    msg = new Msg(db)
+    msg = new History(db)
     return db
   })
 
@@ -35,7 +35,7 @@ describe('message-storage', function () {
   })
 
   it('should save message', function () {
-    return assert.isFulfilled(msg.saveMsg(
+    return assert.isFulfilled(msg.saveEventHistory(
       '12345678b11',
       'test-realm',
       ['msg', 'test', 'com'],
