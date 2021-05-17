@@ -59,11 +59,11 @@ describe('09. hyper-kv', function () {
       'will.test',
       [],
       { event: 'value' },
-      { retain: true, will: { kv: { will: 'value' } } }
+      { trace: true, retain: true, will: { kv: { will: 'value' } } }
     )
 
     expect(event).to.have.been.called.once()
-    cli.cleanup()
+    await cli.cleanup()
     expect(event).to.have.been.called.twice()
   })
 
@@ -89,11 +89,13 @@ describe('09. hyper-kv', function () {
       if (m === 1) {
         expect(event).to.deep.equal({ kv: { event: 'value' } })
       } else if (m === 2) {
+        expect(event).to.equal(null)
+      } else if (m === 3) {
         expect(event).to.deep.equal({ kv: { event: 'watch-for-empty' } })
       }
     })
 
-    api.subscribe(['watch', 'test'], onEvent)
+    api.subscribe(['watch', 'test'], onEvent, { retained:true })
     await new Promise((resolve) => {
       curPromise = resolve
       session.handle(ctx, {
@@ -109,7 +111,6 @@ describe('09. hyper-kv', function () {
       })
     })
     expect(onEvent).to.have.been.called.once()
-    expect(realm.engine._messages.length).to.equal(1)
 
     session.handle(ctx, {
       ft: 'PUSH',
@@ -124,16 +125,13 @@ describe('09. hyper-kv', function () {
       ack: true,
       id: 'watch-for-value'
     })
-
     expect(onEvent).to.have.been.called.once()
-    expect(realm.engine._messages.length).to.equal(1)
 
     await new Promise((resolve) => {
       curPromise = resolve
-      api.publish(['watch', 'test'], null, { retain: true })  
+      api.publish(['watch', 'test'], null, { trace: true, retain: true })  
     })
-    expect(onEvent).to.have.been.called.twice()
-    expect(realm.engine._messages.length).to.equal(2)
+    expect(onEvent).to.have.been.called.exactly(3)
   })
 
   it('push-watch-for-will', function () {
@@ -158,7 +156,7 @@ describe('09. hyper-kv', function () {
         expect(true).to.equal('no more events')
       }
     })
-    api.subscribe('watch.test', event)
+    api.subscribe('watch.test', event, { retained: true })
 
     session.handle(ctx, {
       ft: 'PUSH',

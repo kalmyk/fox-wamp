@@ -80,7 +80,7 @@ describe('08. KV', function () {
       })
   
       it('storage-retain-get:' + run.it, async () => {
-        var subSpy = chai.spy(function () {})
+        var subSpy = chai.spy(() => {})
         await api.subscribe('topic1', subSpy)
         await api.publish('topic1', [], { data: 'retain-the-value' }, { retain: true, exclude_me:false })
         await api.publish('topic1', [], { data: 'the-value-does-not-retain' }, { exclude_me:false })

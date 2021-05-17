@@ -5,6 +5,7 @@ const spies = require('chai-spies')
 const expect = chai.expect
 const promised    = require('chai-as-promised')
 
+const { deepDataMerge } = require('../lib/realm')
 const WAMP     = require('../lib/wamp/protocol')
 const WampGate = require('../lib/wamp/gate')
 const FoxRouter = require('../lib/fox_router')
@@ -47,6 +48,21 @@ describe('05. wamp-realm', function () {
   it('session-list', function () {
     let result = realm.getSessionIds()
     expect(result).to.be.an('array').that.is.not.empty
+  })
+
+  it('deepDataMerge', function () {
+    let result
+    result = deepDataMerge(
+      { args:[], kwargs:{key1: "v1", key2: {key3: "v3"}} },
+      { payload: Buffer.from('{"key1":"v1-update","key2":{"key5":"v5"}}') }
+    )
+    expect(result).to.deep.equal({ kv: { key1: 'v1-update', key2: { key3: 'v3', key5: 'v5' } } })
+
+    result = deepDataMerge(
+      { args:[], kwargs:{key1: "v1", key2: {key3: "v3"}} },
+      { payload: Buffer.from('{"json-error":<package>') }
+    )
+    expect(result).to.deep.equal({ args:[], kwargs:{key1: "v1", key2: {key3: "v3"}} })
   })
 
   describe('RPC', function () {

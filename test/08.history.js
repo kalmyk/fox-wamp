@@ -56,7 +56,7 @@ describe('08. history', function () {
         ]
 
         let startPos = await api.publish('test-topic', [], {event:'data'}, {acknowledge: true, trace: true})
-        expect(startPos).to.exist
+        expect(startPos, "startPos").to.exist
 
         await Promise.all([
           api.publish('test-topic', [], {event:'row1'}, {acknowledge: true, trace: true}),

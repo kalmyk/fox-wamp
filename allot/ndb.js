@@ -1,5 +1,8 @@
 'use strict'
 
+const conf_db_file = process.env.DB_FILE
+  || console.log('DB_FILE must be defined') || process.exit(1)
+
 const sqlite3 = require('sqlite3')
 const sqlite = require('sqlite')
 const autobahn = require('autobahn')
@@ -13,17 +16,17 @@ const gateMass = new Map()
 
 let maxId = makeEmpty(new Date())
 
-const runQuorum = new QuorumEdge((bundleId, value) => {
-  console.log('SYNC:', bundleId, '=>', value)
+const runQuorum = new QuorumEdge((applicantId, value) => {
+  console.log('SYNC:', applicantId, '=>', value)
   for (let [,ss] of syncMass) {
-    ss.publish('syncId', [], {maxId, bundleId, syncId: value})
+    ss.publish('syncId', [], {maxId, applicantId, syncId: value})
   }
 }, mergeMin)
 
-const readyQuorum = new QuorumEdge((bundleId, syncId) => {
-  console.log('READY:', bundleId, '=>', syncId)
+const readyQuorum = new QuorumEdge((applicantId, syncId) => {
+  console.log('READY:', applicantId, '=>', syncId)
   for (let [,gg] of gateMass) {
-    gg.done(bundleId, syncId)
+    gg.commitSegment(applicantId, syncId)
   }
 }, mergeMin)
 
@@ -39,13 +42,13 @@ function mkSync(uri, ssId) {
 
     session.subscribe('runId', (args, kwargs, opts) => {
       console.log('runId', ssId, kwargs)
-      runQuorum.vote(ssId, kwargs.bundleId, kwargs.runId)
+      runQuorum.vote(ssId, kwargs.applicantId, kwargs.runId)
       maxId = mergeMax(maxId, kwargs.runId)
     })
 
     session.subscribe('readyId', (args, kwargs, opts) => {
       console.log('readyId', ssId, kwargs)
-      readyQuorum.vote(ssId, kwargs.bundleId, kwargs.readyId)
+      readyQuorum.vote(ssId, kwargs.applicantId, kwargs.readyId)
     })
   }
 
@@ -59,13 +62,13 @@ function mkSync(uri, ssId) {
   connection.open()
 }
 
-function mkGate(uri, gateId) {
+function mkGate(uri, gateId, history) {
   console.log('connect to gate:', uri)
-  const connection = new autobahn.Connection({url: uri, realm: 'gate'})
+  const connection = new autobahn.Connection({url: uri, realm: 'sys'})
 
   connection.onopen = function (session, details) {
     session.log('Session open '+gateId)
-    gateMass.set(gateId, new EntrySession(session, syncMass))
+    gateMass.set(gateId, new EntrySession(session, syncMass, history))
   }
 
   connection.onclose = function (reason, details) {
@@ -78,7 +81,7 @@ function mkGate(uri, gateId) {
 
 async function main () {
   const db = await sqlite.open({
-    filename: '../dbfiles/msgdb.sqlite',
+    filename: conf_db_file,
     driver: sqlite3.Database
   })
 
@@ -89,9 +92,9 @@ async function main () {
   mkSync('ws://127.0.0.1:9012/wamp', 2)
   mkSync('ws://127.0.0.1:9013/wamp', 3)
   
-  mkGate('ws://127.0.0.1:9021/wamp', 1)
-  mkGate('ws://127.0.0.1:9022/wamp', 2)
-  mkGate('ws://127.0.0.1:9023/wamp', 3)
+  mkGate('ws://127.0.0.1:9021/wamp', 1, history)
+//  mkGate('ws://127.0.0.1:9022/wamp', 2, history)
+//  mkGate('ws://127.0.0.1:9023/wamp', 3, history)
 }
 
 main().then(() => {

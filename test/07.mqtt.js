@@ -387,7 +387,7 @@ describe('07. mqtt-realm', function () {
       pubMsgId = msg.messageId
 
       api.publish('topic1', [], { data: 1 }, { trace: true })
-      expect(realm.engine._messages.length, 'trace message need to be saved').to.equal(1)
+      expect(realm.engine.getInMessagesCount(), 'trace message need to be saved').to.equal(1)
     })
 
     const nextPuback = chai.spy((msg) => {
