@@ -31,7 +31,7 @@
     "qlobber": "^3.1.0",
     "sqlite": "^4.0.19",
     "sqlite3": "^5.0.2",
-    "ws": "^6.2.1"
+    "ws": "^7.4.6"
   },
   "devDependencies": {
     "autobahn": "^20.9.2",
