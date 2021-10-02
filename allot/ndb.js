@@ -88,13 +88,13 @@ async function main () {
   const history = new History(db)
   await history.createTables()
 
-  mkSync('ws://127.0.0.1:9011/wamp', 1)
-  mkSync('ws://127.0.0.1:9012/wamp', 2)
-  mkSync('ws://127.0.0.1:9013/wamp', 3)
+  mkSync('ws://127.0.0.1:9021/wamp', 1)
+  mkSync('ws://127.0.0.1:9022/wamp', 2)
+  mkSync('ws://127.0.0.1:9023/wamp', 3)
   
-  mkGate('ws://127.0.0.1:9021/wamp', 1, history)
-//  mkGate('ws://127.0.0.1:9022/wamp', 2, history)
-//  mkGate('ws://127.0.0.1:9023/wamp', 3, history)
+  mkGate('ws://127.0.0.1:9031/wamp', 1, history)
+  mkGate('ws://127.0.0.1:9032/wamp', 2, history)
+  mkGate('ws://127.0.0.1:9033/wamp', 3, history)
 }
 
 main().then(() => {

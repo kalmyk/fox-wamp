@@ -3,6 +3,9 @@
 const conf_wamp_port = process.env.WAMP_PORT
   || console.log('WAMP_PORT must be defined') || process.exit(1)
 
+const conf_mqtt_port = process.env.MQTT_PORT
+  || console.log('MQTT_PORT must be defined') || process.exit(1)
+
 const Router = require('../lib/router')
 const { BaseRealm } = require('../lib/realm')
 const WampGate = require('../lib/wamp/gate')
@@ -16,6 +19,6 @@ const binder = new NetBinder(router)
 router.createRealm = () => new BaseRealm(router, new NetEngine(binder))
 
 new WampServer(new WampGate(router), { port: conf_wamp_port })
-new MqttServer(new MqttGate(router), { port: 1883 })
+new MqttServer(new MqttGate(router), { port: conf_mqtt_port })
 
 console.log('Listening WAMP port:', conf_wamp_port)

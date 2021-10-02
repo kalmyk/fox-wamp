@@ -1,7 +1,8 @@
 node_modules
-npm-debug.log
+*.log
 coverage/*
 .nyc_output
 .idea/
 **/*.iml
 dbfiles/*
+supervisor/*.db
