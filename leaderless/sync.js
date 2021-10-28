@@ -43,7 +43,7 @@ realm.on(MSG.SESSION_LEAVE, (session) => {
   syncQuorum.delMember(session.getSid())
 })
 
-api.subscribe(['mkId'], (data, opt) => {
+api.subscribe(['mkSegmentId'], (data, opt) => {
   console.log('MAKE-ID', data, opt)
   mkQuorum.vote(opt.sid, data.kwargs.applicantId, null)
 })

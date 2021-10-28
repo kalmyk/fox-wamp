@@ -40,7 +40,7 @@ connection.onopen = function (session, details) {
     session.publish(
       'myapp.resource',
       [],
-      { pid: process.pid, value: 'handle-resource' },
+      { comment: 'any values in KWARGS', pid: process.pid, value: 'handle-resource' },
       { acknowledge: true, retain: true, when: null, will: null, watch: true }
     ).then(
       (result) => {

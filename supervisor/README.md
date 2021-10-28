@@ -8,12 +8,12 @@ three clients that lock resource for the 5 second each, so the next able to lock
 $ supervisord -c ./resource-lock.supervisord.ini
 ```
 
-## allot.supervisord.ini
+## leaderless.supervisord.ini
 leaderless queue work
 
 - to start:
 ```shell
-$ supervisord -c ./allot.supervisord.ini
+$ supervisord -c ./leaderless.supervisord.ini
 
 
 ```
