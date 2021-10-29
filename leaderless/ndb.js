@@ -16,17 +16,17 @@ const gateMass = new Map()
 
 let maxId = makeEmpty(new Date())
 
-const runQuorum = new QuorumEdge((applicantId, value) => {
-  console.log('SYNC:', applicantId, '=>', value)
+const runQuorum = new QuorumEdge((advanceSegment, value) => {
+  console.log('SYNC:', advanceSegment, '=>', value)
   for (let [,ss] of syncMass) {
-    ss.publish('syncId', [], {maxId, applicantId, syncId: value})
+    ss.publish('syncId', [], {maxId, advanceSegment, syncId: value})
   }
 }, mergeMin)
 
-const readyQuorum = new QuorumEdge((applicantId, syncId) => {
-  console.log('READY:', applicantId, '=>', syncId)
+const readyQuorum = new QuorumEdge((advanceSegment, segmentId) => {
+  console.log('READY-TO-COMMIT:', advanceSegment, '=>', segmentId)
   for (let [,gg] of gateMass) {
-    gg.commitSegment(applicantId, syncId)
+    gg.commitSegment(advanceSegment, segmentId)
   }
 }, mergeMin)
 
@@ -46,9 +46,9 @@ function mkSync(uri, ssId) {
       maxId = mergeMax(maxId, kwargs.runId)
     })
 
-    session.subscribe('readyId', (args, kwargs, opts) => {
-      console.log('readyId', ssId, kwargs)
-      readyQuorum.vote(ssId, kwargs.applicantId, kwargs.readyId)
+    session.subscribe('commitSegment', (args, kwargs, opts) => {
+      console.log('commitSegment', ssId, kwargs)
+      readyQuorum.vote(ssId, kwargs.advanceSegment, kwargs.readyId)
     })
   }
 
@@ -67,12 +67,12 @@ function mkGate(uri, gateId, history) {
   const connection = new autobahn.Connection({url: uri, realm: 'sys'})
 
   connection.onopen = function (session, details) {
-    session.log('Session open '+gateId)
+    session.log('Gate session open '+gateId)
     gateMass.set(gateId, new EntrySession(session, syncMass, history))
   }
 
   connection.onclose = function (reason, details) {
-    console.log('disconnected '+gateId, reason, details)
+    console.log('Gate disconnected '+gateId, reason, details)
     gateMass.delete(gateId)
   }
   

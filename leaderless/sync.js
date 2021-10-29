@@ -28,9 +28,9 @@ const mkQuorum = new QuorumEdge((applicantId, value) => {
   api.publish(['runId'], {kv: {applicantId, runId: id}})
 }, () => null)
 
-const syncQuorum = new QuorumEdge((applicantId, value) => {
-  console.log('QSYNC!', applicantId, '=>', value)
-  api.publish(['readyId'], {kv: {applicantId, readyId: value}})
+const syncQuorum = new QuorumEdge((advanceSegment, value) => {
+  console.log('QSYNC!', advanceSegment, '=>', value)
+  api.publish(['commitSegment'], {kv: {advanceSegment, readyId: value}})
 }, mergeMin)
 
 realm.on(MSG.SESSION_JOIN, (session) => {
@@ -43,13 +43,13 @@ realm.on(MSG.SESSION_LEAVE, (session) => {
   syncQuorum.delMember(session.getSid())
 })
 
-api.subscribe(['mkSegmentId'], (data, opt) => {
+api.subscribe(['syncSegmentId'], (data, opt) => {
   console.log('MAKE-ID', data, opt)
-  mkQuorum.vote(opt.sid, data.kwargs.applicantId, null)
+  mkQuorum.vote(opt.sid, data.kwargs.advanceSegment, null)
 })
 
 api.subscribe(['syncId'], (data, opt) => {
   console.log('SYNC-ID', data, opt)
-  makeId.shift(data.kwargs.maxId)
-  syncQuorum.vote(opt.sid, data.kwargs.applicantId, data.kwargs.syncId)
+  makeId.reconcile(data.kwargs.maxId)
+  syncQuorum.vote(opt.sid, data.kwargs.advanceSegment, data.kwargs.syncId)
 })
