@@ -22,10 +22,10 @@ console.log('Listening WAMP port:', conf_wamp_port)
 makeId.update(new Date())
 setInterval(()=>{makeId.update(new Date())}, 7000)
 
-const mkQuorum = new QuorumEdge((applicantId, value) => {
+const makeQuorum = new QuorumEdge((applicantId, value) => {
   const id = makeId.makeId()
-  console.log('CREATE-ID!', applicantId, '=>', id)
-  api.publish(['runId'], {kv: {applicantId, runId: id}})
+  console.log('draftSegmentId:', applicantId, '=>', id)
+  api.publish(['draftSegmentId'], {kv: {applicantId, runId: id}})
 }, () => null)
 
 const syncQuorum = new QuorumEdge((advanceSegment, value) => {
@@ -34,18 +34,18 @@ const syncQuorum = new QuorumEdge((advanceSegment, value) => {
 }, mergeMin)
 
 realm.on(MSG.SESSION_JOIN, (session) => {
-  mkQuorum.addMember(session.getSid())
+  makeQuorum.addMember(session.getSid())
   syncQuorum.addMember(session.getSid())
 })
 
 realm.on(MSG.SESSION_LEAVE, (session) => {
-  mkQuorum.delMember(session.getSid())
+  makeQuorum.delMember(session.getSid())
   syncQuorum.delMember(session.getSid())
 })
 
-api.subscribe(['syncSegmentId'], (data, opt) => {
+api.subscribe(['makeSegmentId'], (data, opt) => {
   console.log('MAKE-ID', data, opt)
-  mkQuorum.vote(opt.sid, data.kwargs.advanceSegment, null)
+  makeQuorum.vote(opt.sid, data.kwargs.advanceSegment, null)
 })
 
 api.subscribe(['syncId'], (data, opt) => {

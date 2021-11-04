@@ -6,3 +6,4 @@ coverage/*
 **/*.iml
 dbfiles/*
 supervisor/*.db
+supervisor/supervisord.pid

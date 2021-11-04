@@ -25,7 +25,7 @@ const runQuorum = new QuorumEdge((advanceSegment, value) => {
 
 const readyQuorum = new QuorumEdge((advanceSegment, segmentId) => {
   console.log('READY-TO-COMMIT:', advanceSegment, '=>', segmentId)
-  for (let [,gg] of gateMass) {
+  for (let gg of gateMass.values()) {
     gg.commitSegment(advanceSegment, segmentId)
   }
 }, mergeMin)
@@ -40,8 +40,8 @@ function mkSync(uri, ssId) {
     runQuorum.addMember(ssId)
     readyQuorum.addMember(ssId)
 
-    session.subscribe('runId', (args, kwargs, opts) => {
-      console.log('runId', ssId, kwargs)
+    session.subscribe('draftSegmentId', (args, kwargs, opts) => {
+      console.log('draftSegmentId', ssId, kwargs)
       runQuorum.vote(ssId, kwargs.applicantId, kwargs.runId)
       maxId = mergeMax(maxId, kwargs.runId)
     })
@@ -68,7 +68,7 @@ function mkGate(uri, gateId, history) {
 
   connection.onopen = function (session, details) {
     session.log('Gate session open '+gateId)
-    gateMass.set(gateId, new EntrySession(session, syncMass, history))
+    gateMass.set(gateId, new EntrySession(session, syncMass, gateMass, history, gateId))
   }
 
   connection.onclose = function (reason, details) {

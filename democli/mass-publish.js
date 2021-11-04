@@ -44,7 +44,7 @@ connection.onopen = function (session, details) {
   for (var i=0; i<msgCount; i++) {
     res.push(session.publish('com.myapp.topic1', [], {field1:'some long value', field2:12345}, { acknowledge : true }).then(
       function(publication) {
-        // console.log("published, publication ID is ", publication);
+        // console.log("published:", publication);
       },
       function(error) {
         console.log("publication error", error)

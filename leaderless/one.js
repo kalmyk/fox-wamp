@@ -2,10 +2,9 @@
 
 const sqlite3 = require('sqlite3')
 const sqlite = require('sqlite')
-const { DbBinder } = require('../lib/sqlite/dbbinder')
+const { DbEngine, DbBinder } = require('../lib/sqlite/dbbinder')
 const Router = require('../index')
 const { BaseRealm } = require('../lib/realm')
-const { ReactEngine } = require('../lib/binder')
 
 async function main () {
   const db = await sqlite.open({
@@ -19,7 +18,7 @@ async function main () {
   console.log('loaded max id:', maxId)
 
   const router = new Router()
-  router.createRealm = () => new BaseRealm(router, new ReactEngine(binder))
+  router.createRealm = () => new BaseRealm(router, new DbEngine(binder))
   router.setLogTrace(true)
   router.listenWAMP({ port: 9000 })
   router.listenMQTT({ port: 1883 })

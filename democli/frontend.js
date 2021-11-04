@@ -113,7 +113,7 @@ connection.onopen = function (session, details) {
 
   var p1 = session.publish('com.myapp.topic1', [ 'Arg_1', 'Arg_2' ], {}, { acknowledge: true }).then(
     function (publication) {
-      console.log('published, publication ID is ', publication)
+      console.log('published:', publication)
     },
     function (error) {
       console.log('publication error', error)

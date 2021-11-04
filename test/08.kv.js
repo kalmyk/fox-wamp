@@ -11,10 +11,9 @@ const sqlite = require('sqlite')
 const WAMP     = require('../lib/wamp/protocol')
 const WampGate = require('../lib/wamp/gate')
 const Router       = require('../lib/router')
-const { DbBinder }   = require('../lib/sqlite/dbbinder')
+const { DbEngine, DbBinder }   = require('../lib/sqlite/dbbinder')
 const { SqliteKv }   = require('../lib/sqlite/sqlitekv')
 const { MemEngine } = require('../lib/mono/memengine')
-const { ReactEngine } = require('../lib/binder')
 const { MemKeyValueStorage } = require('../lib/mono/memkv')
 const { BaseRealm } = require('../lib/realm')
 
@@ -35,7 +34,7 @@ const mkDbRealm = async (router) => {
 
   let binder = new DbBinder(db)
   await binder.init()
-  let realm = new BaseRealm(router, new ReactEngine(binder))
+  let realm = new BaseRealm(router, new DbEngine(binder))
 
   let kv = new SqliteKv(db)
   await kv.createTables()
