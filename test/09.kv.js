@@ -8,7 +8,6 @@ const promised    = require('chai-as-promised')
 
 const FoxGate      = require('../lib/hyper/gate')
 const FoxRouter    = require('../lib/fox_router')
-const WampApi      = require('../lib/wamp/api')
 
 chai.use(promised)
 chai.use(spies)
@@ -20,8 +19,7 @@ describe('09. hyper-kv', function () {
     sessionSender,
     realm,
     ctx,
-    session,
-    api
+    session
 
   beforeEach(function () {
     router = new FoxRouter()
@@ -31,7 +29,6 @@ describe('09. hyper-kv', function () {
     sessionSender = {}
     ctx = gate.createContext(session, sessionSender)
     realm.joinSession(session)
-    api = realm.wampApi()
   })
 
   afterEach(function () {
@@ -39,32 +36,6 @@ describe('09. hyper-kv', function () {
       gate.removeSession(session)
       session = null
     }
-  })
-
-  it('push-will:'/* + run.it */, async function () {
-    let expectedData = [
-      { event: 'value' },
-      { will: 'value' },
-    ]
-
-    const event = chai.spy((id, args, kwargs) => {
-      expect(kwargs).to.deep.equal(expectedData.shift())
-    })
-    await api.subscribe('will.test', event)
-
-    let cli = new WampApi(realm, router.makeSessionId())
-    realm.joinSession(cli)
-
-    await cli.publish(
-      'will.test',
-      [],
-      { event: 'value' },
-      { trace: true, retain: true, will: { kv: { will: 'value' } } }
-    )
-
-    expect(event).to.have.been.called.once()
-    await cli.cleanup()
-    expect(event).to.have.been.called.twice()
   })
 
   it('push-watch-for-push', async function () {

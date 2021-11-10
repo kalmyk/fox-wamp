@@ -5,20 +5,23 @@ const spies       = require('chai-spies')
 const expect      = chai.expect
 const promised    = require('chai-as-promised')
 
-const sqlite3 = require('sqlite3')
-const sqlite = require('sqlite')
+const sqlite3     = require('sqlite3')
+const sqlite      = require('sqlite')
 
-const WAMP     = require('../lib/wamp/protocol')
-const WampGate = require('../lib/wamp/gate')
-const Router       = require('../lib/router')
-const { DbEngine, DbBinder }   = require('../lib/sqlite/dbbinder')
-const { SqliteKv }   = require('../lib/sqlite/sqlitekv')
-const { MemEngine } = require('../lib/mono/memengine')
+const WAMP            = require('../lib/wamp/protocol')
+const WampGate        = require('../lib/wamp/gate')
+const Router          = require('../lib/router')
+const { SqliteKv }    = require('../lib/sqlite/sqlitekv')
+const { MemEngine }   = require('../lib/mono/memengine')
+const { DbEngine, DbBinder } = require('../lib/sqlite/dbbinder')
 const { MemKeyValueStorage } = require('../lib/mono/memkv')
-const { BaseRealm } = require('../lib/realm')
+const { BaseRealm }   = require('../lib/realm')
+const WampApi         = require('../lib/wamp/api')
 
 chai.use(promised)
 chai.use(spies)
+
+const TEST_REALM_NAME = 'test-realm'
 
 const mkMemRealm = async (router) => {
   let realm = new BaseRealm(router, new MemEngine())
@@ -36,7 +39,7 @@ const mkDbRealm = async (router) => {
   await binder.init()
   let realm = new BaseRealm(router, new DbEngine(binder))
 
-  let kv = new SqliteKv(db)
+  let kv = new SqliteKv(db, TEST_REALM_NAME)
   await kv.createTables()
   realm.registerKeyValueEngine(['#'], kv)
 
@@ -60,10 +63,10 @@ describe('08. KV', function () {
         cli,
         ctx
 
-      beforeEach(async function () {
+      beforeEach(async () => {
         router = new Router()
         realm = await run.mkRealm(router)
-        router.addRealm('test-realm', realm)       
+        router.addRealm(TEST_REALM_NAME, realm)       
         api = realm.wampApi()
 
         sender = {}
@@ -73,7 +76,7 @@ describe('08. KV', function () {
         realm.joinSession(cli)
       })
     
-      afterEach(function () {
+      afterEach(async () => {
         cli.cleanup()
         ctx = null
       })
@@ -117,30 +120,56 @@ describe('08. KV', function () {
         var spyNotExists = chai.spy(()=>{})
 
         await api.publish('topic2', ['arg.1', 'arg.2'], {}, { retain: true, will: null })
-        await realm.getKey('topic2', spyExists)
+        await realm.getKey(['topic2'], spyExists)
         await api.cleanup()
-        await realm.getKey('topic2', spyNotExists)
+        await realm.getKey(['topic2'], spyNotExists)
 
         expect(spyExists).to.have.been.called.once()
         expect(spyNotExists).to.not.have.been.called()
       })
   
       it('wamp-key-remove:' + run.it, async () => {
-        await api.publish('topic2', ['arg.1'], { some: 'value' }, { retain: true })
-  
-        var spyExists = chai.spy(()=>{})
-        await realm.getKey('topic2', spyExists)
+        await api.publish(['topic2'], ['arg.1'], { some: 'value' }, { retain: true })
+        var spyExists = chai.spy(()=>{ /* exists */ })
+        await realm.getKey(['topic2'], spyExists)
 
         // no kwargs is sent if kwargs passed as null
         await api.publish('topic2', [], null, { retain: true })
 
         var spyNotExists = chai.spy(()=>{})
-        await realm.getKey('topic2', spyNotExists)
+        await realm.getKey(['topic2'], spyNotExists)
 
         expect(spyExists).to.have.been.called.once()
         expect(spyNotExists).to.not.have.been.called()
       })
   
+      // realm must PUSH data if client has WILL request registered
+      it('push-will:' + run.it, async () => {
+        let expectedData = [
+          { event: 'value' },
+          { will: 'value' },
+        ]
+    
+        const event = chai.spy((id, args, kwargs) => {
+          expect(kwargs).to.deep.equal(expectedData.shift())
+        })
+        await api.subscribe('will.test', event)
+    
+        let cli = new WampApi(realm, router.makeSessionId())
+        realm.joinSession(cli)
+    
+        await cli.publish(
+          'will.test',
+          [],
+          { event: 'value' },
+          { acknowledge: true, trace: true, retain: true, will: { kv: { will: 'value' } } }
+        )
+    
+        expect(event).to.have.been.called.once()
+        await cli.cleanup()
+        expect(event).to.have.been.called.twice()
+      })
+    
     })
   })
 })
