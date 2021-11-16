@@ -37,13 +37,13 @@ describe('message-storage', function () {
   it('should save message', function () {
     return assert.isFulfilled(msg.saveEventHistory(
       '12345678b11',
-      undefined,
       'test-realm',
       ['msg', 'test', 'com'],
       {
         some_row_1: 'line1',
         some_row_2: 'line2'
-      }
+      },
+      { opt1: 'define-option' }
     ))
   })
 

@@ -20,7 +20,7 @@ function onchallenge (session, method, extra) {
     return autobahn.auth_cra.sign(key, extra.challenge)
   }
   else {
-    throw "don't know how to authenticate using '" + method + "'"
+    throw Error("don't know how to authenticate using '" + method + "'")
   }
 }
 

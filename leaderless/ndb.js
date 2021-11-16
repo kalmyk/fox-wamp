@@ -10,6 +10,8 @@ const { QuorumEdge } = require('../lib/allot/quorum_edge')
 const { mergeMin, mergeMax, makeEmpty } = require('../lib/allot/makeid')
 const { EntrySession } = require('../lib/allot/entry_session')
 const { History } = require('../lib/sqlite/history')
+const { SqliteModKv } = require('../lib/sqlite/sqlitekv')
+const Router = require('../lib/router')
 
 const syncMass = new Map()
 const gateMass = new Map()
@@ -24,7 +26,6 @@ const runQuorum = new QuorumEdge((advanceSegment, value) => {
 }, mergeMin)
 
 const readyQuorum = new QuorumEdge((advanceSegment, segmentId) => {
-  console.log('READY-TO-COMMIT:', advanceSegment, '=>', segmentId)
   for (let gg of gateMass.values()) {
     gg.commitSegment(advanceSegment, segmentId)
   }
@@ -62,13 +63,39 @@ function mkSync(uri, ssId) {
   connection.open()
 }
 
-function mkGate(uri, gateId, history) {
-  console.log('connect to gate:', uri)
+function mkGate(uri, gateId, history, modKv, heapApi) {
   const connection = new autobahn.Connection({url: uri, realm: 'sys'})
 
   connection.onopen = function (session, details) {
-    session.log('Gate session open '+gateId)
-    gateMass.set(gateId, new EntrySession(session, syncMass, gateMass, history, gateId))
+    console.log('Gate session open', gateId, uri)
+    gateMass.set(
+      gateId,
+      new EntrySession(session, syncMass, history, gateId, (advanceSegment, segment, effectId) => {
+        const readyEvent = []
+        const heapEvent = []
+        for (let i = 0; i<segment.content.length; i++) {
+          const event = segment.content[i]
+          event.qid = effectId[i]
+          if (event.opt.trace) {
+            heapEvent.push(event)
+          } else {
+            readyEvent.push(event)
+          }
+        }
+        for (const gg of gateMass.values()) {
+          gg.publishSegment(segment)
+        }
+        session.publish('ackSegment', [], {advanceSegment, pkg: readyEvent})
+
+        modKv.applySegment(heapEvent, (kind, outEvent) => {
+          heapApi.publish(['heapEvent'], outEvent)
+          session.publish('dispatchEvent', [], outEvent)
+          console.log('heapEvent', outEvent)
+        }).then(() => {
+          // session.publish('final-segment', [], {advanceSegment})
+        })
+      })
+    )
   }
 
   connection.onclose = function (reason, details) {
@@ -88,13 +115,21 @@ async function main () {
   const history = new History(db)
   await history.createTables()
 
+  const modKv = new SqliteModKv(db)
+  await modKv.createTables()
+
+  const router = new Router()
+  const heap = router.createRealm()
+  const heapApi = heap.foxApi()
+  router.addRealm( 'heap',  heap)
+
   mkSync('ws://127.0.0.1:9021/wamp', 1)
   mkSync('ws://127.0.0.1:9022/wamp', 2)
   mkSync('ws://127.0.0.1:9023/wamp', 3)
   
-  mkGate('ws://127.0.0.1:9031/wamp', 1, history)
-  mkGate('ws://127.0.0.1:9032/wamp', 2, history)
-  mkGate('ws://127.0.0.1:9033/wamp', 3, history)
+  mkGate('ws://127.0.0.1:9031/wamp', 1, history, modKv, heapApi)
+  mkGate('ws://127.0.0.1:9032/wamp', 2, history, modKv, heapApi)
+  mkGate('ws://127.0.0.1:9033/wamp', 3, history, modKv, heapApi)
 }
 
 main().then(() => {

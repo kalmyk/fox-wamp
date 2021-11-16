@@ -9,9 +9,9 @@ const {BaseRealm, BaseEngine} = require('../lib/realm')
 const {QuorumEdge} = require('../lib/allot/quorum_edge')
 const WampGate = require('../lib/wamp/gate')
 const WampServer = require('../lib/wamp/transport')
-const {mergeMin, MakeId} = require('../lib/allot/makeid')
+const {mergeMin, keyDate, MakeId} = require('../lib/allot/makeid')
 
-const makeId = new MakeId()
+const makeId = new MakeId(() => keyDate(new Date()))
 const app = new Router()
 const realm = new BaseRealm(app, new BaseEngine())
 app.addRealm('ctrl', realm)
@@ -19,14 +19,14 @@ const api = realm.foxApi()
 /*const server = */new WampServer(new WampGate(app), { port: conf_wamp_port })
 console.log('Listening WAMP port:', conf_wamp_port)
 
-makeId.update(new Date())
-setInterval(()=>{makeId.update(new Date())}, 7000)
+makeId.update()
+setInterval(()=>{makeId.update()}, 7000)
 
 const makeQuorum = new QuorumEdge((applicantId, value) => {
-  const id = makeId.makeId()
-  console.log('draftSegmentId:', applicantId, '=>', id)
+  const id = makeId.makeIdRec(value)
+  console.log('draftSegmentId:', value, applicantId, '=>', id)
   api.publish(['draftSegmentId'], {kv: {applicantId, runId: id}})
-}, () => null)
+}, (a,b) => Math.max(a,b))
 
 const syncQuorum = new QuorumEdge((advanceSegment, value) => {
   console.log('QSYNC!', advanceSegment, '=>', value)
@@ -44,12 +44,12 @@ realm.on(MSG.SESSION_LEAVE, (session) => {
 })
 
 api.subscribe(['makeSegmentId'], (data, opt) => {
-  console.log('MAKE-ID', data, opt)
-  makeQuorum.vote(opt.sid, data.kwargs.advanceSegment, null)
+  console.log('MAKE-ID', opt.sid, data.kwargs)
+  makeQuorum.vote(opt.sid, data.kwargs.advanceSegment, data.kwargs.step)
 })
 
 api.subscribe(['syncId'], (data, opt) => {
   console.log('SYNC-ID', data, opt)
-  makeId.reconcile(data.kwargs.maxId)
+  makeId.reconcilePos(data.kwargs.maxId.dt, data.kwargs.maxId.id)
   syncQuorum.vote(opt.sid, data.kwargs.advanceSegment, data.kwargs.syncId)
 })

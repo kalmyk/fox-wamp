@@ -11,7 +11,7 @@ const sqlite      = require('sqlite')
 const WAMP            = require('../lib/wamp/protocol')
 const WampGate        = require('../lib/wamp/gate')
 const Router          = require('../lib/router')
-const { SqliteKv }    = require('../lib/sqlite/sqlitekv')
+const { SqliteModKv, SqliteKv }    = require('../lib/sqlite/sqlitekv')
 const { MemEngine }   = require('../lib/mono/memengine')
 const { DbEngine, DbBinder } = require('../lib/sqlite/dbbinder')
 const { MemKeyValueStorage } = require('../lib/mono/memkv')
@@ -39,8 +39,10 @@ const mkDbRealm = async (router) => {
   await binder.init()
   let realm = new BaseRealm(router, new DbEngine(binder))
 
-  let kv = new SqliteKv(db, TEST_REALM_NAME)
-  await kv.createTables()
+  let modKv = new SqliteModKv(db)
+  await modKv.createTables()
+
+  let kv = new SqliteKv(modKv, TEST_REALM_NAME)
   realm.registerKeyValueEngine(['#'], kv)
 
   return realm
