@@ -53,17 +53,14 @@ describe('07. mqtt-realm', function () {
       })
     })
 
-    it('SUBSCRIBE-to-remote-mqtt', function () {
-      var subSpy = chai.spy(
-        function (publicationId, args, kwargs) {
-          expect(args).to.deep.equal([])
-          expect(kwargs).to.deep.equal({ the: 'text' })
-        }
-      )
-      api.subscribe('topic1', subSpy).then((subId) => {
-        sender.send = chai.spy(
-          function (msg, callback) {}
-        )
+    it('SUBSCRIBE-to-remote-mqtt', () => {
+      let rslt = []
+
+      var subSpy = chai.spy((publicationId, args, kwargs) => {
+        rslt.push([args, kwargs])
+      })
+      return api.subscribe('topic1', subSpy).then((subId) => {
+        sender.send = chai.spy((msg, callback) => {})
         cli.handle(ctx, {
           cmd: 'publish',
           retain: false,
@@ -73,6 +70,7 @@ describe('07. mqtt-realm', function () {
           topic: 'topic1',
           payload: Buffer.from('{"the":"text"}')
         })
+        expect(rslt).to.deep.equal([ [ [], { the: 'text' } ] ])
         expect(sender.send, 'no publish confirmation').to.not.have.been.called()
 
         expect(subSpy, 'publication done').to.have.been.called.once()
@@ -81,13 +79,14 @@ describe('07. mqtt-realm', function () {
     })
 
     it('SUBSCRIBE-mqtt', function () {
-      api.publish('topic1', [], '{ data: 1 }', { retain: true })
+      let rslt = []
 
-      sender.send = chai.spy(
-        function (msg) {
-          expect(msg.cmd).to.equal('suback')
-        }
-      )
+      api.publish('topic1', [], { data: 1 }, { retain: true })
+      api.publish('topic1', [], { data: 2 }, { retain: true })
+
+      sender.send = chai.spy((msg) => {
+        rslt.push(msg.cmd)
+      })
       cli.handle(ctx, {
         cmd: 'subscribe',
         retain: false,
@@ -99,57 +98,57 @@ describe('07. mqtt-realm', function () {
         subscriptions: [ { topic: 'topic1', qos: 0 } ],
         messageId: 1
       })
-      expect(sender.send, 'subscribe').to.have.been.called.once()
+      expect(rslt).to.deep.equal(['suback', 'publish'])
+      expect(sender.send, 'subscribe').to.have.been.called.twice()
 
-      sender.send = chai.spy(
-        function (msg) {
-          expect(msg.cmd).to.equal('publish')
-          expect(msg.topic).to.equal('topic1')
-        }
-      )
-      api.publish('topic1', '{ data: 1 }')
+      rslt = []
+      sender.send = chai.spy((msg) => {
+        rslt.push([msg.cmd, msg.topic])
+      })
+      api.publish('topic1', { data: 3 })
+      expect(rslt).to.deep.equal([['publish', 'topic1']])
       expect(sender.send, 'published').to.have.been.called.once()
     })
 
 
-    it('SUBSCRIBE-retain', function () {
-      api.publish('topic1', [], '{ data: 1 }', { retain: true })
+    it('SUBSCRIBE-retain-one', function () {
+      api.publish('topic1.item1', [], { data: 1 }, { retain: true })
+      api.publish('topic1.item2', [], { data: 2 }, { retain: true })
+      api.publish('topic1.item3', [], { data: 3 }, { retain: true })
 
-      const pubSpy = chai.spy(
-        function (msg) {
-          expect(msg.cmd).to.equal('publish')
-          expect(msg.topic).to.equal('topic1')
-        }
-      )
-      const subSpy = chai.spy(
-        function (msg) {
-          expect(msg.cmd).to.equal('suback')
-          sender.send = pubSpy
-        }
-      )
-      sender.send = subSpy
+      let rslt = []
+
+      sender.send = chai.spy((msg) => {
+        rslt.push([msg.cmd, msg.topic])
+      })
 
       cli.handle(ctx, {
         cmd: 'subscribe',
-        retain: true,
+        retain: false,
         qos: 1,
         dup: false,
         length: 17,
         topic: null,
         payload: null,
-        subscriptions: [{ topic: 'topic1', qos: 0 }],
+        subscriptions: [{ topic: 'topic1/#', qos: 0 }],
         messageId: 1
       })
-      expect(subSpy, 'call-subscribed').to.have.been.called.once()
-      expect(pubSpy, 'call-published').to.have.been.called.once()
+
+      expect(rslt).to.deep.equal([
+        [ 'suback', undefined ],
+        [ 'publish', 'topic1/item1' ],
+        [ 'publish', 'topic1/item2' ],
+        [ 'publish', 'topic1/item3' ]
+      ])
+      expect(sender.send, 'call-subscribed').to.have.been.called.exactly(4)
     })
 
     it('SUBSCRIBE-multi-mqtt', function () {
-      sender.send = chai.spy(
-        function (msg) {
-          expect(msg.cmd).to.equal('suback')
-        }
-      )
+      let rslt = []
+
+      sender.send = chai.spy((msg) => {
+        rslt.push(msg.cmd)
+      })
       cli.handle(ctx, {
         cmd: 'subscribe',
         retain: false,
@@ -161,24 +160,24 @@ describe('07. mqtt-realm', function () {
         subscriptions: [ { topic: 'topic/#', qos: 0 }, { topic: '+/one', qos: 1 } ],
         messageId: 1
       })
+      expect(rslt).to.deep.equal(['suback'])
       expect(sender.send, 'subscribe').to.have.been.called.once()
 
-      sender.send = chai.spy(
-        function (msg) {
-          expect(msg.cmd).to.equal('publish')
-          expect(msg.topic).to.equal('topic/one')
-        }
-      )
-      api.publish('topic.one', '{ data: 1 }')
+      rslt = []
+      sender.send = chai.spy((msg) => {
+        rslt.push([msg.cmd, msg.topic, msg.payload.toString()])
+      })
+      api.publish('topic.one', [], { data: 1 })
+      expect(rslt).to.deep.equal([['publish', 'topic/one', '{"data":1}']])
       expect(sender.send, 'published').to.have.been.called.once()
     })
 
-    it('puback', function () {
-      sender.send = chai.spy(
-        function (msg) {
-          expect(msg.cmd).to.equal('suback')
-        }
-      )
+    it('puback', () => {
+      let rslt = []
+
+      sender.send = chai.spy((msg) => {
+        rslt.push(msg.cmd)
+      })
       cli.handle(ctx, {
         cmd: 'subscribe',
         retain: false,
@@ -190,15 +189,14 @@ describe('07. mqtt-realm', function () {
         subscriptions: [ { topic: 'topic1', qos: 0 }],
         messageId: 1
       })
+      expect(rslt).to.deep.equal(['suback'])
       expect(sender.send, 'subscribe').to.have.been.called.once()
 
-      sender.send = chai.spy(
-        function (msg) {
-          expect(msg.cmd).to.equal('publish')
-          expect(msg.topic).to.equal('topic1')
-        }
-      )
-      api.publish('topic1', '{ data: 1 }')
+      rslt = []
+      sender.send = chai.spy((msg) => {
+        rslt.push([msg.cmd, msg.topic])
+      })
+      api.publish('topic1', [], { data: 1 })
       expect(sender.send, 'published').to.have.been.called.once()
 
       cli.handle(ctx, {
@@ -211,6 +209,8 @@ describe('07. mqtt-realm', function () {
         payload: null,
         messageId: 1
       })
+
+      expect(rslt).to.deep.equal([['publish', 'topic1']])
       expect(sender.send, 'puback').to.have.been.called.once()
     })
 
@@ -227,13 +227,11 @@ describe('07. mqtt-realm', function () {
       })
       expect(sender.send, 'no publish confirmation').to.not.have.been.called()
 
-      let subSpy = chai.spy(
-        function (publicationId, args, kwargs) {
-          expect(args).to.deep.equal([])
-          expect(kwargs).to.deep.equal({ the: 'text' })
-          done()
-        }
-      )
+      let subSpy = chai.spy((publicationId, args, kwargs) => {
+        expect(args).to.deep.equal([])
+        expect(kwargs).to.deep.equal({ the: 'text' })
+        done()
+      })
       api.subscribe('topic1', subSpy, { retained: true })
     })
 
