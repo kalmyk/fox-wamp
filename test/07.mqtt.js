@@ -21,7 +21,7 @@ describe('07. mqtt-realm', function () {
   beforeEach(function () {
     sender = {}
     router = new FoxRouter()
-    realm = router.createRealm()
+    realm = router.getRealm('test-realm')
     api = realm.wampApi()
 
     const mqttGate = new MqttGate(router)
@@ -323,7 +323,7 @@ describe('07. mqtt-realm', function () {
 
   it('at-connection-fail-will-publish', async () => {
     await realm.leaveSession(cli)
-    router.getRealm = (realmName, cb) => { cb(realm) }
+    router.getRealm = (realmName) => realm
 
     sender.send = chai.spy(() => {})
     cli.handle(ctx, {
@@ -355,7 +355,7 @@ describe('07. mqtt-realm', function () {
 
   it('connect-clientid', function (done) {
     realm.leaveSession(cli)
-    router.getRealm = (realmName, cb) => { cb(realm) }
+    router.getRealm = (realmName) => realm
 
     sender.send = chai.spy((msg) => {
       sender.send = nextPublish

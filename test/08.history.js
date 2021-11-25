@@ -8,6 +8,7 @@ const promised    = require('chai-as-promised')
 const sqlite3 = require('sqlite3')
 const sqlite = require('sqlite')
 
+const { BaseRealm } = require('../lib/realm')
 const Router       = require('../lib/router')
 const { DbEngine, DbBinder }   = require('../lib/sqlite/dbbinder')
 const { MemEngine } = require('../lib/mono/memengine')
@@ -40,7 +41,8 @@ describe('08. history', function () {
 
       beforeEach(async function () {
         router = new Router()
-        realm = router.addEngine('test-realm', await run.mkEngine())
+        realm = new BaseRealm(router, await run.mkEngine())
+        router.addRealm('test-realm', realm)
         api = realm.wampApi()
       })
     

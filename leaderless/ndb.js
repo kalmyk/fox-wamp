@@ -119,9 +119,8 @@ async function main () {
   await modKv.createTables()
 
   const router = new Router()
-  const heap = router.createRealm()
+  const heap = router.getRealm('heap')
   const heapApi = heap.foxApi()
-  router.addRealm( 'heap',  heap)
 
   mkSync('ws://127.0.0.1:9021/wamp', 1)
   mkSync('ws://127.0.0.1:9022/wamp', 2)

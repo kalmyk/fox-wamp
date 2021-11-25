@@ -26,8 +26,7 @@ describe('05. wamp-realm', function () {
 
   beforeEach(function () {
     router = new FoxRouter()
-    realm = router.createRealm()
-    router.addRealm('test-realm', realm)
+    realm = router.getRealm('test-realm')
     api = realm.wampApi()
 
     sender = {}

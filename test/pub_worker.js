@@ -21,7 +21,7 @@ describe('pub-worker', function () {
 
   beforeEach(function () {
     router = new Router()
-    realm = router.createRealm()
+    realm = router.getRealm('test-realm')
     gate = new FoxGate(router)
     memServer = new MemTransport.MemServer(gate)
     client = memServer.createClient(realm)

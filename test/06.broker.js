@@ -9,7 +9,7 @@ const { RESULT_OK, RESULT_ACK, RESULT_ERR } = require('../lib/messages')
 const errorCodes   = require('../lib/realm_error').errorCodes
 const FoxGate      = require('../lib/hyper/gate')
 const Router       = require('../lib/router')
-const { BaseEngine } = require('../lib/realm')
+const { BaseRealm, BaseEngine } = require('../lib/realm')
 const { MemEngine } = require('../lib/mono/memengine')
 
 chai.use(promised)
@@ -34,7 +34,9 @@ describe('06. hyper-broker', function () {
       beforeEach(function () {
         sender = {}
         router = new Router()
-        realm = router.addEngine('test-realm', run.mkEngine())
+        realm = new BaseRealm(router, run.mkEngine())
+        router.addRealm('test-realm', realm)
+
         gate = new FoxGate(router)
         session = gate.createSession()
         ctx = gate.createContext(session, sender)

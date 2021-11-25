@@ -42,7 +42,7 @@ const mkDbRealm = async (router) => {
   let modKv = new SqliteModKv(db)
   await modKv.createTables()
 
-  let kv = new SqliteKv(modKv, TEST_REALM_NAME)
+  let kv = new SqliteKv(modKv, binder.getMakeId(), TEST_REALM_NAME)
   realm.registerKeyValueEngine(['#'], kv)
 
   return realm

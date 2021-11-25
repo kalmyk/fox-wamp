@@ -23,12 +23,11 @@ router.on(MSG.REALM_CREATED, function (realm, realmName) {
   })
 })
 
-router.getRealm('realm1', function (realm) {
-  const api = realm.wampApi()
-  api.register('test.foo', function (id, args, kwargs, opt) {
-    console.log('function "test.foo" called with ', args, kwargs, opt)
-    api.resrpc(id, null /* no error */, ['bar', 'bar2'], { key1: 'bar1', key2: 'bar2' })
-  })
+const realm = router.getRealm('realm1')
+const api = realm.wampApi()
+api.register('test.foo', function (id, args, kwargs, opt) {
+  console.log('function "test.foo" called with ', args, kwargs, opt)
+  api.resrpc(id, null /* no error */, ['bar', 'bar2'], { key1: 'bar1', key2: 'bar2' })
 })
 
 console.log('Listening port:', program.port)

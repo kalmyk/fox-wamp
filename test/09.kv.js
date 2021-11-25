@@ -23,7 +23,7 @@ describe('09. hyper-kv', function () {
 
   beforeEach(function () {
     router = new FoxRouter()
-    realm = router.createRealm('test-realm')
+    realm = router.getRealm('test-realm')
     gate = new FoxGate(router)
     session = gate.createSession()
     sessionSender = {}
