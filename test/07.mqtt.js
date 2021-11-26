@@ -85,7 +85,7 @@ describe('07. mqtt-realm', function () {
       api.publish('topic1', [], { data: 2 }, { retain: true })
 
       sender.send = chai.spy((msg) => {
-        rslt.push(msg.cmd)
+        rslt.push([msg.cmd, msg.retain])
       })
       cli.handle(ctx, {
         cmd: 'subscribe',
@@ -98,15 +98,18 @@ describe('07. mqtt-realm', function () {
         subscriptions: [ { topic: 'topic1', qos: 0 } ],
         messageId: 1
       })
-      expect(rslt).to.deep.equal(['suback', 'publish'])
+      expect(rslt).to.deep.equal([
+        ['suback',  undefined ],
+        ['publish', true      ]
+      ])
       expect(sender.send, 'subscribe').to.have.been.called.twice()
 
       rslt = []
       sender.send = chai.spy((msg) => {
-        rslt.push([msg.cmd, msg.topic])
+        rslt.push([msg.cmd, msg.topic, msg.retain])
       })
-      api.publish('topic1', { data: 3 })
-      expect(rslt).to.deep.equal([['publish', 'topic1']])
+      api.publish('topic1', { data: 3 }, { retain: true })
+      expect(rslt).to.deep.equal([['publish', 'topic1', false]])
       expect(sender.send, 'published').to.have.been.called.once()
     })
 

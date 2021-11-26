@@ -84,7 +84,7 @@ describe('08. KV', function () {
       })
   
       it('storage-retain-get:' + run.it, async () => {
-        var subSpy = chai.spy(() => {})
+        const subSpy = chai.spy(() => {})
         await api.subscribe('topic1', subSpy)
         await api.publish('topic1', [], { data: 'retain-the-value' }, { retain: true, exclude_me:false })
         await api.publish('topic1', [], { data: 'the-value-does-not-retain' }, { exclude_me:false })
@@ -92,27 +92,25 @@ describe('08. KV', function () {
         let done
         let resultPromise = new Promise((resolve) => done = resolve)
         let counter = 2
-        sender.send = chai.spy(
-          (msg, callback) => {
-            // console.log('MSG =>', counter, msg)
-            if (counter === 2) {
-              expect(msg[0]).to.equal(WAMP.SUBSCRIBED)
-              expect(msg[1]).to.equal(1234)
-            } else {
-              expect(msg[0]).to.equal(WAMP.EVENT)
-              expect(msg[3].topic).to.equal('topic1')
-              expect(msg[3].retained).to.equal(true)
-              expect(msg[5]).to.deep.equal({ data: 'retain-the-value' })
-            }
-            --counter
-            if (counter <= 0) {
-              done()
-              done = undefined
-            }
+        let rslt = []
+        sender.send = chai.spy((msg) => {
+          rslt.push(msg)
+          --counter
+          if (counter <= 0) {
+            done()
+            done = undefined
           }
-        )
+        })
         cli.handle(ctx, [WAMP.SUBSCRIBE, 1234, { retained: true }, 'topic1'])
         await resultPromise
+
+        expect(rslt[0][0]).to.equal(WAMP.SUBSCRIBED)
+        expect(rslt[0][1]).to.equal(1234)
+
+        expect(rslt[1][0]).to.equal(WAMP.EVENT)
+        expect(rslt[1][3].topic).to.equal('topic1')
+        expect(rslt[1][3].retained).to.equal(true)
+        expect(rslt[1][5]).to.deep.equal({ data: 'retain-the-value' })
 
         expect(subSpy).to.have.been.called.twice()
       })
