@@ -78,7 +78,7 @@ There is a storage to keep last content of published message.
 The values from the storage is retrived as immediate initial messages for the subscription if `retained` flag is pecified.
 
 ```javascript
-register('key.value.#', (args, kwargs, options) => {
+session.subscribe('key.value.#', (args, kwargs, options) => {
         console.log('event-handler', args, kwargs)
     },
     { retained: true }
@@ -144,11 +144,20 @@ Subscription is able to filter messages before firing on the server side.
 This could dramatically reduce network consumption.
 
 ```javascript
-register('some.key.#', (args, kwargs) => {
+session.subscribe('some.key.#', (args, kwargs) => {
         // do some action here
     },
     { filter: { type: 'post' } }
 )
+```
+
+## register option concurrency
+Limit concurent requests, unlimited by default
+
+```javascript
+session.register('service.echo', (args, kwargs) => {
+    return new autobahn.Result(args, kwargs)
+}, {concurrency: 10})
 ```
 
 ## Map-Reduce, coming soon

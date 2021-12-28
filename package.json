@@ -24,7 +24,6 @@
   "dependencies": {
     "commander": "^2.20.3",
     "jsonschema": "^1.4.0",
-    "minimist": ">=0.2.1",
     "mqtt-packet": "^6.10.0",
     "msgpack-lite": "*",
     "node-statsd": "*",
