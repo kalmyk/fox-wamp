@@ -19,7 +19,7 @@ describe('01. make-id', function () {
   })
 
   it('format-date', () => {
-    expect(keyDate(new Date(2019, 3, 6, 19, 29, 11, 0))).to.equal('1904062329')
+    expect(keyDate(new Date(Date.UTC(2019, 3, 6, 19, 29, 11, 0)))).to.equal('1904061929')
   })
 
   it('format-number', () => {
