@@ -170,6 +170,78 @@ describe('08. KV', function () {
         expect(event).to.have.been.called.twice()
       })
     
+      it('push-watch-for-push:' + run.it, async () => {
+        let curPromise
+        let n = 0
+        sender.send = (msg) => {
+          n++
+          if (n === 1) {
+            expect(msg).to.deep.equal({ id: 'init-kv', rsp: 'OK', data: undefined })
+          } else if (n === 2) {
+            expect(msg).to.deep.equal({ id: 'watch-for-value', rsp: 'OK', data: undefined })
+          }
+          curPromise()
+          curPromise = undefined
+        }
+        sender.close = () => {
+          asdf()
+          console.log("SENDER.CLOSE")
+        }
+    
+        const api = realm.foxApi()
+    
+        let m = 0
+        const onEvent = chai.spy((event, opt) => {
+          m++
+          if (m === 1) {
+            expect(event).to.deep.equal({ kv: { event: 'value' } })
+          } else if (m === 2) {
+            expect(event).to.equal(null)
+          } else if (m === 3) {
+            expect(event).to.deep.equal({ kv: { event: 'watch-for-empty' } })
+          }
+        })
+    
+        api.subscribe(['watch', 'test'], onEvent, { retained:true })
+        await new Promise((resolve) => {
+          curPromise = resolve
+          cli.handle(ctx, {
+            ft: 'PUSH',
+            data: { kv: { event: 'value' } },
+            uri: ['watch', 'test'],
+            opt: {
+              retain: true,
+              trace: true
+            },
+            ack: true,
+            id: 'init-kv'
+          })
+        })
+        expect(onEvent).to.have.been.called.once()
+    
+        session.handle(ctx, {
+          ft: 'PUSH',
+          data: { kv: { event: 'watch-for-empty' } },
+          uri: ['watch', 'test'],
+          opt: {
+            trace: true,
+            retain: true,
+            when: null,
+            watch: true
+          },
+          ack: true,
+          id: 'watch-for-value'
+        })
+        expect(onEvent).to.have.been.called.once()
+    
+        await new Promise((resolve) => {
+          curPromise = resolve
+          api.publish(['watch', 'test'], null, { trace: true, retain: true })  
+        })
+        expect(onEvent).to.have.been.called.exactly(3)
+      })
+
     })
+
   })
 })
