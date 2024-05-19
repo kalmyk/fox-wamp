@@ -3,7 +3,7 @@
 const chai = require('chai')
 const expect = chai.expect
 
-const isDataFit = require('../lib/realm').isDataFit
+const { isDataFit } = require('../lib/realm')
 
 describe('01. isDataFit', function () {
   it('level-one-null', function () {
