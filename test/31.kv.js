@@ -1,5 +1,7 @@
 'use strict'
 
+// validate that memory storage has the same results as sqlite
+
 const chai        = require('chai')
 const spies       = require('chai-spies')
 const expect      = chai.expect
@@ -23,13 +25,13 @@ chai.use(spies)
 
 const TEST_REALM_NAME = 'test-realm'
 
-const mkMemRealm = async (router) => {
+const makeMemRealm = async (router) => {
   let realm = new BaseRealm(router, new MemEngine())
   realm.registerKeyValueEngine(['#'], new MemKeyValueStorage())
   return realm
 }
 
-const mkDbRealm = async (router) => {
+const makeDbRealm = async (router) => {
   let db = await sqlite.open({
     filename: ':memory:',
     driver: sqlite3.Database
@@ -49,11 +51,11 @@ const mkDbRealm = async (router) => {
 }
 
 const runs = [
-  {it: 'mem', mkRealm: mkMemRealm },
-  {it: 'db',  mkRealm: mkDbRealm  },
+  {it: 'mem', mkRealm: makeMemRealm },
+  {it: 'db',  mkRealm: makeDbRealm  },
 ]
 
-describe('08. KV', function () {
+describe('31 KV', function () {
   runs.forEach(function (run) {
     describe('event-history:' + run.it, function () {
       let
@@ -170,6 +172,83 @@ describe('08. KV', function () {
         expect(event).to.have.been.called.twice()
       })
     
+      it('push-watch-for-push:' + run.it, async () => {
+        let curPromise
+        let n = 0
+        sender.send = (msg) => {
+          n++
+          if (n === 1) {
+            expect(msg[0]).to.equal(WAMP.PUBLISHED)
+            expect(msg[1]).to.equal('init-kv')
+          } else if (n === 2) {
+            expect(msg[0]).to.equal(WAMP.PUBLISHED)
+            expect(msg[1]).to.equal('watch-for-value')
+          }
+          curPromise()
+          curPromise = undefined
+        }
+        sender.close = (a, b) => {
+          console.log("SENDER.CLOSE", a, b)
+        }
+    
+        const api = realm.foxApi()
+    
+        let m = 0
+        const onEvent = chai.spy((event, opt) => {
+          m++
+          if (m === 1) {
+            expect(event).to.deep.equal( { args:[], kwargs: { event: 'value' } })
+          } else if (m === 2) {
+            expect(event).to.equal(null)
+          } else if (m === 3) {
+            expect(event).to.deep.equal({ args:[], kwargs: { event: 'watch-for-empty' } })
+          }
+        })
+        api.subscribe(['watch', 'test'], onEvent, { retained:true })
+
+        await new Promise((resolve) => {
+          curPromise = resolve
+          cli.handle(ctx, [
+            WAMP.PUBLISH,
+            'init-kv',
+            {
+              retain: true,
+              trace: true,
+              exclude_me: false,
+              acknowledge: true
+            },
+            'watch.test',
+            [],
+            { event: 'value' }
+          ])
+        })
+
+        expect(onEvent).to.have.been.called.once()
+
+        cli.handle(ctx, [
+          WAMP.PUBLISH,
+          'watch-for-value',
+          {
+            trace: true,
+            retain: true,
+            when: null,
+            watch: true,
+            acknowledge: true
+          },
+          'watch.test',
+          [],
+          { event: 'watch-for-empty' }
+        ])
+        expect(onEvent).to.have.been.called.once()
+    
+        await new Promise((resolve) => {
+          curPromise = resolve
+          api.publish(['watch', 'test'], null, { trace: true, retain: true })  
+        })
+        expect(onEvent).to.have.been.called.exactly(3)
+      })
+
     })
+
   })
 })

@@ -26,7 +26,7 @@ const Auth = function () {
   }
 }
 
-describe('03. wamp-session', function () {
+describe('11 wamp-session', function () {
   var
     router,
     gate,

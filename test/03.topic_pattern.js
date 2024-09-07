@@ -16,7 +16,7 @@ function mqttmis (topic, pattern) {
   expect(TopicPattern.mqttExtract(topic, pattern), "mqttmis('" + topic + "', '" + pattern + "')").to.deep.equal(null)
 }
 
-describe('01. topic pattern', function () {
+describe('03 topic pattern', function () {
   it('base parse', function () {
     expect(TopicPattern.mqttParse('')).to.deep.equal([''])
     expect(TopicPattern.mqttParse('#')).to.deep.equal(['#'])

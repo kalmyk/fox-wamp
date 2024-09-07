@@ -9,7 +9,7 @@ const FoxRouter = require('../lib/fox_router')
 
 chai.use(spies)
 
-describe('07. mqtt-realm', function () {
+describe('22 mqtt-realm', function () {
   var
     router,
     realm,

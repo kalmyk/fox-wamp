@@ -10,7 +10,7 @@ const MemTransport = require('../lib/hyper/mem_transport')
 const FoxGate      = require('../lib/hyper/gate')
 const Router       = require('../lib/router')
 
-describe('pub-worker', function () {
+describe('23 pub-worker', function () {
   let
     memServer,
     router,

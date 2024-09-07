@@ -12,7 +12,7 @@ const sqlite = require('sqlite')
 const { History } = require('../lib/sqlite/history')
 
 
-describe('message-storage', function () {
+describe('50 message-storage', function () {
   let msg
 
   before(async function () {

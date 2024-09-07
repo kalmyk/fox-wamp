@@ -5,7 +5,7 @@ const expect = chai.expect
 
 const { isDataFit } = require('../lib/realm')
 
-describe('01. isDataFit', function () {
+describe('01 isDataFit', function () {
   it('level-one-null', function () {
     expect(isDataFit(null, null)).to.equal(true)
   })
