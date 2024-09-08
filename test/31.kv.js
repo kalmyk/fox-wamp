@@ -5,6 +5,7 @@
 const chai        = require('chai')
 const spies       = require('chai-spies')
 const expect      = chai.expect
+const assert      = chai.assert
 const promised    = require('chai-as-promised')
 
 const sqlite3     = require('sqlite3')
@@ -65,9 +66,15 @@ describe('31 KV', function () {
         sender,
         gate,
         cli,
-        ctx
+        ctx,
+        step
+
+      setTimeout(() => {
+        console.log("timeout at step", step)
+      }, 500);
 
       beforeEach(async () => {
+        step = 0
         router = new Router()
         realm = await run.mkRealm(router)
         router.addRealm(TEST_REALM_NAME, realm)       
@@ -81,6 +88,8 @@ describe('31 KV', function () {
       })
     
       afterEach(async () => {
+        assert.isFalse(cli.hasSendError(), cli.firstSendErrorMessage())
+        assert.isFalse(api.hasSendError(), api.firstSendErrorMessage())
         cli.cleanup()
         ctx = null
       })
@@ -151,7 +160,6 @@ describe('31 KV', function () {
           { event: 'value' },
           { will: 'value' },
         ]
-    
         const event = chai.spy((id, args, kwargs) => {
           expect(kwargs).to.deep.equal(expectedData.shift())
         })
@@ -178,9 +186,11 @@ describe('31 KV', function () {
         sender.send = (msg) => {
           n++
           if (n === 1) {
+            assert.equal(++step, 1, 'first published ack arrived')
             expect(msg[0]).to.equal(WAMP.PUBLISHED)
             expect(msg[1]).to.equal('init-kv')
           } else if (n === 2) {
+            assert.equal(++step, 2, 'second published ack arrived')
             expect(msg[0]).to.equal(WAMP.PUBLISHED)
             expect(msg[1]).to.equal('watch-for-value')
           }
@@ -189,24 +199,26 @@ describe('31 KV', function () {
         }
         sender.close = (a, b) => {
           console.log("SENDER.CLOSE", a, b)
+          assert.equal(1, 0, 'should not invoked')
         }
     
         const api = realm.foxApi()
     
-        let m = 0
-        const onEvent = chai.spy((event, opt) => {
-          m++
-          if (m === 1) {
-            expect(event).to.deep.equal( { args:[], kwargs: { event: 'value' } })
-          } else if (m === 2) {
+        let apiEventNumber = 0
+        const onApiEvent = chai.spy((event, opt) => {
+          if (apiEventNumber === 0) {
+            // expect(++step).to.equal(3, 'first event dispatched')
+            expect(event).to.deep.equal({ args:[], kwargs: { event: 'value' } })
+          } else if (apiEventNumber === 1) {
             expect(event).to.equal(null)
-          } else if (m === 3) {
+          } else if (apiEventNumber === 2) {
             expect(event).to.deep.equal({ args:[], kwargs: { event: 'watch-for-empty' } })
           }
+          apiEventNumber++
         })
-        api.subscribe(['watch', 'test'], onEvent, { retained:true })
+        api.subscribe(['watch', 'test'], onApiEvent, { retained:true })
 
-        await new Promise((resolve) => {
+        await new Promise((resolve, reject) => {
           curPromise = resolve
           cli.handle(ctx, [
             WAMP.PUBLISH,
@@ -223,7 +235,7 @@ describe('31 KV', function () {
           ])
         })
 
-        expect(onEvent).to.have.been.called.once()
+        expect(onApiEvent).to.have.been.called.once()
 
         cli.handle(ctx, [
           WAMP.PUBLISH,
@@ -239,13 +251,13 @@ describe('31 KV', function () {
           [],
           { event: 'watch-for-empty' }
         ])
-        expect(onEvent).to.have.been.called.once()
+        expect(onApiEvent).to.have.been.called.once()
     
         await new Promise((resolve) => {
           curPromise = resolve
           api.publish(['watch', 'test'], null, { trace: true, retain: true })  
         })
-        expect(onEvent).to.have.been.called.exactly(3)
+        expect(onApiEvent).to.have.been.called.exactly(3)
       })
 
     })

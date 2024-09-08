@@ -68,7 +68,7 @@ describe('23 pub-worker', function () {
         ).notify(done)
       },
       function (reason) {
-        assert(false, 'unable to register')
+        assert.isTrue(false, 'unable to register')
       }
     )
   })
