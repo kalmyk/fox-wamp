@@ -165,10 +165,10 @@ describe('31 KV', function () {
         })
         await api.subscribe('will.test', event)
     
-        let cli = new WampApi(realm, router.makeSessionId())
-        realm.joinSession(cli)
+        const client = new WampApi(realm, router.makeSessionId())
+        realm.joinSession(client)
     
-        await cli.publish(
+        await client.publish(
           'will.test',
           [],
           { event: 'value' },
@@ -176,8 +176,9 @@ describe('31 KV', function () {
         )
     
         expect(event).to.have.been.called.once()
-        await cli.cleanup()
+        await client.cleanup()
         expect(event).to.have.been.called.twice()
+        assert.isFalse(client.hasSendError(), client.firstSendErrorMessage())
       })
     
       it('push-watch-for-push:' + run.it, async () => {
@@ -190,7 +191,7 @@ describe('31 KV', function () {
             expect(msg[0]).to.equal(WAMP.PUBLISHED)
             expect(msg[1]).to.equal('init-kv')
           } else if (n === 2) {
-            assert.equal(++step, 2, 'second published ack arrived')
+            assert.equal(++step, 3, 'second published ack arrived')
             expect(msg[0]).to.equal(WAMP.PUBLISHED)
             expect(msg[1]).to.equal('watch-for-value')
           }
@@ -202,21 +203,22 @@ describe('31 KV', function () {
           assert.equal(1, 0, 'should not invoked')
         }
     
-        const api = realm.foxApi()
-    
-        let apiEventNumber = 0
-        const onApiEvent = chai.spy((event, opt) => {
-          if (apiEventNumber === 0) {
-            // expect(++step).to.equal(3, 'first event dispatched')
-            expect(event).to.deep.equal({ args:[], kwargs: { event: 'value' } })
-          } else if (apiEventNumber === 1) {
-            expect(event).to.equal(null)
-          } else if (apiEventNumber === 2) {
-            expect(event).to.deep.equal({ args:[], kwargs: { event: 'watch-for-empty' } })
+        let eventNo = 0
+        const haveGotEvent = chai.spy((publicationId, args, kwargs, opt) => {
+          if (eventNo === 0) {
+            assert.equal(++step, 2, 'first event dispatched')
+            expect(args).to.deep.equal([])
+            expect(kwargs).to.deep.equal({ event: 'first event value' })
+          } else if (eventNo === 1) {
+            expect(args).to.deep.equal([])
+            expect(kwargs).to.equal(undefined)
+          } else if (eventNo === 2) {
+            expect(args).to.deep.equal([])
+            expect(kwargs).to.deep.equal({ event: 'second event watch-for-empty' })
           }
-          apiEventNumber++
+          eventNo++
         })
-        api.subscribe(['watch', 'test'], onApiEvent, { retained:true })
+        await api.subscribe('watch.test', haveGotEvent, { retained:true })
 
         await new Promise((resolve, reject) => {
           curPromise = resolve
@@ -231,11 +233,11 @@ describe('31 KV', function () {
             },
             'watch.test',
             [],
-            { event: 'value' }
+            { event: 'first event value' }
           ])
         })
 
-        expect(onApiEvent).to.have.been.called.once()
+        expect(haveGotEvent).to.have.been.called.once()
 
         cli.handle(ctx, [
           WAMP.PUBLISH,
@@ -249,15 +251,15 @@ describe('31 KV', function () {
           },
           'watch.test',
           [],
-          { event: 'watch-for-empty' }
+          { event: 'second event watch-for-empty' }
         ])
-        expect(onApiEvent).to.have.been.called.once()
+        expect(haveGotEvent).to.have.been.called.once()
     
         await new Promise((resolve) => {
           curPromise = resolve
-          api.publish(['watch', 'test'], null, { trace: true, retain: true })  
+          api.publish('watch.test', [], null, { trace: true, retain: true })  
         })
-        expect(onApiEvent).to.have.been.called.exactly(3)
+        expect(haveGotEvent).to.have.been.called.exactly(3)
       })
 
     })
