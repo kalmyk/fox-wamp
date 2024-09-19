@@ -7,3 +7,4 @@ coverage/*
 dbfiles/*
 supervisor/*.db
 supervisor/supervisord.pid
+.vscode/launch.json

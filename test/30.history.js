@@ -1,6 +1,7 @@
 'use strict'
 
 const chai        = require('chai')
+const assert      = chai.assert
 const spies       = require('chai-spies')
 const expect      = chai.expect
 const promised    = require('chai-as-promised')
@@ -31,7 +32,7 @@ const runs = [
   {it: 'db',  mkEngine: mkDbEngine },
 ]
 
-describe('08. history', function () {
+describe('30 history', function () {
   runs.forEach(function (run) {
     describe('event-history:' + run.it, function () {
       let
@@ -47,6 +48,7 @@ describe('08. history', function () {
       })
     
       afterEach(function () {
+        assert.isFalse(api.hasSendError(), api.firstSendErrorMessage())
       })
   
       it('receive-event-history:' + run.it, async () => {

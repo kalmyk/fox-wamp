@@ -20,7 +20,7 @@ const runs = [
   {it: 'mem',  mkEngine: () => new MemEngine()},
 ]
 
-describe('06. hyper-broker', function () {
+describe('21 hyper-broker', function () {
   runs.forEach(function (run) {
     describe('binder:' + run.it, function () {
       let

@@ -14,7 +14,7 @@ const MemKeyValueStorage = require('../lib/mono/memkv').MemKeyValueStorage
 chai.use(promised)
 chai.use(spies)
 
-describe('05. wamp-realm', function () {
+describe('20 wamp-realm', function () {
   let
     router,
     gate,
@@ -321,10 +321,10 @@ describe('05. wamp-realm', function () {
       expect(subSpy).to.not.have.been.called()
     })
 
-    it('PUBLISH exclude_me:false', function () {
+    it('PUBLISH exclude_me:false', async () => {
       var subSpy = chai.spy(function () {})
-      api.subscribe('topic1', subSpy)
-      api.publish('topic1', [], {}, { exclude_me: false })
+      await api.subscribe('topic1', subSpy)
+      await api.publish('topic1', [], {}, { exclude_me: false })
       expect(subSpy).to.have.been.called.once()
     })
 

@@ -7,7 +7,7 @@ const { keyDate, keyId, MakeId } = require('../lib/allot/makeid')
 
 chai.use(spies)
 
-describe('01. make-id', function () {
+describe('02 make-id', function () {
   let id
 
   beforeEach(function () {
