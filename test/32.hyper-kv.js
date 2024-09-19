@@ -38,7 +38,7 @@ describe('32 hyper-kv', function () {
     }
   })
 
-  it('push-watch-for-will', function () {
+  it('push-watch-for-will', async () => {
     let defer = []
     sessionSender.send = chai.spy((msg) => {})
 
@@ -60,7 +60,7 @@ describe('32 hyper-kv', function () {
         expect(true).to.equal('no more events')
       }
     })
-    api.subscribe('watch.test', event, { retained: true })
+    await api.subscribe('watch.test', event)
 
     session.handle(ctx, {
       ft: 'PUSH',

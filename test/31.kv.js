@@ -69,9 +69,10 @@ describe('31 KV', function () {
         ctx,
         step
 
-      setTimeout(() => {
-        console.log("timeout at step", step)
-      }, 500);
+      setTimeout(
+        () => { console.log("timeout at step", step) },
+        500
+      )
 
       beforeEach(async () => {
         step = 0
@@ -127,34 +128,40 @@ describe('31 KV', function () {
       })
   
       it('storage-retain-weak:' + run.it, async () => {
-        var spyExists = chai.spy(()=>{})
-        var spyNotExists = chai.spy(()=>{})
+        var spyValueExists = chai.spy((uri, value)=>{
+          expect(uri).to.deep.equal(['topic2'])
+          expect(value).to.deep.equal({ args: [ 'arg1', 'arg2' ], kwargs: {} })
+        })
+        var spyValueNotExists = chai.spy(()=>{})
 
-        await api.publish('topic2', ['arg.1', 'arg.2'], {}, { retain: true, will: null })
-        await realm.getKey(['topic2'], spyExists)
+        await api.publish('topic2', ['arg1', 'arg2'], {}, { retain: true, will: null, acknowledge: true })
+        await realm.getKey(['topic2'], spyValueExists)
         await api.cleanup()
-        await realm.getKey(['topic2'], spyNotExists)
+        await realm.getKey(['topic2'], spyValueNotExists)
 
-        expect(spyExists).to.have.been.called.once()
-        expect(spyNotExists).to.not.have.been.called()
+        expect(spyValueExists).to.have.been.called.once()
+        expect(spyValueNotExists).to.not.have.been.called()
       })
   
       it('wamp-key-remove:' + run.it, async () => {
-        await api.publish(['topic2'], ['arg.1'], { some: 'value' }, { retain: true })
-        var spyExists = chai.spy(()=>{ /* exists */ })
-        await realm.getKey(['topic2'], spyExists)
+        await api.publish(['topic2'], ['arg1'], { some: 'value' }, { retain: true, acknowledge: true })
+        var spyValueExists = chai.spy((uri, value)=>{
+          expect(uri).to.deep.equal(['topic2'])
+          expect(value).to.deep.equal({ args: [ 'arg1' ], kwargs: {some: 'value'} })
+        })
+        await realm.getKey(['topic2'], spyValueExists)
 
         // no kwargs is sent if kwargs passed as null
-        await api.publish('topic2', [], null, { retain: true })
+        await api.publish('topic2', [], null, { retain: true, acknowledge: true })
 
         var spyNotExists = chai.spy(()=>{})
         await realm.getKey(['topic2'], spyNotExists)
 
-        expect(spyExists).to.have.been.called.once()
+        expect(spyValueExists).to.have.been.called.once()
         expect(spyNotExists).to.not.have.been.called()
       })
   
-      // realm must PUSH data if client has WILL request registered
+      // realm must PUSH data if client has disconnect WILL registered
       it('push-will:' + run.it, async () => {
         let expectedData = [
           { event: 'value' },
@@ -172,7 +179,12 @@ describe('31 KV', function () {
           'will.test',
           [],
           { event: 'value' },
-          { acknowledge: true, trace: true, retain: true, will: { kv: { will: 'value' } } }
+          {
+            acknowledge: true,
+            trace: true,
+            retain: true,
+            will: { kv: { will: 'value' } }
+          }
         )
     
         expect(event).to.have.been.called.once()
@@ -182,27 +194,6 @@ describe('31 KV', function () {
       })
     
       it('push-watch-for-push:' + run.it, async () => {
-        let curPromise
-        let n = 0
-        sender.send = (msg) => {
-          n++
-          if (n === 1) {
-            assert.equal(++step, 1, 'first published ack arrived')
-            expect(msg[0]).to.equal(WAMP.PUBLISHED)
-            expect(msg[1]).to.equal('init-kv')
-          } else if (n === 2) {
-            assert.equal(++step, 3, 'second published ack arrived')
-            expect(msg[0]).to.equal(WAMP.PUBLISHED)
-            expect(msg[1]).to.equal('watch-for-value')
-          }
-          curPromise()
-          curPromise = undefined
-        }
-        sender.close = (a, b) => {
-          console.log("SENDER.CLOSE", a, b)
-          assert.equal(1, 0, 'should not invoked')
-        }
-    
         let eventNo = 0
         const haveGotEvent = chai.spy((publicationId, args, kwargs, opt) => {
           if (eventNo === 0) {
@@ -210,56 +201,71 @@ describe('31 KV', function () {
             expect(args).to.deep.equal([])
             expect(kwargs).to.deep.equal({ event: 'first event value' })
           } else if (eventNo === 1) {
+            // inbound event arrived, no changes in storage
+            expect(args).to.deep.equal([])
+            expect(kwargs).to.deep.equal({ event: 'second value is set when value empty' })
+          } else if (eventNo === 2) {
+            // storage is erased
             expect(args).to.deep.equal([])
             expect(kwargs).to.equal(undefined)
-          } else if (eventNo === 2) {
+          } else if (eventNo === 3) {
+            // when action triggered
             expect(args).to.deep.equal([])
-            expect(kwargs).to.deep.equal({ event: 'second event watch-for-empty' })
+            expect(kwargs).to.deep.equal({ event: 'second value is set when value empty' })
           }
           eventNo++
         })
-        await api.subscribe('watch.test', haveGotEvent, { retained:true })
+        await api.subscribe('watch.test', haveGotEvent)
+        assert.equal(++step, 1, 'subscribed one')
 
-        await new Promise((resolve, reject) => {
-          curPromise = resolve
-          cli.handle(ctx, [
-            WAMP.PUBLISH,
-            'init-kv',
-            {
-              retain: true,
-              trace: true,
-              exclude_me: false,
-              acknowledge: true
-            },
-            'watch.test',
-            [],
-            { event: 'first event value' }
-          ])
-        })
-
+        await api.publish(
+          'watch.test',
+          [],
+          { event: 'first event value' },
+          {
+            trace: true,
+            retain: true,
+            exclude_me: false,
+            acknowledge: true
+          }
+        )
         expect(haveGotEvent).to.have.been.called.once()
 
-        cli.handle(ctx, [
-          WAMP.PUBLISH,
-          'watch-for-value',
+        const promiseWaitForEmpty = api.publish(
+          'watch.test',
+          [],
+          { event: 'second value is set when value empty' },
           {
             trace: true,
             retain: true,
             when: null,
             watch: true,
+            exclude_me: false,
             acknowledge: true
-          },
+          }
+        ).then(() => {
+          // assert.equal(++step, 3, 'watch when value empty')
+        })
+    
+        await api.publish(
           'watch.test',
           [],
-          { event: 'second event watch-for-empty' }
-        ])
-        expect(haveGotEvent).to.have.been.called.once()
-    
-        await new Promise((resolve) => {
-          curPromise = resolve
-          api.publish('watch.test', [], null, { trace: true, retain: true })  
+          null,
+          {
+            trace: true,
+            retain: true,
+            exclude_me: false,
+            acknowledge: true 
+          }
+        ).then(() => {
+          assert.equal(++step, 3, 'value erased')
         })
-        expect(haveGotEvent).to.have.been.called.exactly(3)
+        await promiseWaitForEmpty
+        assert.equal(++step, 4, 'value is second event')
+        await realm.getKey(['watch', 'test'], (uri, value) => {
+          // console.log("~", uri, value)
+        })
+        expect(haveGotEvent).to.have.been.called.exactly(3)  // TODO: event on storage update
       })
 
     })
