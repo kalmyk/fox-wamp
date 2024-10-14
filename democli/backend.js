@@ -85,8 +85,8 @@ connection.onopen = function (session) {
   )
 
   // Define an event handler
-  function onEvent (publishArgs, kwargs, opts) {
-    console.log('Event', opts.topic, 'received args', publishArgs, 'kwargs', kwargs, 'opts', opts)
+  function onEvent (args, kwargs, opts) {
+    console.log('Event args', args, 'kwargs', kwargs, 'opts', opts)
   }
 
   // Subscribe to a topic
@@ -106,15 +106,6 @@ connection.onopen = function (session) {
     function (error) {
       console.log('access to user password is denied')
     }
-  )
-
-  setTimeout(
-    function () {
-      console.log('Unregistration')
-      session.unregister(reg)
-      session.unregister(reg2)
-    },
-    20000
   )
 }
 

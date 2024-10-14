@@ -167,16 +167,16 @@ As Map function is possible to use any regular function registration.
 Reduce is the function that gather events published to topic to the ratained dataset.
 
 ```javascript
-register('reduce.the.key.#', (args, kwargs, options) => {
+register('inbound.topic.#', (args, kwargs, options) => {
         return options.retained + kwargs.value
     },
-    { reducer: true }
+    { mission: 'destination.topic' }
 )
 ```
 
 ### Subscribe Options
 * retained: boolean, corresponding values from key value storage will be returned as immidiate events.
-* reducer:
+* mission:
 * filter: condition to filter messages that accepted by the subscription
 
 ### Aggregate Engine for the data streams

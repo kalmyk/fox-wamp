@@ -52,11 +52,11 @@ describe('12 authorize-topic', function () {
         wampGate = new WampGate(router)
         wampGate.setAuthHandler(auth)
 
-        mqttCli = mqttGate.createSession()
+        mqttCli = router.createSession()
         mqttCtx = mqttGate.createContext(mqttCli, mqttSender)
         realm.joinSession(mqttCli)
 
-        wampCli = wampGate.createSession()
+        wampCli = router.createSession()
         wampCtx = wampGate.createContext(wampCli, wampSender)
         realm.joinSession(wampCli)
       })
@@ -65,16 +65,16 @@ describe('12 authorize-topic', function () {
       })
 
       it('wamp-subscribe:' + run.it, function () {
-        wampSender.send = chai.spy(
+        wampSender.wampPkgWrite = chai.spy(
           function (msg) {
             expect(msg[0]).to.equal(WAMP.SUBSCRIBED)
             expect(msg[1]).to.equal(1234)
           }
         )
-        wampCli.handle(wampCtx, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.passed'])
-        expect(wampSender.send, 'subscription confirmed').to.have.been.called.once()
+        wampGate.handle(wampCtx, wampCli, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.passed'])
+        expect(wampSender.wampPkgWrite, 'subscription confirmed').to.have.been.called.once()
 
-        wampSender.send = chai.spy(
+        wampSender.wampPkgWrite = chai.spy(
           function (msg) {
             expect(msg[0]).to.equal(WAMP.ERROR)
             expect(msg[1]).to.equal(WAMP.SUBSCRIBE)
@@ -82,15 +82,15 @@ describe('12 authorize-topic', function () {
             expect(msg[4]).to.equal('wamp.error.authorization_failed')
           }
         )
-        wampCli.handle(wampCtx, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.denied'])
-        expect(wampSender.send, 'subscription confirmed').to.have.been.called.once()
+        wampGate.handle(wampCtx, wampCli, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.denied'])
+        expect(wampSender.wampPkgWrite, 'subscription confirmed').to.have.been.called.once()
       })
 
       it('mqtt-subscribe:' + run.it, function () {
-        mqttSender.send = chai.spy((msg) => {
+        mqttSender.mqttPkgWrite = chai.spy((msg) => {
           expect(msg).to.deep.equal({cmd: 'suback', messageId: 321, granted: [ 128, 1 ]})
         })
-        mqttCli.handle(mqttCtx, {
+        mqttGate.handle(mqttCtx, mqttCli, {
           cmd: 'subscribe',
           retain: false,
           qos: 1,
@@ -104,7 +104,7 @@ describe('12 authorize-topic', function () {
           ],
           messageId: 321
         })
-        expect(mqttSender.send).to.have.been.called.once()
+        expect(mqttSender.mqttPkgWrite).to.have.been.called.once()
       })
     })
   })

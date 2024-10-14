@@ -63,7 +63,7 @@ describe('31 KV', function () {
         router,
         realm,
         api,
-        sender,
+        mockSocket,
         gate,
         cli,
         ctx,
@@ -81,10 +81,10 @@ describe('31 KV', function () {
         router.addRealm(TEST_REALM_NAME, realm)       
         api = realm.wampApi()
 
-        sender = {}
+        mockSocket = {}
         gate = new WampGate(router)
-        cli = gate.createSession()
-        ctx = gate.createContext(cli, sender)
+        cli = router.createSession()
+        ctx = gate.createContext(cli, mockSocket)
         realm.joinSession(cli)
       })
     
@@ -105,7 +105,7 @@ describe('31 KV', function () {
         let resultPromise = new Promise((resolve) => done = resolve)
         let counter = 2
         let rslt = []
-        sender.send = chai.spy((msg) => {
+        mockSocket.wampPkgWrite = chai.spy((msg) => {
           rslt.push(msg)
           --counter
           if (counter <= 0) {
@@ -113,7 +113,7 @@ describe('31 KV', function () {
             done = undefined
           }
         })
-        cli.handle(ctx, [WAMP.SUBSCRIBE, 1234, { retained: true }, 'topic1'])
+        gate.handle(ctx, cli, [WAMP.SUBSCRIBE, 1234, { retained: true }, 'topic1'])
         await resultPromise
 
         expect(rslt[0][0]).to.equal(WAMP.SUBSCRIBED)

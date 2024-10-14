@@ -25,7 +25,7 @@ describe('32 hyper-kv', function () {
     router = new FoxRouter()
     realm = router.getRealm('test-realm')
     gate = new FoxGate(router)
-    session = gate.createSession()
+    session = router.createSession()
     sessionSender = {}
     ctx = gate.createContext(session, sessionSender)
     realm.joinSession(session)
@@ -33,7 +33,7 @@ describe('32 hyper-kv', function () {
 
   afterEach(function () {
     if (session) {
-      gate.removeSession(session)
+      gate.getRouter().removeSession(session)
       session = null
     }
   })
@@ -62,7 +62,7 @@ describe('32 hyper-kv', function () {
     })
     await api.subscribe('watch.test', event)
 
-    session.handle(ctx, {
+    gate.handle(ctx, session, {
       ft: 'PUSH',
       data: { kv: { event: 'value-1' } },
       uri: ['watch', 'test'],

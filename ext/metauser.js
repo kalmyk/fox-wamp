@@ -22,8 +22,8 @@ function registerHandlers (router) {
       }
     })
 
-    realm.on(MSG.SESSION_JOIN, function (session) {
-      var sessionData = {
+    realm.on(MSG.SESSION_JOIN, (session) => {
+      let sessionData = {
         session: session.sessionId,
         authmethod: session.authmethod,
         transport: {

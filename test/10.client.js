@@ -4,147 +4,237 @@ const chai = require('chai')
 const spies = require('chai-spies')
 const expect = chai.expect
 const assert = chai.assert
+const promised = require('chai-as-promised')
 
-const { RESULT_OK, RESULT_ACK, RESULT_EMIT, REQUEST_EVENT } = require('../lib/messages')
-const ClientBase = require('../lib/hyper/clientBase')
-const QueueClient = require('../lib/hyper/queueClient')
+const { RESULT_OK, RESULT_ACK, RESULT_EMIT, REQUEST_EVENT, REQUEST_TASK } = require('../lib/messages')
+const { HyperSocketFormatter, HyperApiContext, HyperClient } = require('../lib/hyper/client')
 
 chai.use(spies)
+chai.use(promised)
 
 describe('10 clent', function () {
-  var
-    sender,
+  let
+    realmAdapterMock,
+    clientFormater,
     client,
-    expectCommand
+    result,
+    ctx
 
   beforeEach(function () {
-    sender = {}
-    sender.send = chai.spy(
-      function (command) {
-        expect(command).to.deep.equal(expectCommand)
-      }
+    result = []
+    realmAdapterMock = { send: chai.spy(
+      (command) => result.push(command)
+    )}
+    clientFormater = new HyperSocketFormatter(realmAdapterMock)
+    ctx = new HyperApiContext()
+    client = new HyperClient(
+      clientFormater,
+      ctx
     )
-    client = new QueueClient.QueueClient()
-    client.sender = sender
   })
 
   afterEach(function () {
+    clientFormater = null
     client = null
   })
 
-  it('create ECHO command', function () {
-    expectCommand = {
+  it('create ECHO command', async () => {
+    const responsePromise = client.echo(1234)
+    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(result.shift()).to.deep.equal({
       ft: 'ECHO',
       id: 1,
       data: 1234
-    }
-    client.echo(1234)
-    expect(sender.send).to.have.been.called.once()
+    })
+
+    clientFormater.onMessage({
+      rsp: RESULT_ACK,
+      data: 'echo-pkg',
+      id: 1
+    })
+
+    await assert.becomes(responsePromise, 'echo-pkg')
   })
 
-  it('create CALL command', function () {
-    expectCommand = {
-      ft: 'CALL',
-      uri: ['function','queue','name'],
+  it('create SUBSCRIBE command', async () => {
+    const onEvent = chai.spy((msg, opt) => result.push([msg, opt]))
+
+    const responsePromise = client.subscribe('function.name', onEvent, {some: 'option'})
+    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(result.shift()).to.deep.equal({
+      ft: 'TRACE',
+      uri: ['function','name'],
       id: 1,
-      data: { attr1: 1, attr2: 'value' }
-    }
-    client.call('function.queue.name', { attr1: 1, attr2: 'value' })
-    expect(sender.send).to.have.been.called.once()
+      opt: {some: 'option'}
+    })
+
+    clientFormater.onMessage({
+      rsp: RESULT_ACK,
+      data: 'subscr-response-pkg',
+      id: 1
+    })
+
+    await assert.becomes(responsePromise, 'subscr-response-pkg')
+
+    clientFormater.onMessage({
+      rsp: REQUEST_EVENT,
+      uri: ['queue','name'],
+      data: 'event-pkg',
+      id: 1
+    })
+
+    // TODO: where is publication-id in opt?
+    expect(result.shift()).to.deep.equal([
+      'event-pkg',
+      {topic: 'queue.name'}
+    ])
   })
 
-  it('create-PUSH-command', function () {
-    expectCommand = {
+  it('create UNSUBSCRIBE command', async () => {
+    client.unsubscribe('sub-id')
+    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(result.shift()).to.deep.equal({
+      ft: 'UNTRACE',
+      id: 1,
+      unr: 'sub-id'
+    })
+  })
+
+  it('create-PUB-confirm', async () => {
+    const responsePromise = client.publish('queue.name', { attr1: 1, attr2: 'value' }, { some: 'option', acknowledge: true })
+    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(result.shift()).to.deep.equal({
       ft: 'PUSH',
-      uri: ['function', 'queue', 'name'],
-      ack: true,
-      opt: { some: 'option' },
+      uri: ['queue', 'name'],
+      opt: { some: 'option', exclude_me: true },
       id: 1,
+      ack: true,
       data: { attr1: 1, attr2: 'value' }
-    }
-    client.push('function.queue.name', { attr1: 1, attr2: 'value' }, { some: 'option' })
-    expect(sender.send).to.have.been.called.once()
+    })
+
+    clientFormater.onMessage({
+      rsp: RESULT_ACK,
+      data: 'publication-id',
+      id: 1
+    })
+
+    await assert.becomes(responsePromise, 'publication-id')
+  })
+
+  it('create-PUB-no-confirm', async () => {
+    const responsePromise = client.publish('queue.name', { attr1: 1, attr2: 'value' }, { some: 'option' })
+    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(result.shift()).to.deep.equal({
+      ft: 'PUSH',
+      uri: ['queue', 'name'],
+      opt: { some: 'option', exclude_me: true },
+      id: 1,
+      ack: false,
+      data: { attr1: 1, attr2: 'value' }
+    })
+
+    await assert.isFulfilled(responsePromise)
   })
 
   it('create-PUSH-no-opt', function () {
-    expectCommand = {
+    client.publish('function.queue.name', { key: 'val' })
+    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(result.shift()).to.deep.equal({
       ft: 'PUSH',
       uri: ['function', 'queue', 'name'],
-      ack: true,
-      opt: {},
+      opt: { exclude_me: true },
       id: 1,
+      ack: false,
       data: { key: 'val' }
-    }
-    client.push('function.queue.name', { key: 'val' })
-    expect(sender.send).to.have.been.called.once()
+    })
   })
 
-  it('build-trace-task', function (done) {
-    let trace = chai.spy(function (data, task) {
-      expect(task).to.be.instanceof(ClientBase.Task)
-      expect(data).to.equal('task-data')
-      task.resolve('task-data-amended')
+  it('create REGISTER command', async () => {
+    const onTask = chai.spy((task, opt) => {
+      result.push([task, opt.procedure])
+      return 'task-result'
     })
 
-    expectCommand = {
-      ft: 'TRACE',
-      uri: ['function/queue/name'],
-      opt: { some: 'option' },
-      id: 1 // client generated ID
-    }
-
-    assert.becomes(
-      client.trace('function/queue/name', trace, { some: 'option' }),
-      undefined,
-      'trace resolved'
-    ).notify(done)
-
-    expect(sender.send).to.have.been.called.once()
-
-    // server response that TRACE is SET
-    client.handle({
-      rsp: RESULT_ACK,
-      id: 1
-    })
-
-    // server receives confirmation that event processed
-    expectCommand = {
-      ft: 'CONFIRM',
-      rqt: RESULT_OK,
-      qid: 'server-generated-trace-id',
-      data: 'task-data-amended'
-    }
-
-    // some PUBLISH occurred and data arrived
-    client.handle({
+    const responsePromise = client.register('function.name', onTask, {some: 'option'})
+    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(result.shift()).to.deep.equal({
+      ft: 'REG',
+      uri: ['function','name'],
       id: 1,
-      uri: 'any-text',
-      rsp: REQUEST_EVENT,
-      qid: 'server-generated-trace-id',
-      data: 'task-data'
+      opt: {some: 'option'}
     })
 
-    // trace event invoked
-    expect(trace).to.have.been.called.once()
-
-    // server decided to remove subscription
-    client.handle({
-      rsp: RESULT_OK,
+    clientFormater.onMessage({
+      rsp: RESULT_ACK,
+      data: 'registration-id',
       id: 1
+    })
+
+    await assert.becomes(responsePromise, 'registration-id')
+
+    clientFormater.onMessage({
+      rsp: REQUEST_TASK,
+      uri: ['function','name'],
+      data: 'task-request-pkg',
+      qid: 'task-id',
+      id: 1
+    })
+
+    expect(result.shift()).to.deep.equal([
+      'task-request-pkg',
+      'function.name'
+    ])
+
+    // expect(result.shift()).to.deep.equal([
+    //   'task-result',
+    //   undefined
+    // ])
+  })
+
+  it('create UNREGISTER command', async () => {
+    client.unregister('reg-id')
+    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(result.shift()).to.deep.equal({
+      ft: 'UNREG',
+      id: 1,
+      unr: 'reg-id'
     })
   })
 
-  it('send Task response', function () {
-    expectCommand = {
-      ft: 'YIELD',
-      rqt: RESULT_EMIT,
-      qid: 'generaged.id',
-      data: { dataKey: 'data-value' }
-    }
-    var request = {}
-    request.id = 'no.meaning.client.task.id'
-    request.qid = 'generaged.id'
-    client.sendTaskResponse(request, RESULT_EMIT, { dataKey: 'data-value' })
-    expect(sender.send).to.have.been.called.once()
+  it('create CALL command', async () => {
+    const progressInfo = []
+    const progressFunc = chai.spy((attr, opt) => {progressInfo.push([attr, opt])})
+    const responsePromise = client.callrpc(
+      'function.name',
+      { attr1: 1, attr2: 'value' },
+      {some: 'opt', progress: progressFunc}
+    )
+    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(result.shift()).to.deep.equal({
+      ft: 'CALL',
+      uri: ['function','name'],
+      id: 1,
+      data: { attr1: 1, attr2: 'value' },
+      opt: {some: 'opt'}
+    })
+
+    clientFormater.onMessage({
+      rsp: RESULT_EMIT,
+      data: 'progress-package',
+      id: 1
+    })
+    expect(progressFunc).to.have.been.called.once()
+    expect(progressInfo.shift()).to.deep.equal([
+      'progress-package',
+      undefined // TODO: get opt
+    ])
+
+    clientFormater.onMessage({
+      rsp: RESULT_ACK,
+      data: 'response-package',
+      id: 1
+    })
+
+    await assert.becomes(responsePromise, 'response-package')
   })
 })

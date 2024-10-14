@@ -30,16 +30,16 @@ describe('11 wamp-session', function () {
   var
     router,
     gate,
-    sender,
+    mockWampSocket,
     ctx,
     cli
 
   beforeEach(function () {
-    sender = {}
+    mockWampSocket = {}
     router = new FoxRouter()
     gate = new WampGate(router)
-    cli = gate.createSession()
-    ctx = gate.createContext(cli, sender)
+    cli = router.createSession()
+    ctx = gate.createContext(cli, mockWampSocket)
   })
 
   afterEach(function () {
@@ -47,51 +47,51 @@ describe('11 wamp-session', function () {
 
   it('Joe-NOAUTH', function () {
     gate.setAuthHandler(new Auth())
-    sender.send = chai.spy(
+    mockWampSocket.wampPkgWrite = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.ABORT)
         expect(msg[2]).to.equal('wamp.error.no_auth_method')
       }
     )
-    cli.handle(ctx, [ WAMP.HELLO, 'test', { authid: 'joe', authmethods: [ 'notexists' ] } ])
-    expect(sender.send).to.have.been.called.once()
+    gate.handle(ctx, cli, [ WAMP.HELLO, 'test', { authid: 'joe', authmethods: [ 'notexists' ] } ])
+    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
   })
 
   it('Joe-AUTH-FAIL', function () {
     gate.setAuthHandler(new Auth())
-    sender.send = chai.spy(
+    mockWampSocket.wampPkgWrite = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.CHALLENGE)
         expect(msg[1]).to.equal('testonly')
       }
     )
-    cli.handle(ctx, [ WAMP.HELLO, 'test', { authid: 'joe', authmethods: [ 'testonly' ] } ])
-    expect(sender.send).to.have.been.called.once()
+    gate.handle(ctx, cli, [ WAMP.HELLO, 'test', { authid: 'joe', authmethods: [ 'testonly' ] } ])
+    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
 
-    sender.send = chai.spy(
+    mockWampSocket.wampPkgWrite = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.ABORT)
         expect(msg[2]).to.equal('wamp.error.authentication_failed')
         // callback()
       }
     )
-    cli.handle(ctx, [WAMP.AUTHENTICATE, 'incorrect-secret'])
-    expect(sender.send).to.have.been.called.once()
+    gate.handle(ctx, cli, [WAMP.AUTHENTICATE, 'incorrect-secret'])
+    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
   })
 
   it ('Joe-AUTH-OK', function () {
     gate.setAuthHandler(new Auth())
-    sender.send = chai.spy(
+    mockWampSocket.wampPkgWrite = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.CHALLENGE)
         expect(msg[1]).to.equal('testonly')
         expect(msg[2]).to.deep.equal({ serverDefinedExtra: 'the-value' })
       }
     )
-    cli.handle(ctx, [WAMP.HELLO, 'test', { authid: 'joe', authmethods: ['somecrypto', 'testonly'] }])
-    expect(sender.send).to.have.been.called.once()
+    gate.handle(ctx, cli, [WAMP.HELLO, 'test', { authid: 'joe', authmethods: ['somecrypto', 'testonly'] }])
+    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
 
-    sender.send = chai.spy(
+    mockWampSocket.wampPkgWrite = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.WELCOME)
         expect(msg[2].realm).to.equal('test')
@@ -99,44 +99,44 @@ describe('11 wamp-session', function () {
         expect(msg[2].authmethod).to.equal('testonly')
       }
     )
-    cli.handle(ctx, [WAMP.AUTHENTICATE, 'test-joe-secret'], { extraField: 'some-extra-value' })
-    expect(sender.send).to.have.been.called.once()
+    gate.handle(ctx, cli, [WAMP.AUTHENTICATE, 'test-joe-secret'], { extraField: 'some-extra-value' })
+    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
   })
 
   it('HELLO/WELCOME', function () {
-    sender.send = chai.spy(
+    mockWampSocket.wampPkgWrite = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.WELCOME)
         expect(msg[1]).to.equal(cli.sessionId)
         // console.log(msg[2].roles)
       }
     )
-    cli.handle(ctx, [WAMP.HELLO, 'test', {}])
-    expect(sender.send).to.have.been.called.once()
+    gate.handle(ctx, cli, [WAMP.HELLO, 'test', {}])
+    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
 
     // second hello command raises error and disconnects the user
-    sender.send = chai.spy((msg, callback) => {})
-    sender.close = chai.spy((errObj, reason) => {})
-    cli.handle(ctx, [WAMP.HELLO, 'test', {}])
-    expect(sender.send).to.not.have.been.called()
-    expect(sender.close).to.have.been.called.once()
+    mockWampSocket.wampPkgWrite = chai.spy((msg, callback) => {})
+    mockWampSocket.wampPkgClose = chai.spy((errObj, reason) => {})
+    gate.handle(ctx, cli, [WAMP.HELLO, 'test', {}])
+    expect(mockWampSocket.wampPkgWrite).to.not.have.been.called()
+    expect(mockWampSocket.wampPkgClose).to.have.been.called.once()
   })
 
   it('GOODBYE', function () {
-    sender.send = chai.spy(
+    mockWampSocket.wampPkgWrite = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.GOODBYE)
         callback()
       }
     )
-    sender.close = chai.spy(() => {})
-    cli.handle(ctx, [WAMP.GOODBYE])
-    expect(sender.send).to.have.been.called.once()
-    expect(sender.close).to.have.been.called.once()
+    mockWampSocket.wampPkgClose = chai.spy(() => {})
+    gate.handle(ctx, cli, [WAMP.GOODBYE])
+    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
+    expect(mockWampSocket.wampPkgClose).to.have.been.called.once()
   })
 
   it('CALL to no realm RPC', function () {
-    sender.send = chai.spy(
+    mockWampSocket.wampPkgWrite = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.ERROR)
         expect(msg[1]).to.equal(WAMP.CALL)
@@ -144,12 +144,12 @@ describe('11 wamp-session', function () {
         expect(msg[4]).to.equal('wamp.error.not_authorized')
       }
     )
-    cli.handle(ctx, [WAMP.CALL, 1234, {}, 'any.function.name', []])
-    expect(sender.send).to.have.been.called.once()
+    gate.handle(ctx, cli, [WAMP.CALL, 1234, {}, 'any.function.name', []])
+    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
   })
 
   it('REGISTER to no realm', function () {
-    sender.send = chai.spy(
+    mockWampSocket.wampPkgWrite = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.ERROR)
         expect(msg[1]).to.equal(WAMP.REGISTER)
@@ -157,7 +157,7 @@ describe('11 wamp-session', function () {
         expect(msg[4]).to.equal('wamp.error.not_authorized')
       }
     )
-    cli.handle(ctx, [WAMP.REGISTER, 1234, {}, 'func1'])
-    expect(sender.send, 'registration failed').to.have.been.called.once()
+    gate.handle(ctx, cli, [WAMP.REGISTER, 1234, {}, 'func1'])
+    expect(mockWampSocket.wampPkgWrite, 'registration failed').to.have.been.called.once()
   })
 })

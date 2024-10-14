@@ -19,7 +19,7 @@ describe('23 pub-worker', function () {
     client,
     worker
 
-  beforeEach(function () {
+  beforeEach(() => {
     router = new Router()
     realm = router.getRealm('test-realm')
     gate = new FoxGate(router)
@@ -28,7 +28,10 @@ describe('23 pub-worker', function () {
     worker = memServer.createClient(realm)
   })
 
-  afterEach(function () {
+  afterEach(() => {
+    assert.isFalse(client.session.hasSendError(), client.session.firstSendErrorMessage())
+    assert.isFalse(worker.session.hasSendError(), worker.session.firstSendErrorMessage())
+
     router = null
     gate = null
     realm = null
@@ -36,7 +39,7 @@ describe('23 pub-worker', function () {
     worker = null
   })
 
-  it('echo should return OK with sent data', function () {
+  it('echo should return OK with sent data', async () => {
     return assert.becomes(
       client.echo('test'),
       'test',
@@ -44,124 +47,100 @@ describe('23 pub-worker', function () {
     )
   })
 
-  it('call to not existed function has to be failed', function () {
+  it('call to not existed function has to be failed', async () => {
     return assert.isRejected(
-      client.call('test.func', { attr1: 1 }),
+      client.callrpc('test.func', { attr1: 1 }),
       /no callee registered for procedure/,
-      'call rejected'
+      'callrpc rejected'
     )
   })
 
-  it('remote-procedure-call', function (done) {
-    worker.register(
-      'test.func', function (args, task) {
-        expect(task.getUri()).to.deep.equal([ 'test', 'func' ])
-        expect(args).to.deep.equal({ attr1: 1, attr2: 2 })
-        task.resolve({ result: 'done' })
+  it('remote-procedure-call', async () => {
+    await worker.register(
+      'test.func', (args) => {
+        return Promise.resolve({ result: 'done', args: args })
       }
-    ).then(
-      function (result) {
-        return assert.becomes(
-          client.call('test.func', { attr1: 1, attr2: 2 }),
-          { result: 'done' },
-          'call should be processed'
-        ).notify(done)
-      },
-      function (reason) {
-        assert.isTrue(false, 'unable to register')
-      }
+    )
+    await assert.becomes(
+      client.callrpc('test.func', { attr1: 1, attr2: 2 }),
+      { result: 'done', args: { attr1: 1, attr2: 2 } },
+      'callrpc should be processed'
     )
   })
 
-  it('call-progress', function () {
-    return worker.register(
-      'test.func', function (args, task) {
-        expect(task.getUri()).to.deep.equal([ 'test', 'func' ])
-        expect(args).to.deep.equal({ attr1: 1, attr2: 2 })
-        task.notify({ progress: 1 })
-        task.notify({ progress: 2 })
-        task.resolve({ result: 'done' })
-      }
-    ).then(
-      function (result) {
-        return assert.becomes(
-          client.call('test.func', { attr1: 1, attr2: 2 }),
-          { result: 'done' },
-          'call should be processed'
-        )
-      },
-      function (reason) {
-        assert(false, 'unable to register')
+  it('call-progress', async () => {
+    await worker.register('test.func',
+      (args, opt) => {
+        opt.progress([1])
+        opt.progress([2])
+        return Promise.resolve({ result: 'done', args })
       }
     )
+    const resultProgress = []
+    await assert.becomes(
+      client.callrpc('test.func', { attr1: 1 }, {progress: (info => resultProgress.push(info))}),
+      { result: 'done', args: { attr1: 1 } },
+      'callrpc should be processed'
+    )
+    expect(resultProgress.shift()).to.deep.equal([1])
+    expect(resultProgress.shift()).to.deep.equal([2])
   })
 
-  it('simultaneous-task-limit', function (done) {
-    let qTask = null
-    let workerCalls = 0
-    let reg
+  it('simultaneous-task-limit', async () => {
+    let qArgs = null
+    let responseCount = 0
 
-    worker.register(
-      'func1', function (args, task) {
-        assert.equal(null, qTask, 'only one task to resolve')
-        qTask = task
-        workerCalls++
-        assert.equal(args, workerCalls, 'Task FIFO broken')
-
-        if (workerCalls === 7) {
-          assert.becomes(
-            worker.unRegister(reg),
-            undefined,
-            'must unregister'
-          )
-          done()
-        } else {
-          process.nextTick(function () {
-            qTask.resolve('result ' + workerCalls)
-            qTask = null
+    let regId = await worker.register(
+      'func1', (args, opt) => {
+        assert.equal(null, qArgs, 'only one task to resolve')
+        qArgs = args
+        return new Promise((resolve, reject) => {
+          process.nextTick(() => {
+            responseCount++
+            qArgs = null
+            resolve(args)
           })
-        }
-      }
-    ).then(function (registration) {
-      reg = registration
-
-      var i
-      for (i = 1; i <= 7; i++) {
-        client.call('func1', i).then((response) => {
-          // console.log('response', response)
         })
       }
-    })
+    )
+
+    const resultCollector = []
+    for (let i = 1; i <= 7; i++) {
+      resultCollector.push(
+        client.callrpc('func1', i)
+      )
+    }
+    expect(responseCount).to.equal(0)
+    expect(await Promise.all(resultCollector)).to.deep.equal([1,2,3,4,5,6,7])
+    expect(responseCount).to.equal(7)
+
+    await assert.becomes(
+      worker.unregister(regId),
+      undefined,
+      'must unregister'
+    )
   })
 
-  it('trace-push-untrace', function () {
-    let regTrace
-    let traceSpy = chai.spy((data, task) => {
-      expect(task.getTopic()).to.equal('customer')
-      task.resolve(null)
+  it('trace-publish-untrace', async () => {
+    const publications = []
+    let traceSpy = chai.spy((data, opt) => {
+      publications.push([data, opt.topic])
     })
+    let regTrace = await worker.subscribe('customer', traceSpy, { someOpt: 987 })
 
-    return worker.trace('customer', traceSpy, { someOpt: 987 })
-      .then((trace) => {
-        regTrace = trace
-      })
-      .then(() => {
-        return assert.becomes(
-          client.push('customer', { data1: 'value1', data2: 'value2' }),
-          undefined,
-          'push done'
-        )
-      })
-      .then(() => {
-        return assert.becomes(
-          worker.unTrace(regTrace),
-          undefined,
-          'unTrace done'
-        )
-      })
-      .then(() => {
-        expect(traceSpy).to.have.been.called.once()
-      })
+    await assert.becomes(
+      client.publish('customer', { data1: 'value1' }, { acknowledge: true }),
+      undefined, // TODO: publication id
+      'publish done'
+    )
+    expect(traceSpy).to.have.been.called.once()
+    expect(publications.shift()).to.deep.equal([{ data1: 'value1' }, 'customer'])
+
+    await assert.becomes(
+      worker.unsubscribe(regTrace),
+      undefined,
+      'unsubscribe done'
+    )
   })
 
 })
