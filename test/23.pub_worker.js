@@ -7,7 +7,7 @@ const promised = require('chai-as-promised')
 chai.use(promised)
 
 const MemTransport = require('../lib/hyper/mem_transport')
-const FoxGate      = require('../lib/hyper/gate')
+const { FoxGate }  = require('../lib/hyper/gate')
 const Router       = require('../lib/router')
 
 describe('23 pub-worker', function () {
@@ -87,18 +87,13 @@ describe('23 pub-worker', function () {
   })
 
   it('simultaneous-task-limit', async () => {
-    let qArgs = null
-    let responseCount = 0
-
+    let requestCount = 0
     let regId = await worker.register(
       'func1', (args, opt) => {
-        assert.equal(null, qArgs, 'only one task to resolve')
-        qArgs = args
+        requestCount++
         return new Promise((resolve, reject) => {
           process.nextTick(() => {
-            responseCount++
-            qArgs = null
-            resolve(args)
+            resolve([args,requestCount--])            
           })
         })
       }
@@ -110,15 +105,9 @@ describe('23 pub-worker', function () {
         client.callrpc('func1', i)
       )
     }
-    expect(responseCount).to.equal(0)
-    expect(await Promise.all(resultCollector)).to.deep.equal([1,2,3,4,5,6,7])
-    expect(responseCount).to.equal(7)
-
-    await assert.becomes(
-      worker.unregister(regId),
-      undefined,
-      'must unregister'
-    )
+    expect(await Promise.all(resultCollector)).to.deep.equal([[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[7,1]])
+    
+    await worker.unregister(regId)
   })
 
   it('trace-publish-untrace', async () => {
@@ -130,7 +119,7 @@ describe('23 pub-worker', function () {
 
     await assert.becomes(
       client.publish('customer', { data1: 'value1' }, { acknowledge: true }),
-      undefined, // TODO: publication id
+      null, // TODO: publication id
       'publish done'
     )
     expect(traceSpy).to.have.been.called.once()
@@ -138,7 +127,7 @@ describe('23 pub-worker', function () {
 
     await assert.becomes(
       worker.unsubscribe(regTrace),
-      undefined,
+      null,
       'unsubscribe done'
     )
   })

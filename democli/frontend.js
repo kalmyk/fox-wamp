@@ -97,9 +97,7 @@ connection.onopen = function (session, details) {
 
   session.call('test.foo', ['test'], { foo: 'bar' }).then(
     function (res) {
-      session.log('Call test.foo completed in ' +
-        (Date.now() - starttime) +
-        ' ms: result =', res)
+      session.log('Call test.foo completed result =', res)
     },
     function (error) {
       console.log('Call failed:', error)

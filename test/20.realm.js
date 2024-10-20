@@ -8,7 +8,7 @@ const promised    = require('chai-as-promised')
 
 const { deepDataMerge } = require('../lib/realm')
 const WAMP     = require('../lib/wamp/protocol')
-const WampGate = require('../lib/wamp/gate')
+const { WampGate } = require('../lib/wamp/gate')
 const FoxRouter = require('../lib/fox_router')
 const MemKeyValueStorage = require('../lib/mono/memkv').MemKeyValueStorage
 
@@ -17,22 +17,22 @@ chai.use(spies)
 
 describe('20 wamp-realm', () => {
   let
+    socketHistory,
     router,
     gate,
     realm,
     mockSocket,
     ctx,
     cli,
-    api,
-    apx
+    api
 
   beforeEach(function () {
     router = new FoxRouter()
     realm = router.getRealm('test-realm')
     api = realm.wampApi()
-    apx = realm.api()
 
-    mockSocket = {}
+    socketHistory = []
+    mockSocket = { wampPkgWrite: chai.spy(((msg, callback) => socketHistory.push(msg))) }
     gate = new WampGate(router)
     cli = router.createSession()
     ctx = gate.createContext(cli, mockSocket)
@@ -45,7 +45,6 @@ describe('20 wamp-realm', () => {
   it('empty cleanup', function () {
     realm.leaveSession(cli)
     realm.leaveSession(api)
-    realm.leaveSession(apx.session())
   })
 
   it('session-list', function () {
@@ -56,7 +55,7 @@ describe('20 wamp-realm', () => {
   it('deepDataMerge', function () {
     let result
     result = deepDataMerge(
-      { args:[], kwargs:{key1: "v1", key2: {key3: "v3"}} },
+      { args:[{key1: "v1", key2: {key3: "v3"}}] },
       { payload: Buffer.from('{"key1":"v1-update","key2":{"key5":"v5"}}') }
     )
     expect(result).to.deep.equal({ kv: { key1: 'v1-update', key2: { key3: 'v3', key5: 'v5' } } })
@@ -70,130 +69,115 @@ describe('20 wamp-realm', () => {
 
   describe('RPC', function () {
     it('CALL to RPC not exist', function () {
-      mockSocket.wampPkgWrite = chai.spy((msg, callback) => {
-        expect(msg[0]).to.equal(WAMP.ERROR)
-        expect(msg[1]).to.equal(WAMP.CALL)
-        expect(msg[2]).to.equal(1234)
-        expect(msg[4]).to.equal('wamp.error.no_such_procedure')
-        expect(msg[5]).to.deep.equal(['no callee registered for procedure <any.function.name>'])
-      })
       gate.handle(ctx, cli, [WAMP.CALL, 1234, {}, 'any.function.name', []])
       expect(mockSocket.wampPkgWrite).to.have.been.called.once()
+
+      const msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.ERROR)
+      expect(msg[1]).to.equal(WAMP.CALL)
+      expect(msg[2]).to.equal(1234)
+      expect(msg[4]).to.equal('wamp.error.no_such_procedure')
+      expect(msg[5]).to.deep.equal(['no callee registered for procedure <any.function.name>'])
     })
 
     it('cleanup RPC API', function () {
-      apx.session().cleanupReg(realm.engine)  // clean existing wamp/session/? functions
+      api.cleanupReg(realm.engine)  // clean existing wamp/session/? functions
       var procSpy = chai.spy(function () {})
-      apx.register('func1', procSpy)
-      expect(apx.session().cleanupReg(realm.engine)).to.equal(1)
-      expect(apx.session().cleanupReg(realm.engine)).to.equal(0)
+      api.register('func1', procSpy)
+      expect(api.cleanupReg(realm.engine)).to.equal(1)
+      expect(api.cleanupReg(realm.engine)).to.equal(0)
       expect(procSpy).to.not.have.been.called()
     })
 
     it('CALL-to-router', async () => {
       let procSpy = chai.spy(function (id, args, kwargs) {
-        api.resrpc(id, undefined, ['result.1', 'result.2'], { kVal: 'kRes' })
+        api.resrpc(id, undefined, [...args, 'result1'], { kres: kwargs })
       })
       let regId = await api.register('func1', procSpy)
 
-      mockSocket.wampPkgWrite = chai.spy((msg, callback) => {
-        expect(msg[0]).to.equal(WAMP.RESULT)
-        expect(msg[1]).to.equal(1234)
-        expect(msg[3]).to.deep.equal(['result.1', 'result.2'])
-        expect(msg[4]).to.deep.equal({ kVal: 'kRes' })
-      })
-      gate.handle(ctx, cli, [WAMP.CALL, 1234, {}, 'func1', ['arg1', 'arg2'], { kArg: 'kVal' }])
+      gate.handle(ctx, cli, [WAMP.CALL, 1234, {}, 'func1', ['arg1'], { kArg: 'kVal' }])
       expect(procSpy, 'RPC delivered').to.have.been.called.once()
       expect(mockSocket.wampPkgWrite, 'result delivered').to.have.been.called.once()
+      const msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.RESULT)
+      expect(msg[1]).to.equal(1234)
+      expect(msg[3]).to.deep.equal(['arg1', 'result1'])
+      expect(msg[4]).to.deep.equal({ kres:{ kArg: 'kVal' }})
+
+      const subActor = api.getSub(regId)
+      expect(subActor.isAble()).to.equal(true)
+      expect(subActor.getTasksRequestedCount()).to.equal(0)
       expect(api.unregister(regId)).to.equal('func1')
     })
 
-    it('CALL to router with error', function () {
-      var callId = null
+    it('CALL to router with error', async () => {
       var procSpy = chai.spy(function (id, args, kwargs) {
-        callId = id
+        api.resrpc(id, 'error-message', ['result.1', 'result.2'], { kVal: 'kRes' })
       })
-      api.register('func1', procSpy)
-      mockSocket.wampPkgWrite = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.ERROR)
-          expect(msg[1]).to.equal(WAMP.CALL)
-          expect(msg[2]).to.equal(1234)
-          expect(msg[4]).to.deep.equal('wamp.error.callee_failure')
-        }
-      )
+      let regId = await api.register('func1', procSpy)
       gate.handle(ctx, cli, [WAMP.CALL, 1234, {}, 'func1', ['arg1', 'arg2'], { kArg: 'kVal' }])
-      api.resrpc(callId, 1, ['result.1', 'result.2'], { kVal: 'kRes' })
       expect(procSpy).to.have.been.called.once()
       expect(mockSocket.wampPkgWrite).to.have.been.called.once()
+      let msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.ERROR)
+      expect(msg[1]).to.equal(WAMP.CALL)
+      expect(msg[2]).to.equal(1234)
+      expect(msg[4]).to.equal('wamp.error.callee_failure')
+      expect(msg[5]).to.deep.equal(['error-message'])
+
+      const subActor = api.getSub(regId)
+      expect(subActor.isAble()).to.equal(true)
+      expect(subActor.getTasksRequestedCount()).to.equal(0)
     })
 
-    it('UNREGISTER error', function () {
-      mockSocket.wampPkgWrite = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.ERROR)
-          expect(msg[1]).to.equal(WAMP.UNREGISTER)
-          expect(msg[2]).to.equal(2345)
-          // 3 options
-          expect(msg[4]).to.equal('wamp.error.no_such_registration')
-        }
-      )
+    it('UNREGISTER error', async () => {
       gate.handle(ctx, cli, [WAMP.UNREGISTER, 2345, 1234567890])
       expect(mockSocket.wampPkgWrite, 'unregistration confirmed').to.have.been.called.once()
+
+      let msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.ERROR)
+      expect(msg[1]).to.equal(WAMP.UNREGISTER)
+      expect(msg[2]).to.equal(2345)
+      // 3 options is skipped
+      expect(msg[4]).to.equal('wamp.error.no_such_registration')
     })
 
     it('UNREGISTER', function () {
-      var qid = null
-
-      mockSocket.wampPkgWrite = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.REGISTERED)
-          expect(msg[1]).to.equal(1234)
-          qid = msg[2]
-        }
-      )
       gate.handle(ctx, cli, [WAMP.REGISTER, 1234, {}, 'func1'])
-      expect(mockSocket.wampPkgWrite, 'registration confirmed').to.have.been.called.once()
+      let msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.REGISTERED)
+      expect(msg[1]).to.equal(1234)
+      let registrationId = msg[2]
 
-      mockSocket.wampPkgWrite = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.UNREGISTERED)
-          expect(msg[1]).to.equal(2345)
-        }
-      )
-      gate.handle(ctx, cli, [WAMP.UNREGISTER, 2345, qid])
-      expect(mockSocket.wampPkgWrite, 'unregistration confirmed').to.have.been.called.once()
+      gate.handle(ctx, cli, [WAMP.UNREGISTER, 2345, registrationId])
+      msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.UNREGISTERED)
+      expect(msg[1]).to.equal(2345)
+
+      expect(mockSocket.wampPkgWrite, 'unregistration confirmed').to.have.been.called.twice()
     })
 
     it('CALL-to-remote', async () => {
-      let qid = null
-      let expectedResult = []
-
-      mockSocket.wampPkgWrite = chai.spy((msg, callback) => {
-        expectedResult.push([msg[0],msg[1]])
-        qid = msg[2]
-      })
       gate.handle(ctx, cli, [WAMP.REGISTER, 1234, {}, 'func1'])
-      expect(mockSocket.wampPkgWrite, 'registration confirmed').to.have.been.called.once()
-      assert.deepEqual(expectedResult.shift(), [WAMP.REGISTERED, 1234])
+      let msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.REGISTERED)
+      expect(msg[1]).to.equal(1234)
+      let registrationId = msg[2]
 
-      mockSocket.wampPkgWrite = chai.spy((msg, callback) => {
-        expectedResult.push([msg[0],msg[2],msg[3],msg[4],msg[5]])
-        let callId = msg[1]
-        // return the function result
-        gate.handle(ctx, cli, [WAMP.YIELD, callId, {}, ['result.1', 'result.2'], { foo: 'bar' }])
-      })
+      const callPromise = api.callrpc('func1', ['arg1'], { v1: 'kRes' })
 
-      const callResult = await apx.callrpc('func1', { kv: { v1: 'kRes' }})
-      const invocationRequest = expectedResult.shift()
-      assert.deepEqual(invocationRequest, [WAMP.INVOCATION, qid, {}, [], { v1: 'kRes' }])
+      msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.INVOCATION)
+      let callId = msg[1]
+      expect(msg[2]).to.equal(registrationId)
+      expect(msg[3]).to.deep.equal({}) // opt
+      expect(msg[4]).to.deep.equal(['arg1']) // args
+      expect(msg[5]).to.deep.equal({ v1: 'kRes' }) // kwargs
 
-      expect(callResult).to.deep.equal({
-        args: ['result.1', 'result.2'],
-        kwargs: { foo: 'bar' }
-      }, 'response')
+      // return the function result
+      gate.handle(ctx, cli, [WAMP.YIELD, callId, {}, ['result1'], { foo: 'bar' }])
 
-      expect(mockSocket.wampPkgWrite, 'invocation received').to.have.been.called.once()
+      await assert.becomes(callPromise, {args:['result1'], kwargs:{foo: 'bar'}})
     })
 
     it('CALL error to remote', async () => {
@@ -205,22 +189,27 @@ describe('20 wamp-realm', () => {
         gate.handle(ctx, cli, [WAMP.ERROR, WAMP.INVOCATION, callId, {}, 'test-error-text', ['err.detail.1', 'err.detail.2']])
       })
 
-      let result = await apx.callrpc('func1', ['arg.1']).then(() => 'resolve-not-accepted', (reason) => reason)
+      let result = await api.callrpc('func1', ['arg.1']).then(() => 'resolve-not-accepted', (reason) => reason)
 
-      expect(result).to.deep.equal({error:{code:'error.callee_failure', message:'test-error-text'}})
+      expect(result).to.deep.equal({code:'wamp.error.callee_failure', message:'test-error-text'})
       expect(mockSocket.wampPkgWrite, 'invocation received').to.have.been.called.once()
     })
 
     it('CALL-set-concurrency', function () {
-      mockSocket.wampPkgWrite = function () {}
       gate.handle(ctx, cli, [WAMP.REGISTER, 1234, { concurrency: 2 }, 'func1'])
+      let msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.REGISTERED)
 
-      mockSocket.wampPkgWrite = chai.spy((msg, callback) => {})
-      apx.callrpc('func1', [], {})
-      apx.callrpc('func1', [], {})
-      apx.callrpc('func1', [], {})
+      api.callrpc('func1', [], {})
+      api.callrpc('func1', [], {})
+      api.callrpc('func1', [], {})
 
-      expect(mockSocket.wampPkgWrite).to.have.been.called.twice()
+      msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.INVOCATION)
+      msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.INVOCATION)
+
+      expect(mockSocket.wampPkgWrite).to.have.been.called.exactly(3)
     })
 
     it('CALL-concurrency-unlimited', function () {
@@ -228,16 +217,16 @@ describe('20 wamp-realm', () => {
       gate.handle(ctx, cli, [WAMP.REGISTER, 1234, {}, 'func1'])
 
       mockSocket.wampPkgWrite = chai.spy((msg, callback) => {})
-      apx.callrpc('func1', [], {})
-      apx.callrpc('func1', [], {})
-      apx.callrpc('func1', [], {})
+      api.callrpc('func1', [], {})
+      api.callrpc('func1', [], {})
+      api.callrpc('func1', [], {})
 
       expect(mockSocket.wampPkgWrite).to.have.been.called.exactly(3)
     })
 
     it('progress-remote-CALL', async () => {
-      mockSocket.wampPkgWrite = () => {}
       gate.handle(ctx, cli, [WAMP.REGISTER, 1234, {}, 'func1'])
+      socketHistory.shift()
 
       let callId = null
       mockSocket.wampPkgWrite = chai.spy((msg, callback) => {
@@ -273,61 +262,50 @@ describe('20 wamp-realm', () => {
 
   describe('PUBLISH', function () {
     it('UNSUBSCRIBE-ERROR', function () {
-      mockSocket.wampPkgWrite = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.ERROR)
-          expect(msg[1]).to.equal(WAMP.UNSUBSCRIBE)
-          expect(msg[2]).to.equal(2345)
-          // 3 options
-          expect(msg[4]).to.equal('wamp.error.no_such_subscription')
-        }
-      )
       gate.handle(ctx, cli, [WAMP.UNSUBSCRIBE, 2345, 1234567890])
       expect(mockSocket.wampPkgWrite, 'unsubscription confirmed').to.have.been.called.once()
+
+      let msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.ERROR)
+      expect(msg[1]).to.equal(WAMP.UNSUBSCRIBE)
+      expect(msg[2]).to.equal(2345)
+      // 3 options
+      expect(msg[4]).to.equal('wamp.error.no_such_subscription')
     })
 
     it('UNSUBSCRIBE-OK', function () {
-      var subscriptionId = null
-
-      mockSocket.wampPkgWrite = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.SUBSCRIBED)
-          expect(msg[1]).to.equal(1234)
-          subscriptionId = msg[2]
-        }
-      )
       gate.handle(ctx, cli, [WAMP.SUBSCRIBE, 1234, {}, 'topic1'])
-      expect(mockSocket.wampPkgWrite, 'subscription confirmed').to.have.been.called.once()
+      let msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.SUBSCRIBED)
+      expect(msg[1]).to.equal(1234)
+      let subscriptionId = msg[2]
 
-      mockSocket.wampPkgWrite = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.UNSUBSCRIBED)
-          expect(msg[1]).to.equal(2345)
-        }
-      )
       gate.handle(ctx, cli, [WAMP.UNSUBSCRIBE, 2345, subscriptionId])
-      expect(mockSocket.wampPkgWrite, 'unsubscription confirmed').to.have.been.called.once()
+      msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.UNSUBSCRIBED)
+      expect(msg[1]).to.equal(2345)
+      expect(mockSocket.wampPkgWrite, 'unsubscription confirmed').to.have.been.called.twice()
     })
 
     it('cleanup Topic API', function () {
       var subSpy = chai.spy(function () {})
-      apx.subscribe('topic1', subSpy)
-      expect(apx.session().cleanupTrace(realm.engine)).to.equal(1)
-      expect(apx.session().cleanupTrace(realm.engine)).to.equal(0)
+      api.subscribe('topic1', subSpy)
+      expect(api.cleanupTrace(realm.engine)).to.equal(1)
+      expect(api.cleanupTrace(realm.engine)).to.equal(0)
       expect(subSpy).to.not.have.been.called()
     })
 
     it('PUBLISH default exclude_me:true', function () {
       var subSpy = chai.spy(function () {})
-      apx.subscribe('topic1', subSpy)
-      apx.publish('topic1', [], {})
+      api.subscribe('topic1', subSpy)
+      api.publish('topic1', [], {})
       expect(subSpy).to.not.have.been.called()
     })
 
     it('PUBLISH exclude_me:false', async () => {
       var subSpy = chai.spy(function () {})
-      await apx.subscribe('topic1', subSpy)
-      await apx.publish('topic1', {}, { exclude_me: false })
+      await api.subscribe('topic1', subSpy)
+      await api.publish('topic1', [], {}, { exclude_me: false })
       expect(subSpy).to.have.been.called.once()
     })
 
@@ -335,67 +313,56 @@ describe('20 wamp-realm', () => {
       var subSpy = chai.spy(function (a, b, c, d) {
         // console.log('Publish Event', a,b,c,d)
       })
-      apx.subscribe('topic1.*.item', subSpy)
-      apx.publish('topic1.123.item', {}, { exclude_me: false })
+      api.subscribe('topic1.*.item', subSpy)
+      api.publish('topic1.123.item', ['arg'], {}, { exclude_me: false })
       expect(subSpy).to.have.been.called.once()
     })
 
-    it('PUBLISH-to-remote', function () {
-      var subscriptionId = null
-
-      mockSocket.wampPkgWrite = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.SUBSCRIBED)
-          expect(msg[1]).to.equal(1234)
-          subscriptionId = msg[2]
-        }
-      )
+    it('PUBLISH-to-remote', () => {
       gate.handle(ctx, cli, [WAMP.SUBSCRIBE, 1234, {}, 'topic1'])
-      expect(mockSocket.wampPkgWrite, 'subscription confirmed').to.have.been.called.once()
+      let msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.SUBSCRIBED)
+      expect(msg[1]).to.equal(1234)
+      let subscriptionId = msg[2]
 
-      mockSocket.wampPkgWrite = chai.spy(
-        function (msg, callback) {
-          expect(msg[0]).to.equal(WAMP.EVENT)
-          expect(msg[1]).to.equal(subscriptionId)
-          // 2 published message Id
-          expect(msg[3].topic).to.equal('topic1')
-          expect(msg[3].publisher).to.equal(api.getSid())
-          expect(msg[4]).to.deep.equal(['arg.1', 'arg.2'])
-          expect(msg[5]).to.deep.equal({ foo: 'bar' })
-        }
-      )
-      apx.publish('topic1', ['arg.1', 'arg.2'], { foo: 'bar' })
-      expect(mockSocket.wampPkgWrite, 'publication received').to.have.been.called.once()
+      api.publish('topic1', ['arg1'], { foo: 'bar' }, {retain: true})
+      msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.EVENT)
+      expect(msg[1]).to.equal(subscriptionId)
+      // 2 published message Id
+      expect(msg[3]).to.deep.equal({topic:'topic1', publisher: api.getSid()})
+      expect(msg[4]).to.deep.equal(['arg1'])
+      expect(msg[5]).to.deep.equal({ foo: 'bar' })
+
+      expect(mockSocket.wampPkgWrite, 'publication received').to.have.been.called.twice()
     })
 
     it('SUBSCRIBE-to-remote-wamp', async () => {
-      let waitForEvent
-      let subSpy = chai.spy(
-        function (publicationId, args, kwargs) {
-          expect(args).to.deep.equal(['arg.1', 'arg.2'])
-          expect(kwargs).to.deep.equal({ foo: 'bar' })
-          waitForEvent()
-          waitForEvent = undefined
-        }
-      )
-      mockSocket.wampPkgWrite = chai.spy((msg, callback) => {
-        expect(msg[0]).to.equal(WAMP.PUBLISHED)
-        expect(msg[1]).to.equal(2345)
+      const publications = []
+      let subSpy = chai.spy((publicationId, args, kwargs) => {
+        publications.push([args, kwargs])
       })
-
       let subId = await api.subscribe('topic1', subSpy)
 
-      await new Promise((resolve, reject) => {
-        waitForEvent = resolve
-        gate.handle(ctx, cli, [WAMP.PUBLISH, 1234, {}, 'topic1', ['arg.1', 'arg.2'], { foo: 'bar' }])
-      })
+      gate.handle(ctx, cli, [WAMP.PUBLISH, 1234, {}, 'topic1', ['arg.11', 'arg.12'], { foo: 'bar1' }])
+      expect(socketHistory.length).to.equal(0) // no ack sent
+
+      let pub = publications.shift()
+      expect(pub[0] /* args */  ).to.deep.equal(['arg.11', 'arg.12'])
+      expect(pub[1] /* kwargs */).to.deep.equal({ foo: 'bar1' })
+
       expect(mockSocket.wampPkgWrite, 'ack is not requested').to.not.have.been.called()
 
-      await new Promise((resolve, reject) => {
-        waitForEvent = resolve
-        gate.handle(ctx, cli, [WAMP.PUBLISH, 2345, { acknowledge: true }, 'topic1', ['arg.1', 'arg.2'], { foo: 'bar' }])
-      })
+      gate.handle(ctx, cli, [WAMP.PUBLISH, 2345, { acknowledge: true }, 'topic1', ['arg.21', 'arg.22'], { foo: 'bar2' }])
+
       expect(mockSocket.wampPkgWrite, 'ack must be received').to.have.been.called.once()
+      let msg = socketHistory.shift()
+      expect(msg[0]).to.equal(WAMP.PUBLISHED)
+      expect(msg[1]).to.equal(2345)
+
+      pub = publications.shift()
+      expect(pub[0] /* args */  ).to.deep.equal(['arg.21', 'arg.22'])
+      expect(pub[1] /* kwargs */).to.deep.equal({ foo: 'bar2' })
 
       expect(subSpy, 'publication done').to.have.been.called.twice()
       expect(api.unsubscribe(subId)).to.equal('topic1')
@@ -429,8 +396,8 @@ describe('20 wamp-realm', () => {
       })
 
       gate.handle(ctx, cli, [WAMP.REGISTER, 1234, { reducer: true }, 'storage'])
-      apx.publish('storage', { data: 'init-value', count: 1 }, { retain: true })
-      apx.publish('storage', { data: 'value-to-reduce', count: 2 }, { retain: true })
+      api.publish('storage', [{ data: 'init-value', count: 1 }], {}, { retain: true })
+      api.publish('storage', [{ data: 'value-to-reduce', count: 2 }], {}, { retain: true })
 
       expect(mockSocket.wampPkgWrite).to.have.been.called.exactly(3)
     })
@@ -439,7 +406,7 @@ describe('20 wamp-realm', () => {
       const app = new MemKeyValueStorage()
       realm.registerKeyValueEngine(['cache', '*', 'name', '#'], app)
 
-      apx.publish('cache.user.name.john', { fullName: 'John Doe' }, { retain: true })
+      api.publish('cache.user.name.john', [{ fullName: 'John Doe' }], {}, { retain: true })
 
       const row = chai.spy((aKey, data) => {
         expect(aKey).to.deep.equal(['user', 'john'])

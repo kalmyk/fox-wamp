@@ -6,7 +6,7 @@ const expect = chai.expect
 const assert = chai.assert
 const promised = require('chai-as-promised')
 
-const { RESULT_OK, RESULT_ACK, RESULT_EMIT, REQUEST_EVENT, REQUEST_TASK } = require('../lib/messages')
+const { RESULT_ACK, RESULT_EMIT, RESULT_ERR, REQUEST_EVENT, REQUEST_TASK } = require('../lib/messages')
 const { HyperSocketFormatter, HyperApiContext, HyperClient } = require('../lib/hyper/client')
 
 chai.use(spies)
@@ -44,7 +44,7 @@ describe('10 clent', function () {
     expect(result.shift()).to.deep.equal({
       ft: 'ECHO',
       id: 1,
-      data: 1234
+      data: { kv: 1234 }
     })
 
     clientFormater.onMessage({
@@ -79,7 +79,7 @@ describe('10 clent', function () {
     clientFormater.onMessage({
       rsp: REQUEST_EVENT,
       uri: ['queue','name'],
-      data: 'event-pkg',
+      data: { kv: 'event-pkg' },
       id: 1
     })
 
@@ -109,7 +109,7 @@ describe('10 clent', function () {
       opt: { some: 'option', exclude_me: true },
       id: 1,
       ack: true,
-      data: { attr1: 1, attr2: 'value' }
+      data: { kv: { attr1: 1, attr2: 'value' } }
     })
 
     clientFormater.onMessage({
@@ -130,7 +130,7 @@ describe('10 clent', function () {
       opt: { some: 'option', exclude_me: true },
       id: 1,
       ack: false,
-      data: { attr1: 1, attr2: 'value' }
+      data: { kv: { attr1: 1, attr2: 'value' } }
     })
 
     await assert.isFulfilled(responsePromise)
@@ -145,17 +145,20 @@ describe('10 clent', function () {
       opt: { exclude_me: true },
       id: 1,
       ack: false,
-      data: { key: 'val' }
+      data: { kv: { key: 'val' } }
     })
   })
 
   it('create REGISTER command', async () => {
     const onTask = chai.spy((task, opt) => {
+      if (task == 'task-fail-on-error') {
+        throw new Error(task)
+      }
       result.push([task, opt.procedure])
       return 'task-result'
     })
 
-    const responsePromise = client.register('function.name', onTask, {some: 'option'})
+    const registrationPromise = client.register('function.name', onTask, {some: 'option'})
     expect(realmAdapterMock.send).to.have.been.called.once()
     expect(result.shift()).to.deep.equal({
       ft: 'REG',
@@ -170,12 +173,12 @@ describe('10 clent', function () {
       id: 1
     })
 
-    await assert.becomes(responsePromise, 'registration-id')
+    await assert.becomes(registrationPromise, 'registration-id')
 
     clientFormater.onMessage({
       rsp: REQUEST_TASK,
       uri: ['function','name'],
-      data: 'task-request-pkg',
+      data: { kv: 'task-request-pkg' },
       qid: 'task-id',
       id: 1
     })
@@ -184,6 +187,24 @@ describe('10 clent', function () {
       'task-request-pkg',
       'function.name'
     ])
+
+    // request for task comes to client, and client fails at that task
+    clientFormater.onMessage({
+      rsp: REQUEST_TASK,
+      uri: ['function','name'],
+      data: { kv: 'task-fail-on-error' },
+      qid: 'task-id',
+      id: 1
+    })
+
+    // realm is notified that task was failed
+    expect(result.shift()).to.deep.equal({
+      ft: 'YIELD',
+      err: 'error.callee_failure',
+      qid: 'task-id',
+      data: 'task-fail-on-error',
+      rqt: 'ERR'
+    })
 
     // expect(result.shift()).to.deep.equal([
     //   'task-result',
@@ -201,7 +222,7 @@ describe('10 clent', function () {
     })
   })
 
-  it('create CALL command', async () => {
+  it('create CALL done', async () => {
     const progressInfo = []
     const progressFunc = chai.spy((attr, opt) => {progressInfo.push([attr, opt])})
     const responsePromise = client.callrpc(
@@ -214,7 +235,7 @@ describe('10 clent', function () {
       ft: 'CALL',
       uri: ['function','name'],
       id: 1,
-      data: { attr1: 1, attr2: 'value' },
+      data: { kv: { attr1: 1, attr2: 'value' } },
       opt: {some: 'opt'}
     })
 
@@ -237,4 +258,28 @@ describe('10 clent', function () {
 
     await assert.becomes(responsePromise, 'response-package')
   })
+
+  it('create CALL failed', async () => {
+    const responsePromise = client.callrpc(
+      'function.name',
+      { attr1: 'value' }
+    )
+    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(result.shift()).to.deep.equal({
+      ft: 'CALL',
+      uri: ['function','name'],
+      id: 1,
+      data: { kv: { attr1: 'value' } },
+      opt: {}
+    })
+
+    clientFormater.onMessage({
+      rsp: RESULT_ERR,
+      data: 'error-text',
+      id: 1
+    })
+
+    await assert.isRejected(responsePromise, 'error-text')
+  })
+
 })

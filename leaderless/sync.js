@@ -7,7 +7,7 @@ const MSG = require('../lib/messages')
 const Router = require('../lib/router')
 const {BaseRealm, BaseEngine} = require('../lib/realm')
 const {QuorumEdge} = require('../lib/allot/quorum_edge')
-const WampGate = require('../lib/wamp/gate')
+const { WampGate } = require('../lib/wamp/gate')
 const WampServer = require('../lib/wamp/transport')
 const {mergeMin, keyDate, MakeId} = require('../lib/allot/makeid')
 
@@ -15,7 +15,7 @@ const makeId = new MakeId(() => keyDate(new Date()))
 const app = new Router()
 const realm = new BaseRealm(app, new BaseEngine())
 app.addRealm('ctrl', realm)
-const api = realm.foxApi()
+const api = realm.api()
 /*const server = */new WampServer(new WampGate(app), { port: conf_wamp_port })
 console.log('Listening WAMP port:', conf_wamp_port)
 
@@ -25,7 +25,7 @@ setInterval(()=>{makeId.update()}, 7000)
 const makeQuorum = new QuorumEdge((applicantId, value) => {
   const id = makeId.makeIdRec(value)
   console.log('draftSegmentId:', value, applicantId, '=>', id)
-  api.publish(['draftSegmentId'], {kv: {applicantId, runId: id}})
+  api.publish('draftSegmentId', {kv: {applicantId, runId: id}})
 }, (a,b) => Math.max(a,b))
 
 const syncQuorum = new QuorumEdge((advanceSegment, value) => {

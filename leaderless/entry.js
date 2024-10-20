@@ -11,11 +11,11 @@ const conf_id = process.env.ID
 
 const Router = require('../lib/router')
 const { BaseRealm } = require('../lib/realm')
-const WampGate = require('../lib/wamp/gate')
+const { WampGate } = require('../lib/wamp/gate')
 const WampServer = require('../lib/wamp/transport')
 const MqttServer = require('../lib/mqtt/transport')
 const { NetBinder, NetEngine } = require('../lib/allot/netbinder')
-const MqttGate = require('../lib/mqtt/gate')
+const { MqttGate } = require('../lib/mqtt/gate')
 
 const router = new Router()
 const binder = new NetBinder(router)

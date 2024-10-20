@@ -32,7 +32,7 @@ const runs = [
   {it: 'db',  mkEngine: mkDbEngine },
 ]
 
-describe('30 history', function () {
+describe('33 history', function () {
   runs.forEach(function (run) {
     describe('event-history:' + run.it, function () {
       let
@@ -44,53 +44,46 @@ describe('30 history', function () {
         router = new Router()
         realm = new BaseRealm(router, await run.mkEngine())
         router.addRealm('test-realm', realm)
-        api = realm.wampApi()
+        api = realm.api()
       })
     
       afterEach(function () {
-        assert.isFalse(api.hasSendError(), api.firstSendErrorMessage())
+        assert.isFalse(api.session().hasSendError(), api.session().firstSendErrorMessage())
       })
   
       it('receive-event-history:' + run.it, async () => {
-        let expectedData = [
-          {event:'row1'},
-          {event:'row2'},
-          {event:'row3'},
-        ]
+        let events = []
 
-        let startPos = await api.publish('test-topic', [], {event:'data'}, {acknowledge: true, trace: true})
+        let startPos = await api.publish('test-topic', {event:'data'}, {acknowledge: true, trace: true})
         expect(startPos, "startPos").to.exist
 
         await Promise.all([
-          api.publish('test-topic', [], {event:'row1'}, {acknowledge: true, trace: true}),
-          api.publish('test-topic', [], {event:'row2'}, {acknowledge: true, trace: true}),
-          api.publish('test-topic', [], {event:'row3'}, {acknowledge: true, trace: true}),
+          api.publish('test-topic', {event:'row1'}, {acknowledge: true, trace: true}),
+          api.publish('test-topic', {event:'row2'}, {acknowledge: true, trace: true}),
+          api.publish('test-topic', {event:'row3'}, {acknowledge: true, trace: true}),
+        ])
+        let doneEvents
+        const onEvent = event => {
+          events.push(event)
+          if (events.length >= 3) {
+            doneEvents(events)
+          }
+        }
+        const donePromise =  new Promise((resolve) => doneEvents = resolve)
+        let subId = await api.subscribe(
+          'test-topic',
+          onEvent,
+          {after: startPos}
+        )
+
+        expect(donePromise).to.eventually.equal([
+          {event:'row1'},
+          {event:'row2'},
+          {event:'row3'},
         ])
 
-        let subId
-        return new Promise((resolve, reject) => {  
-          return api.subscribe(
-            'test-topic',
-            (id, args, kwargs) => {
-              try {
-                // console.log('#', id, kwargs);
-                expect(kwargs).to.deep.equal(expectedData.shift())
-                if (expectedData.length == 0) {
-                  resolve(subId)
-                }
-              } catch (e) {
-                reject(e)
-              }
-            },
-            {after: startPos}
-          ).then((sub) => {
-            subId = sub
-          })
-        }).then((sub) => {
-          api.unsubscribe(subId)
-        })
+        await api.unsubscribe(subId)
       })
-    
     })
   })
 })

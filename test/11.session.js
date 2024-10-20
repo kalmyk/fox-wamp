@@ -4,9 +4,9 @@ const chai = require('chai')
 const spies = require('chai-spies')
 const expect = chai.expect
 
-const WAMP      = require('../lib/wamp/protocol')
-const WampGate  = require('../lib/wamp/gate')
-const FoxRouter = require('../lib/fox_router')
+const WAMP         = require('../lib/wamp/protocol')
+const { WampGate } = require('../lib/wamp/gate')
+const FoxRouter    = require('../lib/fox_router')
 
 chai.use(spies)
 

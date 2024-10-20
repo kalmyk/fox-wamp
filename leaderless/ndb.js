@@ -88,7 +88,7 @@ function mkGate(uri, gateId, history, modKv, heapApi) {
         session.publish('ackSegment', [], {advanceSegment, pkg: readyEvent})
 
         modKv.applySegment(heapEvent, (kind, outEvent) => {
-          heapApi.publish(['heapEvent'], outEvent)
+          heapApi.publish('heapEvent', outEvent)
           session.publish('dispatchEvent', [], outEvent)
           console.log('heapEvent', outEvent)
         }).then(() => {
@@ -120,15 +120,14 @@ async function main () {
 
   const router = new Router()
   const heap = router.getRealm('heap')
-  const heapApi = heap.foxApi()
-
+  
   mkSync('ws://127.0.0.1:9021/wamp', 1)
   mkSync('ws://127.0.0.1:9022/wamp', 2)
   mkSync('ws://127.0.0.1:9023/wamp', 3)
   
-  mkGate('ws://127.0.0.1:9031/wamp', 1, history, modKv, heapApi)
-  mkGate('ws://127.0.0.1:9032/wamp', 2, history, modKv, heapApi)
-  mkGate('ws://127.0.0.1:9033/wamp', 3, history, modKv, heapApi)
+  mkGate('ws://127.0.0.1:9031/wamp', 1, history, modKv, heap.api())
+  mkGate('ws://127.0.0.1:9032/wamp', 2, history, modKv, heap.api())
+  mkGate('ws://127.0.0.1:9033/wamp', 3, history, modKv, heap.api())
 }
 
 main().then(() => {

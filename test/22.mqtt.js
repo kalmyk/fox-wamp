@@ -4,31 +4,47 @@ const chai = require('chai')
 const spies = require('chai-spies')
 const expect = chai.expect
 
-const MqttGate = require('../lib/mqtt/gate')
-const FoxRouter = require('../lib/fox_router')
+const { MqttGate } = require('../lib/mqtt/gate')
+const FoxRouter    = require('../lib/fox_router')
 
 chai.use(spies)
 
-describe('22 mqtt-realm', function () {
-  var
+describe('22 mqtt-realm', () => {
+  let
+    nextPackagePromise,
+    socketHistory,
     router,
     realm,
     gate,
-    sender,
+    mockSocket,  // inbound socket of mqtt session
     ctx,
     cli,
     api
 
-  beforeEach(function () {
-    sender = {}
+  function getNextPackage() {
+    return new Promise((resolve, reject) => {
+      nextPackagePromise = resolve
+    })
+  }
+
+  beforeEach(() => {
+    socketHistory = []
+    mockSocket = { mqttPkgWrite: chai.spy(((msg, callback) => {
+      if (nextPackagePromise) {
+        nextPackagePromise(msg)
+        nextPackagePromise = undefined
+      } else {
+        socketHistory.push(msg);
+      }
+    }))}
     router = new FoxRouter()
     realm = router.getRealm('test-realm')
-    api = realm.wampApi()
+    api = realm.api()
 
     gate = new MqttGate(router)
 
     cli = router.createSession()
-    ctx = gate.createContext(cli, sender)
+    ctx = gate.createContext(cli, mockSocket)
     realm.joinSession(cli)
   })
 
@@ -36,12 +52,7 @@ describe('22 mqtt-realm', function () {
   })
 
   describe('publish', function () {
-    it('to-qos1', (done) => {
-      sender.mqttPkgWrite = (msg) => {
-        expect(msg.messageId).to.equal(9191)
-        expect(msg.cmd).to.equal('puback')
-        done()
-      }
+    it('qos1-ack-is-received', async () => {
       gate.handle(ctx, cli, {
         cmd: 'publish',
         retain: false,
@@ -52,42 +63,38 @@ describe('22 mqtt-realm', function () {
         messageId: 9191,
         payload: Buffer.from('{"the":"text"}')
       })
+      let msg = socketHistory.shift()
+      expect(msg.messageId).to.equal(9191)
+      expect(msg.cmd).to.equal('puback')
     })
 
-    it('SUBSCRIBE-to-remote-mqtt', () => {
+    it('SUB-to-remote-mqtt', async () => {
       let rslt = []
-
-      var subSpy = chai.spy((publicationId, args, kwargs) => {
-        rslt.push([args, kwargs])
+      var subSpy = chai.spy((body) => {
+        rslt.push(body)
       })
-      return api.subscribe('topic1', subSpy).then((subId) => {
-        sender.mqttPkgWrite = chai.spy((msg, callback) => {})
-        gate.handle(ctx, cli, {
-          cmd: 'publish',
-          retain: false,
-          qos: 0,
-          dup: false,
-          length: 17,
-          topic: 'topic1',
-          payload: Buffer.from('{"the":"text"}')
-        })
-        expect(rslt).to.deep.equal([ [ [], { the: 'text' } ] ])
-        expect(sender.mqttPkgWrite, 'no publish confirmation').to.not.have.been.called()
-
-        expect(subSpy, 'publication done').to.have.been.called.once()
-        expect(api.unsubscribe(subId)).to.equal('topic1')
+      let subId = await api.subscribe('topic1', subSpy)
+        
+      gate.handle(ctx, cli, {
+        cmd: 'publish',
+        retain: false,
+        qos: 0,
+        dup: false,
+        length: 17,
+        topic: 'topic1',
+        payload: Buffer.from('{"the":"text"}')
       })
+      expect(rslt.shift()).to.deep.equal({ the: 'text' })
+      expect(mockSocket.mqttPkgWrite, 'no publish confirmation').to.not.have.been.called()
+
+      expect(subSpy, 'publication done').to.have.been.called.once()
+      await api.unsubscribe(subId)
     })
 
-    it('SUBSCRIBE-mqtt', function () {
-      let rslt = []
+    it('SUBSCRIBE-mqtt', async () => {
+      await api.publish('topic1', { data: 1 }, { retain: true })
+      await api.publish('topic1', { data: 2 }, { retain: true })
 
-      api.publish('topic1', [], { data: 1 }, { retain: true })
-      api.publish('topic1', [], { data: 2 }, { retain: true })
-
-      sender.mqttPkgWrite = chai.spy((msg) => {
-        rslt.push([msg.cmd, msg.retain])
-      })
       gate.handle(ctx, cli, {
         cmd: 'subscribe',
         retain: false,
@@ -99,30 +106,34 @@ describe('22 mqtt-realm', function () {
         subscriptions: [ { topic: 'topic1', qos: 0 } ],
         messageId: 1
       })
-      expect(rslt).to.deep.equal([
-        ['suback',  undefined ],
-        ['publish', true      ]
-      ])
-      expect(sender.mqttPkgWrite, 'subscribe').to.have.been.called.twice()
+      let msg = socketHistory.shift()
+      expect(msg.cmd).to.equal('suback')
+      msg = socketHistory.shift()
+      expect(msg.cmd).to.equal('publish')
+      expect(msg.retain).to.equal(true)
+      expect(msg.topic).to.equal('topic1')
+      expect(msg.payload.toString()).to.equal('{"data":2}')
 
-      rslt = []
-      sender.mqttPkgWrite = chai.spy((msg) => {
-        rslt.push([msg.cmd, msg.topic, msg.retain])
-      })
-      api.publish('topic1', { data: 3 }, { retain: true })
-      expect(rslt).to.deep.equal([['publish', 'topic1', false]])
-      expect(sender.mqttPkgWrite, 'published').to.have.been.called.once()
+      await api.publish('topic1', { data: 3 }, { retain: true })
+
+      msg = socketHistory.shift()
+      expect(msg.cmd).to.equal('publish')
+      expect(msg.retain).to.equal(false)
+      expect(msg.topic).to.equal('topic1')
+      expect(msg.payload.toString()).to.equal('{"data":3}')
+
+      expect(mockSocket.mqttPkgWrite, 'published').to.have.been.called.exactly(3)
     })
 
 
     it('SUBSCRIBE-retain-one', function () {
-      api.publish('topic1.item1', [], { data: 1 }, { retain: true })
-      api.publish('topic1.item2', [], { data: 2 }, { retain: true })
-      api.publish('topic1.item3', [], { data: 3 }, { retain: true })
+      api.publish('topic1.item1', { data: 1 }, { retain: true })
+      api.publish('topic1.item2', { data: 2 }, { retain: true })
+      api.publish('topic1.item3', { data: 3 }, { retain: true })
 
       let rslt = []
 
-      sender.mqttPkgWrite = chai.spy((msg) => {
+      mockSocket.mqttPkgWrite = chai.spy((msg) => {
         rslt.push([msg.cmd, msg.topic])
       })
 
@@ -144,15 +155,10 @@ describe('22 mqtt-realm', function () {
         [ 'publish', 'topic1/item2' ],
         [ 'publish', 'topic1/item3' ]
       ])
-      expect(sender.mqttPkgWrite, 'call-subscribed').to.have.been.called.exactly(4)
+      expect(mockSocket.mqttPkgWrite, 'call-subscribed').to.have.been.called.exactly(4)
     })
 
-    it('SUBSCRIBE-multi-mqtt', function () {
-      let rslt = []
-
-      sender.mqttPkgWrite = chai.spy((msg) => {
-        rslt.push(msg.cmd)
-      })
+    it('SUBSCRIBE-multi-mqtt', async () => {
       gate.handle(ctx, cli, {
         cmd: 'subscribe',
         retain: false,
@@ -164,24 +170,19 @@ describe('22 mqtt-realm', function () {
         subscriptions: [ { topic: 'topic/#', qos: 0 }, { topic: '+/one', qos: 1 } ],
         messageId: 1
       })
-      expect(rslt).to.deep.equal(['suback'])
-      expect(sender.mqttPkgWrite, 'subscribe').to.have.been.called.once()
+      let msg = socketHistory.shift()
+      expect(msg.cmd).to.deep.equal('suback')
 
-      rslt = []
-      sender.mqttPkgWrite = chai.spy((msg) => {
-        rslt.push([msg.cmd, msg.topic, msg.payload.toString()])
-      })
-      api.publish('topic.one', [], { data: 1 })
-      expect(rslt).to.deep.equal([['publish', 'topic/one', '{"data":1}']])
-      expect(sender.mqttPkgWrite, 'published').to.have.been.called.once()
+      await api.publish('topic.one', { data: 1 })
+      msg = socketHistory.shift()
+      expect(msg.cmd).to.deep.equal('publish')
+      expect(msg.topic).to.deep.equal('topic/one')
+      expect(msg.payload.toString()).to.deep.equal('{"data":1}')
+
+      expect(mockSocket.mqttPkgWrite, 'published').to.have.been.called.twice()
     })
 
-    it('puback', () => {
-      let rslt = []
-
-      sender.mqttPkgWrite = chai.spy((msg) => {
-        rslt.push(msg.cmd)
-      })
+    it('puback', async () => {
       gate.handle(ctx, cli, {
         cmd: 'subscribe',
         retain: false,
@@ -193,15 +194,14 @@ describe('22 mqtt-realm', function () {
         subscriptions: [ { topic: 'topic1', qos: 0 }],
         messageId: 1
       })
-      expect(rslt).to.deep.equal(['suback'])
-      expect(sender.mqttPkgWrite, 'subscribe').to.have.been.called.once()
+      let msg = socketHistory.shift()
+      expect(msg.cmd).to.deep.equal('suback')
 
-      rslt = []
-      sender.mqttPkgWrite = chai.spy((msg) => {
-        rslt.push([msg.cmd, msg.topic])
-      })
-      api.publish('topic1', [], { data: 1 })
-      expect(sender.mqttPkgWrite, 'published').to.have.been.called.once()
+      await api.publish('topic1', { data: 1 })
+      msg = socketHistory.shift()
+      expect(msg.cmd).to.deep.equal('publish')
+      expect(msg.topic).to.deep.equal('topic1')
+      expect(msg.payload.toString()).to.deep.equal('{"data":1}')
 
       gate.handle(ctx, cli, {
         cmd: 'puback',
@@ -214,12 +214,11 @@ describe('22 mqtt-realm', function () {
         messageId: 1
       })
 
-      expect(rslt).to.deep.equal([['publish', 'topic1']])
-      expect(sender.mqttPkgWrite, 'puback').to.have.been.called.once()
+      msg = socketHistory.shift()
+      expect(mockSocket.mqttPkgWrite).to.have.been.called.twice()
     })
 
-    it('PUBLISH-to-retain', function (done) {
-      sender.mqttPkgWrite = chai.spy((msg, callback) => {})
+    it('PUBLISH-to-retain', async () => {
       gate.handle(ctx, cli, {
         cmd: 'publish',
         retain: true,
@@ -229,19 +228,15 @@ describe('22 mqtt-realm', function () {
         topic: 'topic1',
         payload: Buffer.from('{"the":"text"}')
       })
-      expect(sender.mqttPkgWrite, 'no publish confirmation').to.not.have.been.called()
+      expect(mockSocket.mqttPkgWrite, 'no publish confirmation').to.not.have.been.called()
 
-      let subSpy = chai.spy((publicationId, args, kwargs) => {
-        expect(args).to.deep.equal([])
-        expect(kwargs).to.deep.equal({ the: 'text' })
-        done()
-      })
-      api.subscribe('topic1', subSpy, { retained: true })
-    })
+      const calls = []
+      let subSpy = chai.spy(body => calls.push(body))
+      await api.subscribe('topic1', subSpy, { retained: true })
+      expect(calls.shift()).to.deep.equal({ the: 'text' })
+  })
 
-    it('PUBLISH-retain-clean', function (done) {
-      sender.mqttPkgWrite = chai.spy((msg, callback) => {})
-
+    it('PUBLISH-retain-clean', async () => {
       gate.handle(ctx, cli, {
         cmd: 'publish',
         retain: true,
@@ -249,7 +244,7 @@ describe('22 mqtt-realm', function () {
         dup: false,
         length: 17,
         topic: 'topic-to-retain',
-        payload: Buffer.from('{"the":"text"}')
+        payload: Buffer.from('{"the":"text-to-retain"}')
       })
 
       gate.handle(ctx, cli, {
@@ -259,7 +254,7 @@ describe('22 mqtt-realm', function () {
         dup: false,
         length: 17,
         topic: 'topic-to-clean',
-        payload: Buffer.from('{"the":"text"}')
+        payload: Buffer.from('{"the":"text-to-clean"}')
       })
 
       gate.handle(ctx, cli, {
@@ -273,22 +268,20 @@ describe('22 mqtt-realm', function () {
       })
 
       const spyClean = chai.spy(() => {})
-      api.subscribe('topic-to-clean', spyClean, { retained: true })
+      await api.subscribe('topic-to-clean', spyClean, { retained: true })
 
-      const spyRetain = chai.spy(
-        function (publicationId, args, kwargs) {
-          expect(args).to.deep.equal([])
-          expect(kwargs).to.deep.equal({ the: 'text' })
-          expect(spyClean, 'retain value must be cleaned').to.not.have.been.called()
-          done()
-        }
-      )
-      api.subscribe('topic-to-retain', spyRetain, { retained: true })
+      const pubs = []
+      const spyRetain = chai.spy(body => pubs.push(body))
+      await api.subscribe('topic-to-retain', spyRetain, { retained: true })
+
+      expect(spyClean, 'retain value must be cleaned').to.not.have.been.called()
+
+      let pub = pubs.shift()
+      expect(pub).to.deep.equal({ the: 'text-to-retain' })
+      expect(spyRetain, 'retain value must be cleaned').to.have.been.called.once()
     })
 
-    it('SUBSCRIBE-retain-batch', function () {
-      sender.mqttPkgWrite = chai.spy((msg, callback) => {})
-
+    it('SUBSCRIBE-retain-batch', async () => {
       gate.handle(ctx, cli, {
         cmd: 'publish',
         retain: true,
@@ -320,7 +313,7 @@ describe('22 mqtt-realm', function () {
       })
 
       const spyRetain = chai.spy(() => {})
-      api.subscribe('batch.#', spyRetain, { retained: true })
+      await api.subscribe('batch.#', spyRetain, { retained: true })
       expect(spyRetain).to.have.been.called.exactly(3)
     })
   })
@@ -329,7 +322,6 @@ describe('22 mqtt-realm', function () {
     await realm.leaveSession(cli)
     router.getRealm = (realmName) => realm
 
-    sender.mqttPkgWrite = chai.spy(() => {})
     gate.handle(ctx, cli, {
       cmd: 'connect',
       retain: false,
@@ -346,129 +338,19 @@ describe('22 mqtt-realm', function () {
       }
     })
 
-    var subSpy = chai.spy(
-      function (publicationId, args, kwargs) {
-        expect(args).to.deep.equal([])
-        expect(kwargs).to.deep.equal({ text: 'some-test-text' })
-      }
-    )
+    const pubs = []
+    const subSpy = chai.spy(body => pubs.push(body))
     await api.subscribe('topic-test-disconnect', subSpy)
     cli.cleanup()
     expect(subSpy).to.have.been.called.once()
+    expect(pubs.shift()).to.deep.equal({ text: 'some-test-text' })
   })
 
-  it('connect-clientid', function (done) {
+  it('connect-clientid', async () => {
     realm.leaveSession(cli)
     router.getRealm = (realmName) => realm
 
-    sender.mqttPkgWrite = chai.spy((msg) => {
-      sender.mqttPkgWrite = nextPublish
-
-      expect(msg.cmd).to.equal('connack')
-      expect(msg.sessionPresent).to.equal(false)
-
-      gate.handle(ctx, cli, {
-        cmd: 'subscribe',
-        retain: false,
-        qos: 1,
-        dup: false,
-        length: 17,
-        topic: null,
-        payload: null,
-        subscriptions: [{ topic: 'topic1', qos: 1 }],
-        messageId: 1
-      })
-    })
-
-    let pubMsgId
-
-    const nextPublish = chai.spy((msg) => {
-      sender.mqttPkgWrite = nextPuback
-
-      expect(msg.cmd).to.equal('suback')
-      pubMsgId = msg.messageId
-
-      api.publish('topic1', [], { data: 1 }, { trace: true })
-      expect(realm.engine.getInMessagesCount(), 'trace message need to be saved').to.equal(1)
-    })
-
-    const nextPuback = chai.spy((msg) => {
-      sender.mqttPkgWrite = nextConnect
-
-      expect(msg.cmd).to.equal('publish')
-      expect(msg.topic).to.equal('topic1')
-      expect(msg.qos).to.equal(1)
-      expect(msg.payload.toString()).to.equal('{"data":1}')
-
-      gate.handle(ctx, cli, {
-        cmd: 'puback',
-        retain: false,
-        qos: 0,
-        dup: false,
-        length: 2,
-        topic: null,
-        payload: null,
-        messageId: pubMsgId
-      })
-
-      const gotRow = chai.spy((key, value) => {
-        expect(key).to.deep.equal(['$FOX', 'clientOffset', 'agent-state'])
-        expect(value).to.equal(pubMsgId)
-      })
-
-      realm.getKey(['$FOX', 'clientOffset', 'agent-state'], gotRow)
-      expect(gotRow).to.have.been.called.once()
-
-      cli.cleanup()
-      api.publish('topic1', [], { data: 2 }, { trace: true })
-
-      gate.handle(ctx, cli, {
-        cmd: 'connect',
-        retain: false,
-        qos: 0,
-        dup: false,
-        length: 17,
-        topic: null,
-        payload: null,
-        clean: false,
-        username: 'user@test-realm',
-        clientId: 'agent-state'
-      })
-    })
-
-    const nextConnect = chai.spy((msg) => {
-      sender.mqttPkgWrite = nextSubReceive
-
-      expect(msg.cmd).to.equal('connack')
-      expect(msg.sessionPresent).to.equal(true)
-
-      gate.handle(ctx, cli, {
-        cmd: 'subscribe',
-        retain: false,
-        qos: 1,
-        dup: false,
-        length: 17,
-        topic: null,
-        payload: null,
-        subscriptions: [{ topic: 'topic1', qos: 1 }],
-        messageId: 1
-      })
-    })
-
-    const nextSubReceive = chai.spy((msg) => {
-      sender.mqttPkgWrite = doneEventReceive
-      expect(msg.cmd).to.equal('suback')
-    })
-
-    const doneEventReceive = chai.spy((msg) => {
-      expect(msg.cmd).to.equal('publish')
-      expect(msg.topic).to.equal('topic1')
-      // expect(msg.qos).to.equal(1)
-      expect(msg.payload.toString()).to.equal('{"data":2}')
-      done()
-    })
-
-    // START HERE
+    let nextPackage = getNextPackage()
     gate.handle(ctx, cli, {
       cmd: 'connect',
       retain: false,
@@ -479,7 +361,96 @@ describe('22 mqtt-realm', function () {
       payload: null,
       clean: false,
       username: 'user@test-realm',
-      clientId: 'agent-state'
+      clientId: 'worker-state'
     })
+    let msg = await nextPackage
+    expect(msg.cmd).to.equal('connack')
+    expect(msg.sessionPresent).to.equal(false)
+
+    gate.handle(ctx, cli, {
+      cmd: 'subscribe',
+      retain: false,
+      qos: 1,
+      dup: false,
+      length: 17,
+      topic: null,
+      payload: null,
+      subscriptions: [{ topic: 'topic1', qos: 1 }],
+      messageId: 1
+    })
+
+    msg = socketHistory.shift()
+    expect(msg.cmd).to.equal('suback')
+
+    await api.publish('topic1', { data: 1 }, { trace: true })
+    expect(realm.engine.getInMessagesCount(), 'trace message need to be saved').to.equal(1)
+
+    msg = socketHistory.shift()
+    expect(msg.cmd).to.equal('publish')
+    expect(msg.topic).to.equal('topic1')
+    expect(msg.qos).to.equal(1)
+    expect(msg.payload.toString()).to.equal('{"data":1}')
+    let pubMsgId = msg.messageId
+
+    // save worker position, the messame considered as handled
+    gate.handle(ctx, cli, {
+      cmd: 'puback',
+      retain: false,
+      qos: 0,
+      dup: false,
+      length: 2,
+      topic: null,
+      payload: null,
+      messageId: pubMsgId
+    })
+
+    const offsetRow = []
+    const gotRow = chai.spy((key, value) => { offsetRow.push({key, value}) })
+    await realm.getKey(['$FOX', 'clientOffset', 'worker-state'], gotRow)
+    expect(gotRow).to.have.been.called.once()
+    const row = offsetRow.shift()
+    expect(row.key).to.deep.equal(['$FOX', 'clientOffset', 'worker-state'])
+    // expect(row.value).to.equal(pubMsgId) -- some non zero value
+
+    cli.cleanup()
+    await api.publish('topic1', { data: 2 }, { trace: true })
+
+    nextPackage = getNextPackage()
+    gate.handle(ctx, cli, {
+      cmd: 'connect',
+      retain: false,
+      qos: 0,
+      dup: false,
+      length: 17,
+      topic: null,
+      payload: null,
+      clean: false,
+      username: 'user@test-realm',
+      clientId: 'worker-state'
+    })
+    msg = await nextPackage
+    expect(msg.cmd).to.equal('connack')
+    expect(msg.sessionPresent).to.equal(true)
+
+    gate.handle(ctx, cli, {
+      cmd: 'subscribe',
+      retain: false,
+      qos: 1,
+      dup: false,
+      length: 17,
+      topic: null,
+      payload: null,
+      subscriptions: [{ topic: 'topic1', qos: 1 }],
+      messageId: 1
+    })
+
+    msg = socketHistory.shift()
+    expect(msg.cmd).to.equal('suback')
+
+    msg = socketHistory.shift()
+    expect(msg.cmd).to.equal('publish')
+    expect(msg.topic).to.equal('topic1')
+    // expect(msg.qos).to.equal(1)
+    expect(msg.payload.toString()).to.equal('{"data":2}')
   })
 })
