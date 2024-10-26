@@ -6,7 +6,7 @@ const expect = chai.expect
 const assert = chai.assert
 const promised = require('chai-as-promised')
 
-const { RESULT_ACK, RESULT_EMIT, RESULT_ERR, REQUEST_EVENT, REQUEST_TASK } = require('../lib/messages')
+const { RESULT_OK, RESULT_ACK, RESULT_EMIT, RESULT_ERR, REQUEST_EVENT, REQUEST_TASK } = require('../lib/messages')
 const { HyperSocketFormatter, HyperApiContext, HyperClient } = require('../lib/hyper/client')
 
 chai.use(spies)
@@ -22,7 +22,7 @@ describe('10 clent', function () {
 
   beforeEach(function () {
     result = []
-    realmAdapterMock = { send: chai.spy(
+    realmAdapterMock = { hyperPkgWrite: chai.spy(
       (command) => result.push(command)
     )}
     clientFormater = new HyperSocketFormatter(realmAdapterMock)
@@ -40,7 +40,7 @@ describe('10 clent', function () {
 
   it('create ECHO command', async () => {
     const responsePromise = client.echo(1234)
-    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(realmAdapterMock.hyperPkgWrite).to.have.been.called.once()
     expect(result.shift()).to.deep.equal({
       ft: 'ECHO',
       id: 1,
@@ -48,8 +48,8 @@ describe('10 clent', function () {
     })
 
     clientFormater.onMessage({
-      rsp: RESULT_ACK,
-      data: 'echo-pkg',
+      rsp: RESULT_OK,
+      data: { kv: 'echo-pkg' },
       id: 1
     })
 
@@ -60,7 +60,7 @@ describe('10 clent', function () {
     const onEvent = chai.spy((msg, opt) => result.push([msg, opt]))
 
     const responsePromise = client.subscribe('function.name', onEvent, {some: 'option'})
-    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(realmAdapterMock.hyperPkgWrite).to.have.been.called.once()
     expect(result.shift()).to.deep.equal({
       ft: 'TRACE',
       uri: ['function','name'],
@@ -70,29 +70,30 @@ describe('10 clent', function () {
 
     clientFormater.onMessage({
       rsp: RESULT_ACK,
-      data: 'subscr-response-pkg',
+      qid: 'server-subscription-id',
       id: 1
     })
 
-    await assert.becomes(responsePromise, 'subscr-response-pkg')
+    await assert.becomes(responsePromise, 'server-subscription-id')
 
     clientFormater.onMessage({
       rsp: REQUEST_EVENT,
       uri: ['queue','name'],
       data: { kv: 'event-pkg' },
-      id: 1
+      id: 1,
+      qid: 1234567
     })
 
     // TODO: where is publication-id in opt?
     expect(result.shift()).to.deep.equal([
       'event-pkg',
-      {topic: 'queue.name'}
+      {topic: 'queue.name', publication: 1234567}
     ])
   })
 
   it('create UNSUBSCRIBE command', async () => {
     client.unsubscribe('sub-id')
-    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(realmAdapterMock.hyperPkgWrite).to.have.been.called.once()
     expect(result.shift()).to.deep.equal({
       ft: 'UNTRACE',
       id: 1,
@@ -102,7 +103,7 @@ describe('10 clent', function () {
 
   it('create-PUB-confirm', async () => {
     const responsePromise = client.publish('queue.name', { attr1: 1, attr2: 'value' }, { some: 'option', acknowledge: true })
-    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(realmAdapterMock.hyperPkgWrite).to.have.been.called.once()
     expect(result.shift()).to.deep.equal({
       ft: 'PUSH',
       uri: ['queue', 'name'],
@@ -114,7 +115,7 @@ describe('10 clent', function () {
 
     clientFormater.onMessage({
       rsp: RESULT_ACK,
-      data: 'publication-id',
+      qid: 'publication-id',
       id: 1
     })
 
@@ -123,7 +124,7 @@ describe('10 clent', function () {
 
   it('create-PUB-no-confirm', async () => {
     const responsePromise = client.publish('queue.name', { attr1: 1, attr2: 'value' }, { some: 'option' })
-    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(realmAdapterMock.hyperPkgWrite).to.have.been.called.once()
     expect(result.shift()).to.deep.equal({
       ft: 'PUSH',
       uri: ['queue', 'name'],
@@ -138,7 +139,7 @@ describe('10 clent', function () {
 
   it('create-PUSH-no-opt', function () {
     client.publish('function.queue.name', { key: 'val' })
-    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(realmAdapterMock.hyperPkgWrite).to.have.been.called.once()
     expect(result.shift()).to.deep.equal({
       ft: 'PUSH',
       uri: ['function', 'queue', 'name'],
@@ -159,7 +160,7 @@ describe('10 clent', function () {
     })
 
     const registrationPromise = client.register('function.name', onTask, {some: 'option'})
-    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(realmAdapterMock.hyperPkgWrite).to.have.been.called.once()
     expect(result.shift()).to.deep.equal({
       ft: 'REG',
       uri: ['function','name'],
@@ -169,7 +170,7 @@ describe('10 clent', function () {
 
     clientFormater.onMessage({
       rsp: RESULT_ACK,
-      data: 'registration-id',
+      qid: 'registration-id',
       id: 1
     })
 
@@ -214,7 +215,7 @@ describe('10 clent', function () {
 
   it('create UNREGISTER command', async () => {
     client.unregister('reg-id')
-    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(realmAdapterMock.hyperPkgWrite).to.have.been.called.once()
     expect(result.shift()).to.deep.equal({
       ft: 'UNREG',
       id: 1,
@@ -230,7 +231,7 @@ describe('10 clent', function () {
       { attr1: 1, attr2: 'value' },
       {some: 'opt', progress: progressFunc}
     )
-    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(realmAdapterMock.hyperPkgWrite).to.have.been.called.once()
     expect(result.shift()).to.deep.equal({
       ft: 'CALL',
       uri: ['function','name'],
@@ -241,7 +242,7 @@ describe('10 clent', function () {
 
     clientFormater.onMessage({
       rsp: RESULT_EMIT,
-      data: 'progress-package',
+      data: { kv: 'progress-package' },
       id: 1
     })
     expect(progressFunc).to.have.been.called.once()
@@ -251,12 +252,12 @@ describe('10 clent', function () {
     ])
 
     clientFormater.onMessage({
-      rsp: RESULT_ACK,
-      data: 'response-package',
+      rsp: RESULT_OK,
+      data: { kv: 'call-response-package' },
       id: 1
     })
 
-    await assert.becomes(responsePromise, 'response-package')
+    await assert.becomes(responsePromise, 'call-response-package')
   })
 
   it('create CALL failed', async () => {
@@ -264,7 +265,7 @@ describe('10 clent', function () {
       'function.name',
       { attr1: 'value' }
     )
-    expect(realmAdapterMock.send).to.have.been.called.once()
+    expect(realmAdapterMock.hyperPkgWrite).to.have.been.called.once()
     expect(result.shift()).to.deep.equal({
       ft: 'CALL',
       uri: ['function','name'],

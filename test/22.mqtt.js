@@ -34,7 +34,7 @@ describe('22 mqtt-realm', () => {
         nextPackagePromise(msg)
         nextPackagePromise = undefined
       } else {
-        socketHistory.push(msg);
+        socketHistory.push(msg)
       }
     }))}
     router = new FoxRouter()
@@ -234,7 +234,7 @@ describe('22 mqtt-realm', () => {
       let subSpy = chai.spy(body => calls.push(body))
       await api.subscribe('topic1', subSpy, { retained: true })
       expect(calls.shift()).to.deep.equal({ the: 'text' })
-  })
+    })
 
     it('PUBLISH-retain-clean', async () => {
       gate.handle(ctx, cli, {

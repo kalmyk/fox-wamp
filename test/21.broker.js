@@ -24,7 +24,7 @@ describe('21 hyper-broker', () => {
   runs.forEach(function (run) {
     describe('binder:' + run.it, function () {
       let
-        result,
+        socketHistory,
         router,
         gate,
         socketMock,
@@ -33,8 +33,8 @@ describe('21 hyper-broker', () => {
         session
   
       beforeEach(() => {
-        result = []
-        socketMock = { hyperPkgWrite: chai.spy((msg) => result.push(msg)) }
+        socketHistory = []
+        socketMock = { hyperPkgWrite: chai.spy((msg) => socketHistory.push(msg)) }
         router = new Router()
         realm = new BaseRealm(router, run.mkEngine())
         router.addRealm('test-realm', realm)
@@ -50,7 +50,7 @@ describe('21 hyper-broker', () => {
           session.cleanup()
           session = null
         }
-        result = null
+        socketHistory = null
       })
   
       it('echo should return OK with sent data', () => {
@@ -63,7 +63,7 @@ describe('21 hyper-broker', () => {
         })
         expect(socketMock.hyperPkgWrite).to.have.been.called.once()
 
-        expect(result.shift()).to.deep.equal({
+        expect(socketHistory.shift()).to.deep.equal({
           rsp: RESULT_OK,
           id: id,
           data: { body: 'data package' }
@@ -79,7 +79,7 @@ describe('21 hyper-broker', () => {
         })
         expect(socketMock.hyperPkgWrite).to.have.been.called.once()
 
-        expect(result.shift()).to.deep.equal({
+        expect(socketHistory.shift()).to.deep.equal({
           rsp: RESULT_ERR,
           ft: 'YIELD',
           id: 1234,
@@ -90,7 +90,7 @@ describe('21 hyper-broker', () => {
         })
       })
     
-      it('call should return error with no subscribers', function () {
+      it('call returns error if there is no registration', () => {
         const id = 12
     
         gate.handle(ctx, session, {
@@ -100,7 +100,7 @@ describe('21 hyper-broker', () => {
         })
         expect(socketMock.hyperPkgWrite).to.have.been.called.once()
 
-        expect(result.shift()).to.deep.equal({
+        expect(socketHistory.shift()).to.deep.equal({
           rsp: RESULT_ERR,
           ft: 'CALL',
           id: id,
@@ -120,7 +120,7 @@ describe('21 hyper-broker', () => {
           if (msg.id === idSub) {
             expect(msg.id).to.equal(idSub)
             expect(msg.rsp).to.equal(RESULT_ACK)
-            regSub = msg.data
+            regSub = msg.qid
           } else {
             expect(msg).to.deep.equal({
               rsp: RESULT_OK,
@@ -147,33 +147,33 @@ describe('21 hyper-broker', () => {
       it('should-unTrace', function () {
         const idTrace = 11
         const idUnTrace = 12
-        let regTrace
 
-        socketMock.hyperPkgWrite = chai.spy((msg) => {
-          if (msg.id === idTrace) {
-            expect(msg.rsp).to.equal(RESULT_ACK)
-            expect(msg.id).to.equal(idTrace)
-            regTrace = msg.data
-          } else {
-            expect(msg).to.deep.equal({
-              rsp: RESULT_OK,
-              id: idUnTrace
-            })
-          }
-        })
         gate.handle(ctx, session, {
           ft: 'TRACE',
           uri: ['testQ'],
           id: idTrace,
           opt: {}
         })
+        let msg = socketHistory.shift()
+        expect(msg.rsp).to.equal(RESULT_ACK)
+        expect(msg.id).to.equal(idTrace)
+        let regTrace = msg.qid
 
         gate.handle(ctx, session, {
           ft: 'UNTRACE',
           unr: regTrace,
           id: idUnTrace
         })
-        expect(socketMock.hyperPkgWrite).to.have.been.called.twice()
+        expect(socketHistory.shift()).to.deep.equal({
+          rsp: RESULT_OK,
+          id: idTrace,
+          qid: regTrace
+        })
+        expect(socketHistory.shift()).to.deep.equal({
+          rsp: RESULT_OK,
+          id: idUnTrace
+        })
+        expect(socketMock.hyperPkgWrite).to.have.been.called.exactly(3)
       })
 
       it('no-storage-error:' + run.it, async function () {
@@ -186,7 +186,7 @@ describe('21 hyper-broker', () => {
 
         expect(socketMock.hyperPkgWrite).to.have.been.called.once()
 
-        expect(result.shift()).to.deep.equal({
+        expect(socketHistory.shift()).to.deep.equal({
           id: 123,
           ft: 'PUSH',
           rsp: 'ERR',

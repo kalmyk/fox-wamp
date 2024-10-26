@@ -35,8 +35,6 @@ var connection = new autobahn.Connection({
 })
 
 connection.onopen = function (session) {
-  var reg = null
-  var reg2 = null
 
   function utcprogress (args, kwargs, options) {
     console.log('Someone is calling utc function', args, kwargs, options)
@@ -61,7 +59,6 @@ connection.onopen = function (session) {
   session.register('com.timeservice.now', utcprogress).then(
     function (registration) {
       console.log('Procedure registered:', registration.id)
-      reg = registration
     },
     function (error) {
       console.log('Registration failed:', error)
@@ -77,7 +74,6 @@ connection.onopen = function (session) {
   session.register('com.echoservice.echo', echo).then(
     function (registration) {
       console.log('Procedure echo registered:', registration.id)
-      reg2 = registration
     },
     function (error) {
       console.log('Registration failed:', error)

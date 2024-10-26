@@ -305,7 +305,7 @@ describe('20 wamp-realm', () => {
     it('PUBLISH exclude_me:false', async () => {
       var subSpy = chai.spy(function () {})
       await api.subscribe('topic1', subSpy)
-      await api.publish('topic1', [], {}, { exclude_me: false })
+      await api.publish('topic1', [], {}, { acknowledge: true, exclude_me: false })
       expect(subSpy).to.have.been.called.once()
     })
 
@@ -314,7 +314,7 @@ describe('20 wamp-realm', () => {
         // console.log('Publish Event', a,b,c,d)
       })
       api.subscribe('topic1.*.item', subSpy)
-      api.publish('topic1.123.item', ['arg'], {}, { exclude_me: false })
+      api.publish('topic1.123.item', ['arg'], {}, { acknowledge: true, exclude_me: false })
       expect(subSpy).to.have.been.called.once()
     })
 

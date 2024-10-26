@@ -250,17 +250,17 @@ describe('55 hyper events', () => {
 
         // TODO: fix-me db
         // defer.push(assert.isRejected(
-          api.publish(
-            'watch.test',
-            { event: 'value-no-watch' },
-            {
-              retain: true,
-              trace: true,
-              when: null,
-              will: null,
-              acknowledge: true
-            }
-          )
+        api.publish(
+          'watch.test',
+          { event: 'value-no-watch' },
+          {
+            retain: true,
+            trace: true,
+            when: null,
+            will: null,
+            acknowledge: true
+          }
+        )
         // ))
 
         defer.push(assert.isFulfilled(
