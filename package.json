@@ -34,7 +34,7 @@
   },
   "devDependencies": {
     "autobahn": "^22.11.1",
-    "chai": "^4.3.6",
+    "chai": "^4.5.0",
     "chai-as-promised": "*",
     "chai-spies": "*",
     "eslint": "^7.32.0",
