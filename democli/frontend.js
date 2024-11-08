@@ -109,7 +109,7 @@ connection.onopen = function (session, details) {
   session.publish('com.myapp.topic1', [], {}, { acknowledge: false, trace: true })
   session.publish('com.myapp.topic1', [ 'Arg1', 'Arg2' ], { 'kwarg1': 'kwarg1', 'kwarg2': 'kwarg2' }, { acknowledge: false, trace: true })
 
-  var p1 = session.publish('com.myapp.topic1', [ 'Arg_1', 'Arg_2' ], {}, { acknowledge: true }).then(
+  let p1 = session.publish('com.myapp.topic1', [ 'arg-one' ], {headerName:'value'}, { acknowledge: true }).then(
     function (publication) {
       console.log('published:', publication)
     },

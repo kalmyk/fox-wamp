@@ -81,7 +81,6 @@ describe('21 hyper-broker', () => {
 
         expect(socketHistory.shift()).to.deep.equal({
           rsp: RESULT_ERR,
-          ft: 'YIELD',
           id: 1234,
           data: {
             code: 103,
@@ -102,7 +101,6 @@ describe('21 hyper-broker', () => {
 
         expect(socketHistory.shift()).to.deep.equal({
           rsp: RESULT_ERR,
-          ft: 'CALL',
           id: id,
           data: {
             code: errorCodes.ERROR_NO_SUCH_PROCEDURE,
@@ -188,7 +186,6 @@ describe('21 hyper-broker', () => {
 
         expect(socketHistory.shift()).to.deep.equal({
           id: 123,
-          ft: 'PUSH',
           rsp: 'ERR',
           data: { code: 'no_storage_defined', message: 'no_storage_defined' }
         })
