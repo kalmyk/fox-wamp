@@ -113,14 +113,18 @@ and unlock it automatically if connection lost
 ```javascript
     session.publish(
       'myapp.resource',
-      [],
-      { pid: process.pid, value: 'handle-resource' },
+      [{ any: 'object', pid: process.pid, value: 'handle-resource' }],
+      { any: 1 },
       { acknowledge: true, retain: true, when: null, will: null, watch: true }
     ).then(
       (result) => {
-        console.log('Master Resource Locked', result)
+        console.log('Master Resource Locked:', result)
+        setTimeout(
+          unlockResource,
+          9000
+        )
       }, (reason) => {
-        console.log('FAILED', reason)
+        console.log('Lock FAILED', reason)
         connection.close()
       }
     )
@@ -133,8 +137,8 @@ The same function is invoked on disconnect if `will` value is specified.
 ```javascript
     session.publish(
       'myapp.resource',
-      [],
       null,
+      { header: 'any' },
       { acknowledge: true, retain: true }
     )
 ```

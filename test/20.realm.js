@@ -6,7 +6,7 @@ const expect = chai.expect
 const assert = chai.assert
 const promised    = require('chai-as-promised')
 
-const { deepDataMerge } = require('../lib/realm')
+const { isDataEmpty, deepDataMerge } = require('../lib/realm')
 const WAMP     = require('../lib/wamp/protocol')
 const { WampGate } = require('../lib/wamp/gate')
 const FoxRouter = require('../lib/fox_router')
@@ -39,7 +39,9 @@ describe('20 wamp-realm', () => {
     realm.joinSession(cli)
   })
 
-  afterEach(function () {
+  afterEach(() => {
+    assert.isFalse(api.hasSendError(), api.firstSendErrorMessage())
+    assert.isFalse(cli.hasSendError(), cli.firstSendErrorMessage())
   })
 
   it('empty cleanup', function () {
@@ -52,7 +54,15 @@ describe('20 wamp-realm', () => {
     expect(result).to.be.an('array').that.is.not.empty
   })
 
-  it('deepDataMerge', function () {
+  it('isDataEmpty', () => {
+    assert.isTrue(isDataEmpty(null))
+    assert.isTrue(isDataEmpty({args:[]}))
+    assert.isTrue(isDataEmpty({args:[null]}))
+    assert.isTrue(isDataEmpty({kv:null}))
+    assert.isFalse(isDataEmpty({args:[1]}))
+  })
+
+  it('deepDataMerge', () => {
     let result
     result = deepDataMerge(
       { args:[{key1: "v1", key2: {key3: "v3"}}] },
@@ -61,10 +71,10 @@ describe('20 wamp-realm', () => {
     expect(result).to.deep.equal({ kv: { key1: 'v1-update', key2: { key3: 'v3', key5: 'v5' } } })
 
     result = deepDataMerge(
-      { args:[], kwargs:{key1: "v1", key2: {key3: "v3"}} },
+      { args:[{key1: "v1", key2: {key3: "v3"}}] },
       { payload: Buffer.from('{"json-error":<package>') }
     )
-    expect(result).to.deep.equal({ args:[], kwargs:{key1: "v1", key2: {key3: "v3"}} })
+    expect(result).to.deep.equal({ args:[{key1: "v1", key2: {key3: "v3"}}] })
   })
 
   describe('RPC', function () {
@@ -288,7 +298,7 @@ describe('20 wamp-realm', () => {
     })
 
     it('cleanup Topic API', function () {
-      var subSpy = chai.spy(function () {})
+      let subSpy = chai.spy(function () {})
       api.subscribe('topic1', subSpy)
       expect(api.cleanupTrace(realm.engine)).to.equal(1)
       expect(api.cleanupTrace(realm.engine)).to.equal(0)
@@ -296,17 +306,28 @@ describe('20 wamp-realm', () => {
     })
 
     it('PUBLISH default exclude_me:true', function () {
-      var subSpy = chai.spy(function () {})
+      let subSpy = chai.spy(function () {})
       api.subscribe('topic1', subSpy)
       api.publish('topic1', [], {})
       expect(subSpy).to.not.have.been.called()
     })
 
     it('PUBLISH exclude_me:false', async () => {
-      var subSpy = chai.spy(function () {})
-      await api.subscribe('topic1', subSpy)
-      await api.publish('topic1', [], {}, { acknowledge: true, exclude_me: false })
+      let subSpy = chai.spy(() => {})
+      await api.subscribe('topic.1', subSpy)
+      await api.publish('topic.1', [], {}, { acknowledge: true, exclude_me: false })
       expect(subSpy).to.have.been.called.once()
+    })
+
+    it('PUBLISH NULL', async () => {
+      let pubs = []
+      let subSpy = chai.spy((publicationId, args, kwargs, opt) => {
+        pubs.push([args, kwargs])
+      })
+      await api.subscribe('topic.1', subSpy)
+      gate.handle(ctx, cli, [WAMP.PUBLISH, 1234, {}, 'topic.1', null, null /* undefined args & kwargs */])
+      expect(subSpy).to.have.been.called.once()
+      expect(pubs.shift()).to.deep.equal([null,null])
     })
 
     it('PUBLISH-to-pattern', function () {

@@ -37,20 +37,21 @@ connection.onopen = function (session, details) {
   session.log('Session open.')
 
   function waitForLockResource () {
+    console.log('waiting for lock...')
     session.publish(
       'myapp.resource',
-      [],
-      { comment: 'any values in KWARGS', pid: process.pid, value: 'handle-resource' },
+      [{ any: 'object', pid: process.pid, value: 'handle-resource' }],
+      { any: 1 },
       { acknowledge: true, retain: true, when: null, will: null, watch: true }
     ).then(
       (result) => {
-        console.log('Master Resource Locked', result)
+        console.log('Master Resource Locked:', result)
         setTimeout(
           unlockResource,
-          5000
+          9000
         )
       }, (reason) => {
-        console.log('FAILED', reason)
+        console.log('Lock FAILED', reason)
         connection.close()
       }
     )
@@ -60,10 +61,11 @@ connection.onopen = function (session, details) {
     console.log('Send Unlock by timeout')
     session.publish(
       'myapp.resource',
-      [],
       null,
+      { header: 'any' },
       { acknowledge: true, retain: true }
     ).then(() => {
+      console.log('unlock has been published, wait for 1 sec to next lock attempt')
       setTimeout(
         waitForLockResource,
         1000

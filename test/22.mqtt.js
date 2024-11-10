@@ -375,24 +375,24 @@ describe('22 mqtt-realm', () => {
       length: 17,
       topic: null,
       payload: null,
-      subscriptions: [{ topic: 'topic1', qos: 1 }],
+      subscriptions: [{ topic: 'topic/1', qos: 1 }],
       messageId: 1
     })
 
     msg = socketHistory.shift()
     expect(msg.cmd).to.equal('suback')
 
-    await api.publish('topic1', { data: 1 }, { trace: true })
+    await api.publish('topic.1', { data: 1 }, { trace: true })
     expect(realm.engine.getInMessagesCount(), 'trace message need to be saved').to.equal(1)
 
     msg = socketHistory.shift()
     expect(msg.cmd).to.equal('publish')
-    expect(msg.topic).to.equal('topic1')
+    expect(msg.topic).to.equal('topic/1')
     expect(msg.qos).to.equal(1)
     expect(msg.payload.toString()).to.equal('{"data":1}')
     let pubMsgId = msg.messageId
 
-    // save worker position, the messame considered as handled
+    // save worker position, the message considered as handled
     gate.handle(ctx, cli, {
       cmd: 'puback',
       retain: false,
@@ -413,7 +413,7 @@ describe('22 mqtt-realm', () => {
     // expect(row.value).to.equal(pubMsgId) -- some non zero value
 
     cli.cleanup()
-    await api.publish('topic1', { data: 2 }, { trace: true })
+    await api.publish('topic.1', { data: 2 }, { trace: true })
 
     nextPackage = getNextPackage()
     gate.handle(ctx, cli, {
@@ -440,7 +440,7 @@ describe('22 mqtt-realm', () => {
       length: 17,
       topic: null,
       payload: null,
-      subscriptions: [{ topic: 'topic1', qos: 1 }],
+      subscriptions: [{ topic: 'topic/1', qos: 1 }],
       messageId: 1
     })
 
@@ -449,7 +449,7 @@ describe('22 mqtt-realm', () => {
 
     msg = socketHistory.shift()
     expect(msg.cmd).to.equal('publish')
-    expect(msg.topic).to.equal('topic1')
+    expect(msg.topic).to.equal('topic/1')
     // expect(msg.qos).to.equal(1)
     expect(msg.payload.toString()).to.equal('{"data":2}')
   })

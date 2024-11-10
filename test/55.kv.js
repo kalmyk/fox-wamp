@@ -170,10 +170,9 @@ describe('55 hyper events', () => {
           }
         )
         await wampApi.cleanup()
-        expect(events).to.deep.equal([
-          { info: 'event-value' },
-          { info: 'will-value' },
-        ])
+        expect(events.shift()).to.deep.equal({ info: 'event-value' })
+        expect(events.shift()).to.deep.equal({ args: { info: 'will-value' }})
+        assert.equal(0, events.length)
         assert.isFalse(wampApi.hasSendError(), wampApi.firstSendErrorMessage())
       })
     
