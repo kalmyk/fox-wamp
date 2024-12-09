@@ -33,22 +33,22 @@ const readyQuorum = new QuorumEdge((advanceSegment, segmentId) => {
 
 function mkSync(uri, ssId) {
   console.log('connect to sync:', ssId, uri)
-  const connection = new autobahn.Connection({url: uri, realm: 'ctrl'})
+  const connection = new autobahn.Connection({url: uri, realm: 'sys'})
 
   connection.onopen = function (session, details) {
-    session.log('Session open', ssId)
+    console.log('sync session open', ssId, uri)
     syncMass.set(ssId, session)
     runQuorum.addMember(ssId)
     readyQuorum.addMember(ssId)
 
     session.subscribe('draftSegmentId', (args, kwargs, opts) => {
-      console.log('draftSegmentId', ssId, kwargs)
+      console.log('=> draftSegmentId', ssId, args, kwargs)
       runQuorum.vote(ssId, kwargs.applicantId, kwargs.runId)
       maxId = mergeMax(maxId, kwargs.runId)
     })
 
     session.subscribe('commitSegment', (args, kwargs, opts) => {
-      console.log('commitSegment', ssId, kwargs)
+      console.log('=> commitSegment', ssId, args, kwargs)
       readyQuorum.vote(ssId, kwargs.advanceSegment, kwargs.readyId)
     })
   }
@@ -67,7 +67,7 @@ function mkGate(uri, gateId, history, modKv, heapApi) {
   const connection = new autobahn.Connection({url: uri, realm: 'sys'})
 
   connection.onopen = function (session, details) {
-    console.log('Gate session open', gateId, uri)
+    console.log('gate session open', gateId, uri)
     gateMass.set(
       gateId,
       new EntrySession(session, syncMass, history, gateId, (advanceSegment, segment, effectId) => {
@@ -131,7 +131,7 @@ async function main () {
 }
 
 main().then(() => {
-  console.log('DONE.')
+  console.log('connect function started')
 }, (err) => {
   console.error('ERROR:', err, err.stack)
 })

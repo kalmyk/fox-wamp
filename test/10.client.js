@@ -87,7 +87,7 @@ describe('10 clent', function () {
     // TODO: where is publication-id in opt?
     expect(result.shift()).to.deep.equal([
       'event-pkg',
-      {topic: 'queue.name', publication: 1234567}
+      {topic: 'queue.name', publication: 1234567, headers: undefined}
     ])
   })
 

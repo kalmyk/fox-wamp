@@ -10,7 +10,7 @@ const conf_fox_port = process.env.FOX_PORT
   || console.log('FOX_PORT must be defined') || process.exit(1)
 
 const conf_node_id = process.env.NODE_ID
-  || console.log('ID must be defined') || process.exit(1)
+  || console.log('NODE_ID must be defined') || process.exit(1)
 
 const Router = require('../lib/router')
 const { BaseRealm } = require('../lib/realm')
@@ -32,4 +32,4 @@ new WampServer(new WampGate(router), { port: conf_wamp_port })
 new MqttServer(new MqttGate(router), { port: conf_mqtt_port })
 new FoxNetServer(new FoxGate(router), { port: conf_fox_port })
 
-console.log('Listening WAMP port:', conf_wamp_port)
+console.log('at NODE_ID:', conf_node_id, 'listening WAMP:', conf_wamp_port, 'MQTT:', conf_mqtt_port, 'FOX:', conf_fox_port)
