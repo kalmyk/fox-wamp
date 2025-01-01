@@ -19,7 +19,7 @@ const gateMass = new Map()
 let maxId = makeEmpty(new Date())
 
 const runQuorum = new QuorumEdge((advanceSegment, value) => {
-  console.log('SYNC:', advanceSegment, '=>', value)
+  console.log('runQuorum:', maxId, advanceSegment, '=>', value)
   for (let [,ss] of syncMass) {
     ss.publish('syncId', [], {maxId, advanceSegment, syncId: value})
   }

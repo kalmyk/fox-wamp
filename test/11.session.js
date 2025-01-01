@@ -34,7 +34,7 @@ describe('11 wamp-session', function () {
     ctx,
     cli
 
-  beforeEach(function () {
+  beforeEach(() => {
     mockWampSocket = {}
     router = new FoxRouter()
     gate = new WampGate(router)
@@ -42,7 +42,7 @@ describe('11 wamp-session', function () {
     ctx = gate.createContext(cli, mockWampSocket)
   })
 
-  afterEach(function () {
+  afterEach(() => {
   })
 
   it('Joe-NOAUTH', function () {
