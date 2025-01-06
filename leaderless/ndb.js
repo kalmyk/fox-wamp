@@ -12,6 +12,7 @@ const { EntrySession } = require('../lib/allot/entry_session')
 const { History } = require('../lib/sqlite/history')
 const { SqliteModKv } = require('../lib/sqlite/sqlitekv')
 const Router = require('../lib/router')
+const config = require('./config').getInstance()
 
 const syncMass = new Map()
 const gateMass = new Map()
@@ -85,7 +86,7 @@ function mkGate(uri, gateId, history, modKv, heapApi) {
         for (const gg of gateMass.values()) {
           gg.publishSegment(segment)
         }
-        session.publish('ackSegment', [], {advanceSegment, pkg: readyEvent})
+        session.publish('advance-segment-resolved', [], {advanceSegment, pkg: readyEvent})
 
         modKv.applySegment(heapEvent, (kind, outEvent) => {
           heapApi.publish('heapEvent', outEvent)
@@ -124,10 +125,10 @@ async function main () {
   mkSync('ws://127.0.0.1:9021/wamp', 1)
   mkSync('ws://127.0.0.1:9022/wamp', 2)
   mkSync('ws://127.0.0.1:9023/wamp', 3)
-  
-  mkGate('ws://127.0.0.1:9031/wamp', 1, history, modKv, heap.api())
-  mkGate('ws://127.0.0.1:9032/wamp', 2, history, modKv, heap.api())
-  mkGate('ws://127.0.0.1:9033/wamp', 3, history, modKv, heap.api())
+
+  for (const entry of config.getEntryNodes()) {
+    mkGate(entry.url, entry.nodeId, history, modKv, heap.api())
+  }
 }
 
 main().then(() => {
