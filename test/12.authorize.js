@@ -44,7 +44,7 @@ describe('12 authorize-topic', function () {
         mqttSender = {}
         wampSender = {}
         router = run.mkRouter()
-        realm = router.getRealm('test-realm')
+        realm = router.getRealm('test_realm')
 
         mqttGate = new MqttGate(router)
         mqttGate.setAuthHandler(auth)

@@ -38,7 +38,7 @@ describe('22 mqtt-realm', () => {
       }
     }))}
     router = new FoxRouter()
-    realm = router.getRealm('test-realm')
+    realm = router.getRealm('test_realm')
     api = realm.api()
 
     gate = new MqttGate(router)

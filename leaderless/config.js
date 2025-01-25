@@ -1,22 +1,19 @@
 'use strict'
 
-// const fsp = require('fs').promises
+const fsp = require('fs').promises
 
 class Config {
   constructor () {
     this.config = {}
   }
 
-  // async loadConfigFile (configFileName) {
-  //   return fsp
-  //     .readFile(configFileName)
-  //     .then(body => JSON.parse(body))
-  // }
-
-  // load(options = {}) {
-  //   // Load configuration from various sources (e.g., files, environment variables)
-  //   // ...
-  // }
+  async loadConfigFile (configFileName) {
+    return fsp
+      .readFile(configFileName)
+      .then(body => {
+        this.config = JSON.parse(body)
+      })
+  }
 
   // get(key) {
   //   return this.config[key];
@@ -27,11 +24,11 @@ class Config {
   // }
 
   getEntryNodes () {
-    return [
-      {nodeId:"E1", url:"ws://127.0.0.1:9031/wamp"},
-      {nodeId:"E2", url:"ws://127.0.0.1:9032/wamp"},
-      {nodeId:"E3", url:"ws://127.0.0.1:9033/wamp"}
-    ]
+    return this.config.entryNodes
+  }
+
+  getSyncNodes () {
+    return this.config.syncNodes
   }
 }
 

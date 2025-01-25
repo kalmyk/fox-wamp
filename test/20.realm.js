@@ -28,7 +28,7 @@ describe('20 wamp-realm', () => {
 
   beforeEach(function () {
     router = new FoxRouter()
-    realm = router.getRealm('test-realm')
+    realm = router.getRealm('test_realm')
     api = realm.wampApi()
 
     socketHistory = []

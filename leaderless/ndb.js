@@ -3,12 +3,16 @@
 const conf_db_file = process.env.DB_FILE
   || console.log('DB_FILE must be defined') || process.exit(1)
 
+const conf_config_file = process.env.CONFIG
+  || console.log('CONFIG file name must be defined') || process.exit(1)
+
 const sqlite3 = require('sqlite3')
 const sqlite = require('sqlite')
 const autobahn = require('autobahn')
+
 const { QuorumEdge } = require('../lib/allot/quorum_edge')
 const { mergeMin, mergeMax, makeEmpty } = require('../lib/allot/makeid')
-const { EntrySession } = require('../lib/allot/entry_session')
+const { SessionEntryHistory } = require('../lib/allot/session_entry_history')
 const { History } = require('../lib/sqlite/history')
 const { SqliteModKv } = require('../lib/sqlite/sqlitekv')
 const Router = require('../lib/router')
@@ -68,10 +72,10 @@ function mkGate(uri, gateId, history, modKv, heapApi) {
   const connection = new autobahn.Connection({url: uri, realm: 'sys'})
 
   connection.onopen = function (session, details) {
-    console.log('gate session open', gateId, uri)
+    console.log('connect gate', gateId, uri)
     gateMass.set(
       gateId,
-      new EntrySession(session, syncMass, history, gateId, (advanceSegment, segment, effectId) => {
+      new SessionEntryHistory(session, syncMass, history, gateId, (advanceSegment, segment, effectId) => {
         const readyEvent = []
         const heapEvent = []
         for (let i = 0; i<segment.content.length; i++) {
@@ -122,16 +126,16 @@ async function main () {
   const router = new Router()
   const heap = router.getRealm('heap')
   
-  mkSync('ws://127.0.0.1:9021/wamp', 1)
-  mkSync('ws://127.0.0.1:9022/wamp', 2)
-  mkSync('ws://127.0.0.1:9023/wamp', 3)
-
+  for (const sync of config.getSyncNodes()) {
+    mkSync(sync.url, sync.nodeId)
+  }
   for (const entry of config.getEntryNodes()) {
     mkGate(entry.url, entry.nodeId, history, modKv, heap.api())
   }
 }
 
-main().then(() => {
+config.loadConfigFile(conf_config_file).then(() => {
+  main()
   console.log('connect function started')
 }, (err) => {
   console.error('ERROR:', err, err.stack)

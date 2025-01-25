@@ -2,7 +2,6 @@
 
 const chai        = require('chai')
 const spies       = require('chai-spies')
-const expect      = chai.expect
 const assert      = chai.assert
 
 const { SO_ON_ID_PAIR, SO_EXTRACT, StageOne } = require('../lib/allot/stage_one')

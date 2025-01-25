@@ -29,7 +29,7 @@ describe('23 pub-worker', () => {
 
       beforeEach(() => {
         router = new Router()
-        realm = router.getRealm('test-realm')
+        realm = router.getRealm('test_realm')
         gate = new FoxGate(router)
         memServer = new MemServer(gate)
         client = run.client()
