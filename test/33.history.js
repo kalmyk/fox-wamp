@@ -11,20 +11,22 @@ const sqlite = require('sqlite')
 
 const { BaseRealm } = require('../lib/realm')
 const Router       = require('../lib/router')
-const { DbEngine, DbBinder }   = require('../lib/sqlite/dbbinder')
+const { DbEngine }   = require('../lib/sqlite/dbengine')
 const { MemEngine } = require('../lib/mono/memengine')
+const { initDbFactory, getDbFactoryInstance } = require('../lib/sqlite/dbfactory')
 
 chai.use(promised)
 chai.use(spies)
+
+initDbFactory()
 
 const mkDbEngine = async () => {
   let db = await sqlite.open({
     filename: ':memory:',
     driver: sqlite3.Database
   })
-  let binder = new DbBinder(db)
-  await binder.init()
-  return new DbEngine(binder)
+  getDbFactoryInstance().setMainDb(db)
+  return new DbEngine()
 }
 
 const runs = [
@@ -40,14 +42,14 @@ describe('33 history', function () {
         realm,
         api
 
-      beforeEach(async function () {
+      beforeEach(async () => {
         router = new Router()
         realm = new BaseRealm(router, await run.mkEngine())
-        router.addRealm('test-realm', realm)
+        await router.initRealm('testrealm', realm)
         api = realm.api()
       })
     
-      afterEach(function () {
+      afterEach(async () => {
         assert.isFalse(api.session().hasSendError(), api.session().firstSendErrorMessage())
       })
   
@@ -58,9 +60,9 @@ describe('33 history', function () {
         expect(startPos, "startPos").to.exist
 
         await Promise.all([
-          api.publish('test-topic', {event:'row1'}, {acknowledge: true, trace: true}),
-          api.publish('test-topic', {event:'row2'}, {acknowledge: true, trace: true}),
-          api.publish('test-topic', {event:'row3'}, {acknowledge: true, trace: true}),
+          api.publish('test-topic', {event:'history1'}, {acknowledge: true, trace: true}),
+          api.publish('test-topic', {event:'history2'}, {acknowledge: true, trace: true}),
+          api.publish('test-topic', {event:'history3'}, {acknowledge: true, trace: true}),
         ])
         let doneEvents
         const onEvent = event => {
@@ -75,11 +77,10 @@ describe('33 history', function () {
           onEvent,
           {after: startPos}
         )
-
-        expect(donePromise).to.eventually.equal([
-          {event:'row1'},
-          {event:'row2'},
-          {event:'row3'},
+        expect(await donePromise).to.deep.equal([
+          {event:'history1'},
+          {event:'history2'},
+          {event:'history3'},
         ])
 
         await api.unsubscribe(subId)

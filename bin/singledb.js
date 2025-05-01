@@ -1,30 +1,28 @@
 'use strict'
 
-const sqlite3 = require('sqlite3')
-const sqlite = require('sqlite')
-const { DbEngine, DbBinder } = require('../lib/sqlite/dbbinder')
+const { initDbFactory } = require('../lib/sqlite/dbfactory')
+const History = require('../lib/sqlite/history')
+const { DbEngine } = require('../lib/sqlite/dbengine')
 const { SqliteModKv, SqliteKv } = require('../lib/sqlite/sqlitekv')
 const Router = require('../index')
 const { BaseRealm } = require('../lib/realm')
 
 async function main () {
-  const db = await sqlite.open({
-    filename: '../dbfiles/msgdb.sqlite',
-    driver: sqlite3.Database
-  })
+  const dbFactory = await initDbFactory()
+  const db = await dbFactory.openMainDatabase('../dbfiles/msgdb.sqlite')
 
-  const binder = new DbBinder(db)
-  const maxId = await binder.init()
-  binder.startIntervalTimer()
+  const maxId = await History.scanMaxId(db)
+
+  dbFactory.startActualizePrefixTimer()
   console.log('loaded max id:', maxId)
 
-  const modKv = new SqliteModKv(db)
+  const modKv = new SqliteModKv()
   await modKv.createTables()
 
   const router = new Router()
   router.createRealm = (realmName) => { 
-    const realm = new BaseRealm(router, new DbEngine(binder))
-    realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, binder.getMakeId(), realmName))
+    const realm = new BaseRealm(router, new DbEngine())
+    realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, dbFactory.getMakeId(), realmName))
     return realm
   }
   router.setLogTrace(true)

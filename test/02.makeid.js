@@ -27,13 +27,13 @@ describe('02 make-id', function () {
   })
 
   it('make-some-id', () => {
-    id.update('test-prefix-')
+    id.actualizePrefix('test-prefix-')
     expect(id.makeIdStr()).to.equal('test-prefix-a1')
     expect(id.makeIdStr(2)).to.equal('test-prefix-a3')
   })
 
   it('reconcilePos', function () {
-    id.update('a')
+    id.actualizePrefix('a')
     expect(id.makeIdStr()).to.equal('aa1')
     id.reconcilePos('a')
     expect(id.makeIdStr()).to.equal('aa2')

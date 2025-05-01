@@ -26,93 +26,92 @@ const Auth = function () {
   }
 }
 
-describe('11 wamp-session', function () {
+describe('11 wamp-session', async () => {
   var
+    nextPackagePromise,
     router,
     gate,
     mockWampSocket,
     ctx,
     cli
 
-  beforeEach(() => {
-    mockWampSocket = {}
+  function getNextPackage() {
+    return new Promise((resolve, reject) => {
+      nextPackagePromise.push(resolve)
+    })
+  }
+
+  beforeEach(async () => {
+    nextPackagePromise = []
+    mockWampSocket = {
+      wampPkgWrite: (msg) => {
+        if (nextPackagePromise.length > 0) {
+          const promiseResolve = nextPackagePromise.shift()
+          promiseResolve(msg)
+        }
+      }
+    }
     router = new FoxRouter()
     gate = new WampGate(router)
     cli = router.createSession()
     ctx = gate.createContext(cli, mockWampSocket)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
   })
 
-  it('Joe-NOAUTH', function () {
+  it('Joe-NOAUTH', async () => {
     gate.setAuthHandler(new Auth())
-    mockWampSocket.wampPkgWrite = chai.spy(
-      function (msg, callback) {
-        expect(msg[0]).to.equal(WAMP.ABORT)
-        expect(msg[2]).to.equal('wamp.error.no_auth_method')
-      }
-    )
+
+    let nextPackage = getNextPackage()
+
     gate.handle(ctx, cli, [ WAMP.HELLO, 'test', { authid: 'joe', authmethods: [ 'notexists' ] } ])
-    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
+
+    let msg = await nextPackage
+    expect(msg[0]).to.equal(WAMP.ABORT)
+    expect(msg[2]).to.equal('wamp.error.no_auth_method')
   })
 
-  it('Joe-AUTH-FAIL', function () {
+  it('Joe-AUTH-FAIL', async () => {
     gate.setAuthHandler(new Auth())
-    mockWampSocket.wampPkgWrite = chai.spy(
-      function (msg, callback) {
-        expect(msg[0]).to.equal(WAMP.CHALLENGE)
-        expect(msg[1]).to.equal('testonly')
-      }
-    )
+    let nextPackage = getNextPackage()
     gate.handle(ctx, cli, [ WAMP.HELLO, 'test', { authid: 'joe', authmethods: [ 'testonly' ] } ])
-    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
+    let msg = await nextPackage
+    expect(msg[0]).to.equal(WAMP.CHALLENGE)
+    expect(msg[1]).to.equal('testonly')
 
-    mockWampSocket.wampPkgWrite = chai.spy(
-      function (msg, callback) {
-        expect(msg[0]).to.equal(WAMP.ABORT)
-        expect(msg[2]).to.equal('wamp.error.authentication_failed')
-        // callback()
-      }
-    )
+    nextPackage = getNextPackage()
     gate.handle(ctx, cli, [WAMP.AUTHENTICATE, 'incorrect-secret'])
-    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
+    msg = await nextPackage
+    expect(msg[0]).to.equal(WAMP.ABORT)
+    expect(msg[2]).to.equal('wamp.error.authentication_failed')
   })
 
-  it ('Joe-AUTH-OK', function () {
+  it ('Joe-AUTH-OK', async () => {
     gate.setAuthHandler(new Auth())
-    mockWampSocket.wampPkgWrite = chai.spy(
-      function (msg, callback) {
-        expect(msg[0]).to.equal(WAMP.CHALLENGE)
-        expect(msg[1]).to.equal('testonly')
-        expect(msg[2]).to.deep.equal({ serverDefinedExtra: 'the-value' })
-      }
-    )
-    gate.handle(ctx, cli, [WAMP.HELLO, 'test', { authid: 'joe', authmethods: ['somecrypto', 'testonly'] }])
-    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
 
-    mockWampSocket.wampPkgWrite = chai.spy(
-      function (msg, callback) {
-        expect(msg[0]).to.equal(WAMP.WELCOME)
-        expect(msg[2].realm).to.equal('test')
-        expect(msg[2].authid).to.equal('joe')
-        expect(msg[2].authmethod).to.equal('testonly')
-      }
-    )
+    let nextPackage = getNextPackage()
+    gate.handle(ctx, cli, [WAMP.HELLO, 'test', { authid: 'joe', authmethods: ['somecrypto', 'testonly'] }])
+    let msg = await nextPackage
+    expect(msg[0]).to.equal(WAMP.CHALLENGE)
+    expect(msg[1]).to.equal('testonly')
+    expect(msg[2]).to.deep.equal({ serverDefinedExtra: 'the-value' })
+
+    nextPackage = getNextPackage()
     gate.handle(ctx, cli, [WAMP.AUTHENTICATE, 'test-joe-secret'], { extraField: 'some-extra-value' })
-    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
+    msg = await nextPackage
+    expect(msg[0]).to.equal(WAMP.WELCOME)
+    expect(msg[2].realm).to.equal('test')
+    expect(msg[2].authid).to.equal('joe')
+    expect(msg[2].authmethod).to.equal('testonly')
   })
 
-  it('HELLO/WELCOME', function () {
-    mockWampSocket.wampPkgWrite = chai.spy(
-      function (msg, callback) {
-        expect(msg[0]).to.equal(WAMP.WELCOME)
-        expect(msg[1]).to.equal(cli.sessionId)
-        // console.log(msg[2].roles)
-      }
-    )
+  it('HELLO/WELCOME', async () => {
+    let nextPackage = getNextPackage()
     gate.handle(ctx, cli, [WAMP.HELLO, 'test', {}])
-    expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
+    let msg = await nextPackage
+    expect(msg[0]).to.equal(WAMP.WELCOME)
+    expect(msg[1]).to.equal(cli.sessionId)
 
     // second hello command raises error and disconnects the user
     mockWampSocket.wampPkgWrite = chai.spy((msg, callback) => {})
@@ -122,7 +121,7 @@ describe('11 wamp-session', function () {
     expect(mockWampSocket.wampPkgClose).to.have.been.called.once()
   })
 
-  it('GOODBYE', function () {
+  it('GOODBYE', async () => {
     mockWampSocket.wampPkgWrite = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.GOODBYE)
@@ -135,7 +134,7 @@ describe('11 wamp-session', function () {
     expect(mockWampSocket.wampPkgClose).to.have.been.called.once()
   })
 
-  it('CALL to no realm RPC', function () {
+  it('CALL to no realm RPC', async () => {
     mockWampSocket.wampPkgWrite = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.ERROR)
@@ -148,7 +147,7 @@ describe('11 wamp-session', function () {
     expect(mockWampSocket.wampPkgWrite).to.have.been.called.once()
   })
 
-  it('REGISTER to no realm', function () {
+  it('REGISTER to no realm', async () => {
     mockWampSocket.wampPkgWrite = chai.spy(
       function (msg, callback) {
         expect(msg[0]).to.equal(WAMP.ERROR)

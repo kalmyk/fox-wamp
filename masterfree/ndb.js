@@ -124,7 +124,7 @@ async function main () {
   await modKv.createTables()
 
   const router = new Router()
-  const heap = router.getRealm('heap')
+  const heap = await router.getRealm('heap')
   
   for (const sync of config.getSyncNodes()) {
     mkSync(sync.url, sync.nodeId)

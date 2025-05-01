@@ -16,16 +16,18 @@ const { WampGate }    = require('../lib/wamp/gate')
 const Router          = require('../lib/router')
 const { SqliteModKv, SqliteKv }    = require('../lib/sqlite/sqlitekv')
 const { MemEngine }   = require('../lib/mono/memengine')
-const { DbEngine, DbBinder } = require('../lib/sqlite/dbbinder')
+const { DbEngine } = require('../lib/sqlite/dbengine')
 const { MemKeyValueStorage } = require('../lib/mono/memkv')
 const { BaseRealm }   = require('../lib/realm')
 const WampApi         = require('../lib/wamp/api')
 const { getBodyValue } = require('../lib/base_gate')
+const { initDbFactory, getDbFactoryInstance } = require('../lib/sqlite/dbfactory')
 
 chai.use(promised)
 chai.use(spies)
 
-const TEST_REALM_NAME = 'test-realm'
+const TEST_REALM_NAME = 'testrealm'
+initDbFactory()
 
 const makeMemRealm = async (router) => {
   let realm = new BaseRealm(router, new MemEngine())
@@ -38,15 +40,14 @@ const makeDbRealm = async (router) => {
     filename: ':memory:',
     driver: sqlite3.Database
   })
+  getDbFactoryInstance().setMainDb(db)
 
-  let binder = new DbBinder(db)
-  await binder.init()
-  let realm = new BaseRealm(router, new DbEngine(binder))
+  let realm = new BaseRealm(router, new DbEngine())
 
   let modKv = new SqliteModKv(db)
   await modKv.createTables()
 
-  let kv = new SqliteKv(modKv, binder.getMakeId(), TEST_REALM_NAME)
+  let kv = new SqliteKv(modKv, getDbFactoryInstance().getMakeId(), TEST_REALM_NAME)
   realm.registerKeyValueEngine(['#'], kv)
 
   return realm
@@ -72,7 +73,7 @@ describe('55 hyper events', () => {
       beforeEach(async () => {
         router = new Router()
         realm = await run.mkRealm(router)
-        router.addRealm(TEST_REALM_NAME, realm)       
+        await router.initRealm(TEST_REALM_NAME, realm)       
         api = realm.api()
 
         mockSocket = {}

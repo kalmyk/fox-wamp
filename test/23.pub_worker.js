@@ -27,16 +27,16 @@ describe('23 pub-worker', () => {
   runs.forEach(function (run) {
     describe('direction:' + run.it, function () {
 
-      beforeEach(() => {
+      beforeEach(async () => {
         router = new Router()
-        realm = router.getRealm('test_realm')
+        realm = await router.getRealm('test_realm')
         gate = new FoxGate(router)
         memServer = new MemServer(gate)
         client = run.client()
         worker = run.worker()
       })
 
-      afterEach(() => {
+      afterEach(async () => {
         assert.isFalse(client.session().hasSendError(), client.session().firstSendErrorMessage())
         assert.isFalse(worker.session().hasSendError(), worker.session().firstSendErrorMessage())
 

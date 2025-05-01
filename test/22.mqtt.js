@@ -27,18 +27,20 @@ describe('22 mqtt-realm', () => {
     })
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     socketHistory = []
-    mockSocket = { mqttPkgWrite: chai.spy(((msg, callback) => {
-      if (nextPackagePromise) {
-        nextPackagePromise(msg)
-        nextPackagePromise = undefined
-      } else {
-        socketHistory.push(msg)
-      }
-    }))}
+    mockSocket = {
+      mqttPkgWrite: chai.spy((msg, callback) => {
+        if (nextPackagePromise) {
+          nextPackagePromise(msg)
+          nextPackagePromise = undefined
+        } else {
+          socketHistory.push(msg)
+        }
+      })
+    }
     router = new FoxRouter()
-    realm = router.getRealm('test_realm')
+    realm = await router.getRealm('test_realm')
     api = realm.api()
 
     gate = new MqttGate(router)
@@ -48,10 +50,10 @@ describe('22 mqtt-realm', () => {
     realm.joinSession(cli)
   })
 
-  afterEach(function () {
+  afterEach(async () => {
   })
 
-  describe('publish', function () {
+  describe('publish', async () => {
     it('qos1-ack-is-received', async () => {
       gate.handle(ctx, cli, {
         cmd: 'publish',
@@ -126,7 +128,7 @@ describe('22 mqtt-realm', () => {
     })
 
 
-    it('SUBSCRIBE-retain-one', function () {
+    it('SUBSCRIBE-retain-one', async () => {
       api.publish('topic1.item1', { data: 1 }, { retain: true })
       api.publish('topic1.item2', { data: 2 }, { retain: true })
       api.publish('topic1.item3', { data: 3 }, { retain: true })
@@ -320,7 +322,8 @@ describe('22 mqtt-realm', () => {
 
   it('at-connection-fail-will-publish', async () => {
     await realm.leaveSession(cli)
-    router.getRealm = (realmName) => realm
+    router.getRealm = async (realmName) => realm
+    let nextPackage = getNextPackage()
 
     gate.handle(ctx, cli, {
       cmd: 'connect',
@@ -337,6 +340,9 @@ describe('22 mqtt-realm', () => {
         payload: Buffer.from('{"text":"some-test-text"}')
       }
     })
+    let msg = await nextPackage
+    expect(msg.cmd).to.equal('connack')
+    expect(msg.returnCode).to.equal(0)
 
     const pubs = []
     const subSpy = chai.spy(body => pubs.push(body))
@@ -348,7 +354,7 @@ describe('22 mqtt-realm', () => {
 
   it('connect-clientid', async () => {
     realm.leaveSession(cli)
-    router.getRealm = (realmName) => realm
+    router.getRealm = async (realmName) => realm
 
     let nextPackage = getNextPackage()
     gate.handle(ctx, cli, {

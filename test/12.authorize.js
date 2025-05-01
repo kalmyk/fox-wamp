@@ -24,9 +24,9 @@ const runs = [
   {it: 'mem',  mkRouter: () => new FoxRouter()},
 ]
 
-describe('12 authorize-topic', function () {
+describe('12 authorize-topic', async () => {
   runs.forEach(function (run) {
-    describe('authorize:' + run.it, function () {
+    describe('authorize:' + run.it, async () => {
       var
         router,
         mqttGate,
@@ -39,12 +39,12 @@ describe('12 authorize-topic', function () {
         mqttCli,
         wampCli
 
-      beforeEach(function () {
+      beforeEach(async () => {
         let auth = new TestAuth()
         mqttSender = {}
         wampSender = {}
         router = run.mkRouter()
-        realm = router.getRealm('test_realm')
+        realm = await router.getRealm('test_realm')
 
         mqttGate = new MqttGate(router)
         mqttGate.setAuthHandler(auth)
@@ -61,10 +61,10 @@ describe('12 authorize-topic', function () {
         realm.joinSession(wampCli)
       })
 
-      afterEach(function () {
+      afterEach(async () => {
       })
 
-      it('wamp-subscribe:' + run.it, function () {
+      it('wamp-subscribe:' + run.it, async () => {
         wampSender.wampPkgWrite = chai.spy(
           function (msg) {
             expect(msg[0]).to.equal(WAMP.SUBSCRIBED)
@@ -86,7 +86,7 @@ describe('12 authorize-topic', function () {
         expect(wampSender.wampPkgWrite, 'subscription confirmed').to.have.been.called.once()
       })
 
-      it('mqtt-subscribe:' + run.it, function () {
+      it('mqtt-subscribe:' + run.it, async () => {
         mqttSender.mqttPkgWrite = chai.spy((msg) => {
           expect(msg).to.deep.equal({cmd: 'suback', messageId: 321, granted: [ 128, 1 ]})
         })

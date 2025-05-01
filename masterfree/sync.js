@@ -22,7 +22,7 @@ const makeId = new MakeId(() => keyDate(new Date()))
 const gateMass = new Map()
 const app = new Router()
 const sysRealm = new BaseRealm(app, new BaseEngine())
-app.addRealm('sys', sysRealm)
+app.initRealm('sys', sysRealm)
 const api = sysRealm.api()
 
 const makeQuorum = new QuorumEdge(
@@ -82,10 +82,10 @@ function mkGate(uri, gateId) {
 
 config.loadConfigFile(conf_config_file).then(() => {
   /*const server = */new WampServer(new WampGate(app), { port: conf_wamp_port })
-  makeId.update()
+  makeId.actualizePrefix()
   console.log('Listening WAMP port:', conf_wamp_port)
 
-  setInterval(()=>{makeId.update()}, 7000)
+  setInterval(()=>{makeId.actualizePrefix()}, 7000)
 
   for (const entry of config.getEntryNodes()) {
     mkGate(entry.url, entry.nodeId)

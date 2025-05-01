@@ -15,7 +15,7 @@ const MemKeyValueStorage = require('../lib/mono/memkv').MemKeyValueStorage
 chai.use(promised)
 chai.use(spies)
 
-describe('20 wamp-realm', () => {
+describe('20 wamp-realm', async () => {
   let
     socketHistory,
     router,
@@ -26,9 +26,9 @@ describe('20 wamp-realm', () => {
     cli,
     api
 
-  beforeEach(function () {
+  beforeEach(async () => {
     router = new FoxRouter()
-    realm = router.getRealm('test_realm')
+    realm = await router.getRealm('test_realm')
     api = realm.wampApi()
 
     socketHistory = []
@@ -39,17 +39,17 @@ describe('20 wamp-realm', () => {
     realm.joinSession(cli)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     assert.isFalse(api.hasSendError(), api.firstSendErrorMessage())
     assert.isFalse(cli.hasSendError(), cli.firstSendErrorMessage())
   })
 
-  it('empty cleanup', function () {
+  it('empty cleanup', async () => {
     realm.leaveSession(cli)
     realm.leaveSession(api)
   })
 
-  it('session-list', function () {
+  it('session-list', async () => {
     let result = realm.getSessionIds()
     expect(result).to.be.an('array').that.is.not.empty
   })
@@ -77,8 +77,8 @@ describe('20 wamp-realm', () => {
     expect(result).to.deep.equal({ args:[{key1: "v1", key2: {key3: "v3"}}] })
   })
 
-  describe('RPC', function () {
-    it('CALL to RPC not exist', function () {
+  describe('RPC', async () => {
+    it('CALL to RPC not exist', async () => {
       gate.handle(ctx, cli, [WAMP.CALL, 1234, {}, 'any.function.name', []])
       expect(mockSocket.wampPkgWrite).to.have.been.called.once()
 
@@ -90,7 +90,7 @@ describe('20 wamp-realm', () => {
       expect(msg[5]).to.deep.equal(['no callee registered for procedure <any.function.name>'])
     })
 
-    it('cleanup RPC API', function () {
+    it('cleanup RPC API', async () => {
       api.cleanupReg(realm.engine)  // clean existing wamp/session/? functions
       var procSpy = chai.spy(function () {})
       api.register('func1', procSpy)
@@ -152,7 +152,7 @@ describe('20 wamp-realm', () => {
       expect(msg[4]).to.equal('wamp.error.no_such_registration')
     })
 
-    it('UNREGISTER', function () {
+    it('UNREGISTER', async () => {
       gate.handle(ctx, cli, [WAMP.REGISTER, 1234, {}, 'func1'])
       let msg = socketHistory.shift()
       expect(msg[0]).to.equal(WAMP.REGISTERED)
@@ -205,7 +205,7 @@ describe('20 wamp-realm', () => {
       expect(mockSocket.wampPkgWrite, 'invocation received').to.have.been.called.once()
     })
 
-    it('CALL-set-concurrency', function () {
+    it('CALL-set-concurrency', async () => {
       gate.handle(ctx, cli, [WAMP.REGISTER, 1234, { concurrency: 2 }, 'func1'])
       let msg = socketHistory.shift()
       expect(msg[0]).to.equal(WAMP.REGISTERED)
@@ -222,7 +222,7 @@ describe('20 wamp-realm', () => {
       expect(mockSocket.wampPkgWrite).to.have.been.called.exactly(3)
     })
 
-    it('CALL-concurrency-unlimited', function () {
+    it('CALL-concurrency-unlimited', async () => {
       mockSocket.wampPkgWrite = function () {}
       gate.handle(ctx, cli, [WAMP.REGISTER, 1234, {}, 'func1'])
 
@@ -270,7 +270,7 @@ describe('20 wamp-realm', () => {
     })
   })
 
-  describe('PUBLISH', function () {
+  describe('PUBLISH', async () => {
     it('UNSUBSCRIBE-ERROR', function () {
       gate.handle(ctx, cli, [WAMP.UNSUBSCRIBE, 2345, 1234567890])
       expect(mockSocket.wampPkgWrite, 'unsubscription confirmed').to.have.been.called.once()
@@ -283,7 +283,7 @@ describe('20 wamp-realm', () => {
       expect(msg[4]).to.equal('wamp.error.no_such_subscription')
     })
 
-    it('UNSUBSCRIBE-OK', function () {
+    it('UNSUBSCRIBE-OK', async () => {
       gate.handle(ctx, cli, [WAMP.SUBSCRIBE, 1234, {}, 'topic1'])
       let msg = socketHistory.shift()
       expect(msg[0]).to.equal(WAMP.SUBSCRIBED)
@@ -297,7 +297,7 @@ describe('20 wamp-realm', () => {
       expect(mockSocket.wampPkgWrite, 'unsubscription confirmed').to.have.been.called.twice()
     })
 
-    it('cleanup Topic API', function () {
+    it('cleanup Topic API', async () => {
       let subSpy = chai.spy(function () {})
       api.subscribe('topic1', subSpy)
       expect(api.cleanupTrace(realm.engine)).to.equal(1)
@@ -305,7 +305,7 @@ describe('20 wamp-realm', () => {
       expect(subSpy).to.not.have.been.called()
     })
 
-    it('PUBLISH default exclude_me:true', function () {
+    it('PUBLISH default exclude_me:true', async () => {
       let subSpy = chai.spy(function () {})
       api.subscribe('topic1', subSpy)
       api.publish('topic1', [], {})
@@ -330,7 +330,7 @@ describe('20 wamp-realm', () => {
       expect(pubs.shift()).to.deep.equal([null,null])
     })
 
-    it('PUBLISH-to-pattern', function () {
+    it('PUBLISH-to-pattern', async () => {
       var subSpy = chai.spy(function (a, b, c, d) {
         // console.log('Publish Event', a,b,c,d)
       })
@@ -409,9 +409,9 @@ describe('20 wamp-realm', () => {
   
   })
 
-  describe('STORAGE', function () {
+  describe('STORAGE', async () => {
 
-    it('reduce-one', function () {
+    it('reduce-one', async () => {
       mockSocket.wampPkgWrite = chai.spy((msg, callback) => {
         // console.log('REDUCE-CALL', msg);
       })
@@ -423,7 +423,7 @@ describe('20 wamp-realm', () => {
       expect(mockSocket.wampPkgWrite).to.have.been.called.exactly(3)
     })
 
-    it('custom-key-value', function () {
+    it('custom-key-value', async () => {
       const app = new MemKeyValueStorage()
       realm.registerKeyValueEngine(['cache', '*', 'name', '#'], app)
 

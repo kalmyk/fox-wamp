@@ -37,7 +37,7 @@ describe('21 hyper-broker', () => {
         socketMock = { hyperPkgWrite: chai.spy((msg) => socketHistory.push(msg)) }
         router = new Router()
         realm = new BaseRealm(router, run.mkEngine())
-        router.addRealm('test-realm', realm)
+        router.initRealm('test-realm', realm)
 
         gate = new FoxGate(router)
         session = router.createSession()
