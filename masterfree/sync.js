@@ -8,58 +8,15 @@ const conf_config_file = process.env.CONFIG
 
 const autobahn = require('autobahn')
 
-const MSG = require('../lib/messages')
 const Router = require('../lib/router')
 const {BaseRealm, BaseEngine} = require('../lib/realm')
-const {QuorumEdge} = require('../lib/allot/quorum_edge')
 const { WampGate } = require('../lib/wamp/gate')
 const WampServer = require('../lib/wamp/transport')
 const { SessionEntrySync } = require('../lib/allot/session_entry_sync')
-const {mergeMin, keyDate, MakeId} = require('../lib/allot/makeid')
 const config = require('./config').getInstance()
 
-const makeId = new MakeId(() => keyDate(new Date()))
-const gateMass = new Map()
 const app = new Router()
-const sysRealm = new BaseRealm(app, new BaseEngine())
-app.initRealm('sys', sysRealm)
-const api = sysRealm.api()
-
-const makeQuorum = new QuorumEdge(
-  (applicantId, value) => {
-    const id = makeId.makeIdRec(value)
-    console.log('makeQuorum:draftSegmentId', value, applicantId, '=>', id)
-    api.publish('draftSegmentId', null, {headers: {applicantId, runId: id}})
-  },
-  (a,b) =>
-    Math.max(a,b)
-)
-
-const syncQuorum = new QuorumEdge((advanceSegment, value) => {
-  console.log('QSYNC!', advanceSegment, '=>', value)
-  api.publish('commitSegment', null, {headers: {advanceSegment, readyId: value}})
-}, mergeMin)
-
-sysRealm.on(MSG.SESSION_JOIN, (session) => {
-  makeQuorum.addMember(session.getSid())
-  syncQuorum.addMember(session.getSid())
-})
-
-sysRealm.on(MSG.SESSION_LEAVE, (session) => {
-  makeQuorum.delMember(session.getSid())
-  syncQuorum.delMember(session.getSid())
-})
-
-api.subscribe('makeSegmentId', (data, opt) => {
-  console.log('=> receive MAKE-ID', data, opt.headers)
-  makeQuorum.vote(opt.sid, opt.headers.advanceSegment, opt.headers.step)
-})
-
-api.subscribe('syncId', (data, opt) => {
-  console.log('SYNC-ID', data, opt)
-  makeId.reconcilePos(opt.headers.maxId.dt, opt.headers.maxId.id)
-  syncQuorum.vote(opt.sid, opt.headers.advanceSegment, opt.headers.syncId)
-})
+const gateMass = new Map()
 
 function mkGate(uri, gateId) {
   const connection = new autobahn.Connection({url: uri, realm: 'sys'})
@@ -80,12 +37,14 @@ function mkGate(uri, gateId) {
   connection.open()
 }
 
-config.loadConfigFile(conf_config_file).then(() => {
-  /*const server = */new WampServer(new WampGate(app), { port: conf_wamp_port })
-  makeId.actualizePrefix()
-  console.log('Listening WAMP port:', conf_wamp_port)
+config.loadConfigFile(conf_config_file).then(async () => {
+  const sysRealm = new BaseRealm(app, new BaseEngine())
+  await app.initRealm('sys', sysRealm)
+  const synchronizer = new Synchronizer(sysRealm)
+  synchronizer.startActualizePrefixTimer()
 
-  setInterval(()=>{makeId.actualizePrefix()}, 7000)
+  /*const server = */new WampServer(new WampGate(app), { port: conf_wamp_port })
+  console.log('Listening WAMP port:', conf_wamp_port)
 
   for (const entry of config.getEntryNodes()) {
     mkGate(entry.url, entry.nodeId)

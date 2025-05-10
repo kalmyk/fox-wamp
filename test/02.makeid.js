@@ -3,7 +3,7 @@
 const chai   = require('chai')
 const spies  = require('chai-spies')
 const expect = chai.expect
-const { keyDate, keyId, MakeId } = require('../lib/allot/makeid')
+const { keyDate, keyId, ProduceId } = require('../lib/allot/makeid')
 
 chai.use(spies)
 
@@ -11,7 +11,7 @@ describe('02 make-id', function () {
   let id
 
   beforeEach(function () {
-    id = new MakeId((a) => a)
+    id = new ProduceId((a) => a)
   })
 
   afterEach(function () {
@@ -27,23 +27,23 @@ describe('02 make-id', function () {
   })
 
   it('make-some-id', () => {
-    id.actualizePrefix('test-prefix-')
-    expect(id.makeIdStr()).to.equal('test-prefix-a1')
-    expect(id.makeIdStr(2)).to.equal('test-prefix-a3')
+    id.reconcilePos('test-prefix-')
+    expect(id.generateIdStr()).to.equal('test-prefix-a1')
+    expect(id.generateIdStr(2)).to.equal('test-prefix-a3')
   })
 
   it('reconcilePos', function () {
-    id.actualizePrefix('a')
-    expect(id.makeIdStr()).to.equal('aa1')
     id.reconcilePos('a')
-    expect(id.makeIdStr()).to.equal('aa2')
+    expect(id.generateIdStr()).to.equal('aa1')
+    id.reconcilePos('a')
+    expect(id.generateIdStr()).to.equal('aa2')
     id.reconcilePos('a', 1)
-    expect(id.makeIdStr()).to.equal('aa3')
+    expect(id.generateIdStr()).to.equal('aa3')
     id.reconcilePos('a', 7)
-    expect(id.makeIdStr()).to.equal('aa8')
+    expect(id.generateIdStr()).to.equal('aa8')
     id.reconcilePos('b')
-    expect(id.makeIdStr()).to.equal('ba1')
+    expect(id.generateIdStr()).to.equal('ba1')
     id.reconcilePos('a')
-    expect(id.makeIdStr()).to.equal('ba2')
+    expect(id.generateIdStr()).to.equal('ba2')
   })
 })

@@ -22,6 +22,7 @@ const { BaseRealm }   = require('../lib/realm')
 const WampApi         = require('../lib/wamp/api')
 const { getBodyValue } = require('../lib/base_gate')
 const { initDbFactory, getDbFactoryInstance } = require('../lib/sqlite/dbfactory')
+const { keyDate, ProduceId } = require('../lib/allot/makeid')
 
 chai.use(promised)
 chai.use(spies)
@@ -42,12 +43,11 @@ const makeDbRealm = async (router) => {
   })
   getDbFactoryInstance().setMainDb(db)
 
-  let realm = new BaseRealm(router, new DbEngine())
-
   let modKv = new SqliteModKv(db)
-  await modKv.createTables()
+  let makeId = new ProduceId(() => keyDate(new Date()))
+  let realm = new BaseRealm(router, new DbEngine(makeId, modKv))
 
-  let kv = new SqliteKv(modKv, getDbFactoryInstance().getMakeId(), TEST_REALM_NAME)
+  let kv = new SqliteKv(modKv, makeId, TEST_REALM_NAME)
   realm.registerKeyValueEngine(['#'], kv)
 
   return realm
@@ -111,15 +111,15 @@ describe('55 hyper events', () => {
         wampGate.handle(ctx, cli, [WAMP.SUBSCRIBE, 1234, { retained: true }, 'topic1'])
         await resultPromise
 
-        expect(rslt[0][0]).to.equal(WAMP.SUBSCRIBED)
-        expect(rslt[0][1]).to.equal(1234)
+        expect(rslt[0][0]).equal(WAMP.SUBSCRIBED)
+        expect(rslt[0][1]).equal(1234)
 
-        expect(rslt[1][0]).to.equal(WAMP.EVENT)
-        expect(rslt[1][3].topic).to.equal('topic1')
-        expect(rslt[1][3].retained).to.equal(true)
-        expect(rslt[1][4]).to.deep.equal([{ data: 'retain-the-value' }])
+        expect(rslt[1][0]).equal(WAMP.EVENT)
+        expect(rslt[1][3].topic).equal('topic1')
+        expect(rslt[1][3].retained).equal(true)
+        expect(rslt[1][4]).deep.equal([{ data: 'retain-the-value' }])
 
-        expect(subSpy).to.have.been.called.twice()
+        expect(subSpy).have.been.called.twice()
       })
   
       it('storage-retain-weak:' + run.it, async () => {
@@ -127,20 +127,20 @@ describe('55 hyper events', () => {
 
         let storedValue = []
         await realm.getKey(['topic2'], (uri, value)=>storedValue.push([uri,value]))
-        expect(storedValue).to.deep.equal([[['topic2'], {kv:['arg1', 'arg2']}]])
+        expect(storedValue).deep.equal([[['topic2'], {kv:['arg1', 'arg2']}]])
 
         await api.session().cleanup()
 
         let spyValueNotExists = chai.spy(()=>{})
         await realm.getKey(['topic2'], spyValueNotExists)
-        expect(spyValueNotExists).to.not.have.been.called()
+        expect(spyValueNotExists).not.have.been.called()
       })
   
       it('wamp-key-remove:' + run.it, async () => {
         await api.publish(['topic2'], { some: 'value' }, { retain: true, acknowledge: true })
         let storedValue = []
         await realm.getKey(['topic2'], (uri, value)=>storedValue.push([uri,value]))
-        expect(storedValue).to.deep.equal([[['topic2'], {kv:{some:'value'}}]])
+        expect(storedValue).deep.equal([[['topic2'], {kv:{some:'value'}}]])
 
         // no kwargs is sent if kwargs passed as null
         await api.publish('topic2', null, { retain: true, acknowledge: true })
@@ -148,7 +148,7 @@ describe('55 hyper events', () => {
         var spyNotExists = chai.spy(()=>{})
         await realm.getKey(['topic2'], spyNotExists)
 
-        expect(spyNotExists).to.not.have.been.called()
+        expect(spyNotExists).not.have.been.called()
       })
   
       // realm must PUSH data if client has disconnect WILL registered
@@ -171,8 +171,8 @@ describe('55 hyper events', () => {
           }
         )
         await wampApi.cleanup()
-        expect(events.shift()).to.deep.equal({ info: 'event-value' })
-        expect(events.shift()).to.deep.equal({ args: { info: 'will-value' }})
+        expect(events.shift()).deep.equal({ info: 'event-value' })
+        expect(events.shift()).deep.equal({ args: { info: 'will-value' }})
         assert.equal(0, events.length)
         assert.isFalse(wampApi.hasSendError(), wampApi.firstSendErrorMessage())
       })
@@ -191,7 +191,7 @@ describe('55 hyper events', () => {
             acknowledge: true
           }
         )
-        expect(events.shift()).to.deep.equal({ event: 'first event value' })
+        expect(events.shift()).deep.equal({ event: 'first event value' })
 
         const promiseWaitForEmpty = api.publish(
           'watch.test',
@@ -216,17 +216,17 @@ describe('55 hyper events', () => {
             acknowledge: true 
           }
         )
-        expect(events.shift()).to.deep.equal({ event: 'second value is set when value empty' })
+        expect(events.shift()).deep.equal({ event: 'second value is set when value empty' })
 
         await promiseWaitForEmpty
-        expect(events.shift()).to.deep.equal(null)
+        expect(events.shift()).deep.equal(null)
 
         let storage = []
         await realm.getKey(['watch', 'test'], (uri, value) => {
           storage.push([uri,getBodyValue(value)])
         })
         // TODO: fix-me in db
-        // expect(storage).to.deep.equal([[['watch', 'test'], { event: 'second value is set when value empty' }]])
+        // expect(storage).deep.equal([[['watch', 'test'], { event: 'second value is set when value empty' }]])
       })
 
       it('push-watch-for-will', async () => {
@@ -282,10 +282,10 @@ describe('55 hyper events', () => {
         await cli.cleanup()
         await Promise.all(defer)
 
-        expect(events.shift()).to.deep.equal({ event: 'value-1' })
-        expect(events.shift()).to.deep.equal({ event: 'value-2' }) // ?? move below ?/
-        expect(events.shift()).to.not.exist
-        expect(events.length).to.equal(0)
+        expect(events.shift()).deep.equal({ event: 'value-1' })
+        expect(events.shift()).deep.equal({ event: 'value-2' }) // ?? move below ?/
+        expect(events.shift()).not.exist
+        expect(events.length).equal(0)
       })
     
     })

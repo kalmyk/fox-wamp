@@ -9,11 +9,13 @@ const promised    = require('chai-as-promised')
 const sqlite3 = require('sqlite3')
 const sqlite = require('sqlite')
 
-const { BaseRealm } = require('../lib/realm')
-const Router       = require('../lib/router')
+const { BaseRealm }  = require('../lib/realm')
+const Router         = require('../lib/router')
 const { DbEngine }   = require('../lib/sqlite/dbengine')
-const { MemEngine } = require('../lib/mono/memengine')
+const { MemEngine }  = require('../lib/mono/memengine')
 const { initDbFactory, getDbFactoryInstance } = require('../lib/sqlite/dbfactory')
+const { keyDate, ProduceId } = require('../lib/allot/makeid')
+const { SqliteModKv }    = require('../lib/sqlite/sqlitekv')
 
 chai.use(promised)
 chai.use(spies)
@@ -26,7 +28,10 @@ const mkDbEngine = async () => {
     driver: sqlite3.Database
   })
   getDbFactoryInstance().setMainDb(db)
-  return new DbEngine()
+  return new DbEngine(
+    new ProduceId(() => keyDate(new Date())),
+    new SqliteModKv()
+  )
 }
 
 const runs = [

@@ -81,13 +81,14 @@ describe('10 clent', function () {
       uri: ['queue','name'],
       data: { kv: 'event-pkg' },
       id: 1,
-      qid: 1234567
+      qid: 1234567,
+      sid: 67890
     })
 
     // TODO: where is publication-id in opt?
     expect(result.shift()).to.deep.equal([
       'event-pkg',
-      {topic: 'queue.name', publication: 1234567, headers: undefined}
+      {topic: 'queue.name', publication: 1234567, publisher: 67890, headers: undefined}
     ])
   })
 

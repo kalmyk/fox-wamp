@@ -19,14 +19,14 @@ const { FoxGate } = require('../lib/hyper/gate')
 const { FoxNetServer } = require('../lib/hyper/net_transport')
 const WampServer = require('../lib/wamp/transport')
 const MqttServer = require('../lib/mqtt/transport')
-const { NetBinder, NetEngine } = require('../lib/allot/netbinder')
+const { NetEngine, NetEngineMill } = require('../lib/allot/netengine')
 const { MqttGate } = require('../lib/mqtt/gate')
 
 const router = new Router()
-const binder = new NetBinder(router)
+const netEngineMill = new NetEngineMill(router)
 
 router.setId(conf_node_id)
-router.createRealm = () => new BaseRealm(router, new NetEngine(binder))
+router.createRealm = () => new BaseRealm(router, new NetEngine(netEngineMill, router))
 
 new WampServer(new WampGate(router), { port: conf_wamp_port })
 new MqttServer(new MqttGate(router), { port: conf_mqtt_port })

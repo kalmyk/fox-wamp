@@ -6,17 +6,15 @@ const conf_db_file = process.env.DB_FILE
 const conf_config_file = process.env.CONFIG
   || console.log('CONFIG file name must be defined') || process.exit(1)
 
-const sqlite3 = require('sqlite3')
-const sqlite = require('sqlite')
 const autobahn = require('autobahn')
 
 const { QuorumEdge } = require('../lib/allot/quorum_edge')
 const { mergeMin, mergeMax, makeEmpty } = require('../lib/allot/makeid')
 const { SessionEntryHistory } = require('../lib/allot/session_entry_history')
-const { History } = require('../lib/sqlite/history')
 const { SqliteModKv } = require('../lib/sqlite/sqlitekv')
 const Router = require('../lib/router')
 const config = require('./config').getInstance()
+const { initDbFactory } = require('../lib/sqlite/dbfactory')
 
 const syncMass = new Map()
 const gateMass = new Map()
@@ -68,14 +66,14 @@ function mkSync(uri, ssId) {
   connection.open()
 }
 
-function mkGate(uri, gateId, history, modKv, heapApi) {
+function mkGate(uri, gateId, modKv, heapApi) {
   const connection = new autobahn.Connection({url: uri, realm: 'sys'})
 
   connection.onopen = function (session, details) {
     console.log('connect gate', gateId, uri)
     gateMass.set(
       gateId,
-      new SessionEntryHistory(session, syncMass, history, gateId, (advanceSegment, segment, effectId) => {
+      new SessionEntryHistory(session, syncMass, gateId, (advanceSegment, segment, effectId) => {
         const readyEvent = []
         const heapEvent = []
         for (let i = 0; i<segment.content.length; i++) {
@@ -112,25 +110,19 @@ function mkGate(uri, gateId, history, modKv, heapApi) {
 }
 
 async function main () {
-  const db = await sqlite.open({
-    filename: conf_db_file,
-    driver: sqlite3.Database
-  })
+  const dbFactory = await initDbFactory()
+  const db = await dbFactory.openMainDatabase(conf_db_file)
 
-  const history = new History(db)
-  await history.createTables()
-
-  const modKv = new SqliteModKv(db)
-  await modKv.createTables()
+  const modKv = new SqliteModKv()
 
   const router = new Router()
   const heap = await router.getRealm('heap')
-  
+
   for (const sync of config.getSyncNodes()) {
     mkSync(sync.url, sync.nodeId)
   }
   for (const entry of config.getEntryNodes()) {
-    mkGate(entry.url, entry.nodeId, history, modKv, heap.api())
+    mkGate(entry.url, entry.nodeId, modKv, heap.api())
   }
 }
 

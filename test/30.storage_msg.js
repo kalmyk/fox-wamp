@@ -30,7 +30,7 @@ describe('30 message-storage', async () => {
   })
 
   it('should create tables', async () => {
-    return assert.isFulfilled(History.createTables(db, 'testrealm'))
+    return assert.isFulfilled(History.createHistoryTables(db, 'testrealm'))
   })
 
   it('should save message', async () => {
