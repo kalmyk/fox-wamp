@@ -389,7 +389,7 @@ describe('22 mqtt-realm', () => {
     expect(msg.cmd).to.equal('suback')
 
     await api.publish('topic.1', { data: 1 }, { trace: true })
-    expect(realm.engine.getInMessagesCount(), 'trace message need to be saved').to.equal(1)
+    expect(realm.engine.getMemoryMessagesCount(), 'trace message need to be saved').to.equal(1)
 
     msg = socketHistory.shift()
     expect(msg.cmd).to.equal('publish')

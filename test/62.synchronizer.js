@@ -6,7 +6,7 @@ const expect      = chai.expect
 chai.use(spies)
 
 const Router         = require('../lib/router')
-const { InitSeed, StageOne } = require('../lib/allot/synchronizer')
+const { StageOne } = require('../lib/allot/synchronizer')
 
 describe('62 synchronizer', function () {
   let
@@ -15,7 +15,6 @@ describe('62 synchronizer', function () {
     api,
     router,
     sysRealm,
-    initSeed,
     stageOne
 
   beforeEach(async () => {
@@ -26,12 +25,11 @@ describe('62 synchronizer', function () {
     sysRealm = await router.getRealm('sys')
     api = sysRealm.buildApi()
 
-    initSeed = new InitSeed(sysRealm)
-    initSeed.reconcilePos('PREFIX1:')
     await api.subscribe('draftSegment', (event, opt) => { draftStack.push(opt.headers) })
 
     const MAJOR_LIMIT = 2
     stageOne = new StageOne(sysRealm, MAJOR_LIMIT)
+    stageOne.reconcilePos('PREFIX1:')
     await api.subscribe('challengerExtract', (event, opt) => { extractStack.push(opt.headers) })
   })
 

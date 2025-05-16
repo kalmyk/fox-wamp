@@ -26,7 +26,7 @@ const router = new Router()
 const netEngineMill = new NetEngineMill(router)
 
 router.setId(conf_node_id)
-router.createRealm = () => new BaseRealm(router, new NetEngine(netEngineMill, router))
+router.createRealm = () => new BaseRealm(router, new NetEngine(netEngineMill))
 
 new WampServer(new WampGate(router), { port: conf_wamp_port })
 new MqttServer(new MqttGate(router), { port: conf_mqtt_port })
