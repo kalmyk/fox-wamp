@@ -6,7 +6,7 @@ const expect      = chai.expect
 chai.use(spies)
 
 const Router         = require('../lib/router')
-const { StageOne } = require('../lib/allot/synchronizer')
+const { StageOne } = require('../lib/masterfree/synchronizer')
 
 describe('62 synchronizer', function () {
   let

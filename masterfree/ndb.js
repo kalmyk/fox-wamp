@@ -8,23 +8,26 @@ const conf_config_file = process.env.CONFIG
 
 const autobahn = require('autobahn')
 
-const { QuorumEdge } = require('../lib/allot/quorum_edge')
-const { mergeMin, mergeMax, makeEmpty } = require('../lib/allot/makeid')
-const { SessionEntryHistory } = require('../lib/allot/session_entry_history')
+const { QuorumEdge } = require('../lib/masterfree/quorum_edge')
+const { mergeMin, mergeMax, makeEmpty } = require('../lib/masterfree/makeid')
+const { SessionEntryHistory } = require('../lib/masterfree/session_entry_history')
 const { SqliteModKv } = require('../lib/sqlite/sqlitekv')
 const Router = require('../lib/router')
-const config = require('./config').getInstance()
+const config = require('../lib/masterfree/config').getInstance()
 const { initDbFactory } = require('../lib/sqlite/dbfactory')
+const { StorageTask } = require('../lib/masterfree/storage')
+
+const router = new Router()
+const sysRealm = await router.getRealm('sys')
 
 const syncMass = new Map()
 const gateMass = new Map()
-
-let maxId = makeEmpty(new Date())
+const storageTask = new StorageTask(sysRealm)
 
 const runQuorum = new QuorumEdge((advanceSegment, value) => {
-  console.log('runQuorum:', maxId, advanceSegment, '=>', value)
+  console.log('runQuorum:', storageTask.getMaxId(), advanceSegment, '=>', value)
   for (let [,ss] of syncMass) {
-    ss.publish('syncId', [], {maxId, advanceSegment, syncId: value})
+    ss.publish('syncId', [], {storageTask.getMaxId(), advanceSegment, syncId: value})
   }
 }, mergeMin)
 
@@ -47,7 +50,7 @@ function mkSync(uri, ssId) {
     session.subscribe('draftSegmentId', (args, kwargs, opts) => {
       console.log('=> draftSegmentId', ssId, args, kwargs)
       runQuorum.vote(ssId, kwargs.applicantId, kwargs.runId)
-      maxId = mergeMax(maxId, kwargs.runId)
+      storageTask.setMaxId(mergeMax(maxId, kwargs.runId))
     })
 
     session.subscribe('commitSegment', (args, kwargs, opts) => {
@@ -115,14 +118,11 @@ async function main () {
 
   const modKv = new SqliteModKv()
 
-  const router = new Router()
-  const heap = await router.getRealm('heap')
-
   for (const sync of config.getSyncNodes()) {
     mkSync(sync.url, sync.nodeId)
   }
   for (const entry of config.getEntryNodes()) {
-    mkGate(entry.url, entry.nodeId, modKv, heap.api())
+    mkGate(entry.url, entry.nodeId, modKv, sysRealm.api())
   }
 }
 

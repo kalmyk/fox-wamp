@@ -22,7 +22,7 @@ const { BaseRealm }   = require('../lib/realm')
 const WampApi         = require('../lib/wamp/api')
 const { getBodyValue } = require('../lib/base_gate')
 const { initDbFactory, getDbFactoryInstance } = require('../lib/sqlite/dbfactory')
-const { keyDate, ProduceId } = require('../lib/allot/makeid')
+const { keyDate, ProduceId } = require('../lib/masterfree/makeid')
 
 chai.use(promised)
 chai.use(spies)

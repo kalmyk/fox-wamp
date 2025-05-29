@@ -18,6 +18,8 @@ $ supervisord -c ./masterfree.supervisord.ini
 
 ```
 # blueprint
+Yes, I know about snowflake-id
+
 advanceId {segment, offset}
     advanceId.segment - nearly random string value
     advanceId.offset - offset inside the segment
@@ -27,11 +29,27 @@ entry
 
     at trim-advance-segment message the entry collects votes from storage copies. when trim-advance-segment elected the advance-segment is completed and advance-segment-over message is sent to destination storage host. New advance-segment will be generated at the next inbound message.
 
+    for next advance id all not resolved items are sent to the next shard in creation order. that must keep inbound order when shard is changed.
+
     advance-segment-resolved message arrived when advance-id become permanent identifier. At that time entry able to send ACK message for messages with permanent id.
 
 ndb-storage
     when begin-advance-segment arrived, the trim-advance-segment message is generated immidiatelly to terminate segment at entry. arriving inbound messages in keep-advance-history are stored temporary with advance-id marker. when advance-segment-resolved arrived the temporary storage is moved to permanent.
 
+    advance-segment-over event starts permanent id election procedure 
+
 sync
     the sync cluster is responsible to transform nearly random advance-id to monotonic id.
+
+
+    entry                        ndb                          sync
+
+        begin-advance-segment ->
+        keep-advance-history  ->
+        <- trim-advance-segment
+        advance-segment-over  ->
+                                            makeSegmentId -> generate mew time+genId for tmp-id
+                                                             send to next sync stage
+                                                             vote, take low _in_vouter_ time+genId for tmp-id
+                                                             send to final sync stage
 

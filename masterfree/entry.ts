@@ -19,7 +19,7 @@ const { FoxGate } = require('../lib/hyper/gate')
 const { FoxNetServer } = require('../lib/hyper/net_transport')
 const WampServer = require('../lib/wamp/transport')
 const MqttServer = require('../lib/mqtt/transport')
-const { NetEngine, NetEngineMill } = require('../lib/allot/netengine')
+const { NetEngine, NetEngineMill } = require('../lib/masterfree/netengine')
 const { MqttGate } = require('../lib/mqtt/gate')
 
 const router = new Router()

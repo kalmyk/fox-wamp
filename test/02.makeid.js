@@ -3,7 +3,7 @@
 const chai   = require('chai')
 const spies  = require('chai-spies')
 const expect = chai.expect
-const { keyDate, keyId, ProduceId } = require('../lib/allot/makeid')
+const { keyDate, keyId, ProduceId } = require('../lib/masterfree/makeid')
 
 chai.use(spies)
 

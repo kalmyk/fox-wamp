@@ -6,7 +6,7 @@ const expect      = chai.expect
 chai.use(spies)
 
 const Router         = require('../lib/router')
-const { NetEngine, NetEngineMill } = require('../lib/allot/netengine')
+const { NetEngine, NetEngineMill } = require('../lib/masterfree/netengine')
 const { BaseRealm } = require('../lib/realm')
 
 describe('61 net-entry', function () {

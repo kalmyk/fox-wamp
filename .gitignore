@@ -1,6 +1,8 @@
 node_modules
 *.log
+*.map
 coverage/*
+build/*
 .nyc_output
 .idea/
 **/*.iml

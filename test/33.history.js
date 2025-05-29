@@ -14,7 +14,7 @@ const Router         = require('../lib/router')
 const { DbEngine }   = require('../lib/sqlite/dbengine')
 const { MemEngine }  = require('../lib/mono/memengine')
 const { initDbFactory, getDbFactoryInstance } = require('../lib/sqlite/dbfactory')
-const { keyDate, ProduceId } = require('../lib/allot/makeid')
+const { keyDate, ProduceId } = require('../lib/masterfree/makeid')
 const { SqliteModKv }    = require('../lib/sqlite/sqlitekv')
 
 chai.use(promised)
