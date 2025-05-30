@@ -1,19 +1,15 @@
-'use strict'
-
-const chai        = require('chai')
-const spies       = require('chai-spies')
-const expect      = chai.expect
-const promised    = require('chai-as-promised')
-
-const { RESULT_OK, RESULT_ACK, RESULT_ERR } = require('../lib/messages')
-const { errorCodes } = require('../lib/realm_error')
-const { FoxGate }    = require('../lib/hyper/gate')
-const Router         = require('../lib/router')
-const { BaseRealm, BaseEngine } = require('../lib/realm')
-const { MemEngine }  = require('../lib/mono/memengine')
-
-chai.use(promised)
+import chai, { expect } from 'chai'
+import spies from 'chai-spies'
+import promised from 'chai-as-promised'
 chai.use(spies)
+chai.use(promised)
+
+import { RESULT_OK, RESULT_ACK, RESULT_ERR } from '../lib/messages.js'
+import { errorCodes } from '../lib/realm_error.js'
+import { FoxGate }    from '../lib/hyper/gate.js'
+import Router         from '../lib/router.js'
+import { BaseRealm, BaseEngine } from '../lib/realm.js'
+import { MemEngine }  from '../lib/mono/memengine.js'
 
 const runs = [
   {it: 'zero', mkEngine: () => new BaseEngine()},

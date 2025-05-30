@@ -1,16 +1,11 @@
-'use strict'
-
-const chai = require('chai')
-const spies = require('chai-spies')
-const expect = chai.expect
-const assert = chai.assert
-const promised = require('chai-as-promised')
-
-const { RESULT_OK, RESULT_ACK, RESULT_EMIT, RESULT_ERR, REQUEST_EVENT, REQUEST_TASK } = require('../lib/messages')
-const { HyperSocketFormatter, HyperApiContext, HyperClient } = require('../lib/hyper/client')
-
+import chai, { expect, assert } from 'chai'
+import spies from 'chai-spies'
+import promised from 'chai-as-promised'
 chai.use(spies)
 chai.use(promised)
+
+import { RESULT_OK, RESULT_ACK, RESULT_EMIT, RESULT_ERR, REQUEST_EVENT, REQUEST_TASK } from '../lib/messages.js'
+import { HyperSocketFormatter, HyperApiContext, HyperClient } from '../lib/hyper/client.js'
 
 describe('10 clent', function () {
   let

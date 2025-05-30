@@ -1,14 +1,12 @@
-'use strict'
-
-const chai = require('chai')
-const expect = chai.expect
-const assert = chai.assert
-const promised = require('chai-as-promised')
+import chai, { expect, assert } from 'chai'
+import spies from 'chai-spies'
+import promised from 'chai-as-promised'
+chai.use(spies)
 chai.use(promised)
 
-const { MemServer } = require('../lib/hyper/mem_transport')
-const { FoxGate }   = require('../lib/hyper/gate')
-const Router        = require('../lib/router')
+import { MemServer } from '../lib/hyper/mem_transport.js'
+import { FoxGate }   from '../lib/hyper/gate.js'
+import Router        from '../lib/router.js'
 
 describe('23 pub-worker', () => {
   let

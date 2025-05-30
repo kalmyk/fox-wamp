@@ -1,9 +1,5 @@
-'use strict'
-
-const chai = require('chai')
-const expect = chai.expect
-
-const { isDataFit } = require('../lib/realm')
+import { expect } from 'chai'
+import { isDataFit } from '../lib/realm.js'
 
 describe('01 isDataFit', function () {
   it('level-one-null', function () {

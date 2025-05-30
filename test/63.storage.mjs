@@ -1,12 +1,9 @@
-'use strict'
-
-const chai        = require('chai')
-const spies       = require('chai-spies')
-const expect      = chai.expect
+import chai, { expect } from 'chai'
+import spies from 'chai-spies'
 chai.use(spies)
 
-const Router         = require('../lib/router')
-const { StorageTask } = require('../lib/masterfree/storage')
+import Router         from '../lib/router.js'
+import { StorageTask } from '../lib/masterfree/storage.js'
 
 describe('63 storage', function () {
   let
@@ -34,7 +31,7 @@ describe('63 storage', function () {
   })
 
   afterEach(async () => {})
-  
+
   it('init-seed generateOnce', async () => {
     await api.publish('generateSegment', null, {headers:{advanceOwner:'entry1', advanceSegment:'a0'}})
     await api.publish('generateSegment', null, {headers:{advanceOwner:'entry1', advanceSegment:'a0'}})

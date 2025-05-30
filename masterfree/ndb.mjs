@@ -1,5 +1,3 @@
-'use strict'
-
 const conf_db_file = process.env.DB_FILE
   || console.log('DB_FILE must be defined') || process.exit(1)
 
@@ -8,14 +6,14 @@ const conf_config_file = process.env.CONFIG
 
 const autobahn = require('autobahn')
 
-const { QuorumEdge } = require('../lib/masterfree/quorum_edge')
-const { mergeMin, mergeMax, makeEmpty } = require('../lib/masterfree/makeid')
-const { SessionEntryHistory } = require('../lib/masterfree/session_entry_history')
-const { SqliteModKv } = require('../lib/sqlite/sqlitekv')
-const Router = require('../lib/router')
-const config = require('../lib/masterfree/config').getInstance()
-const { initDbFactory } = require('../lib/sqlite/dbfactory')
-const { StorageTask } = require('../lib/masterfree/storage')
+import { QuorumEdge } from '../lib/masterfree/quorum_edge.js'
+import { mergeMin, mergeMax, makeEmpty } from '../lib/masterfree/makeid.js'
+import { SessionEntryHistory } from '../lib/masterfree/session_entry_history.js'
+import { SqliteModKv } from '../lib/sqlite/sqlitekv.js'
+import Router from '../lib/router.js'
+import Config from '../lib/masterfree/config.js'
+import { initDbFactory } from '../lib/sqlite/dbfactory.js'
+import { StorageTask } from '../lib/masterfree/storage.js'
 
 const router = new Router()
 const sysRealm = await router.getRealm('sys')
@@ -27,7 +25,7 @@ const storageTask = new StorageTask(sysRealm)
 const runQuorum = new QuorumEdge((advanceSegment, value) => {
   console.log('runQuorum:', storageTask.getMaxId(), advanceSegment, '=>', value)
   for (let [,ss] of syncMass) {
-    ss.publish('syncId', [], {storageTask.getMaxId(), advanceSegment, syncId: value})
+    ss.publish('syncId', [], {maxId: storageTask.getMaxId(), advanceSegment, syncId: value})
   }
 }, mergeMin)
 
@@ -115,6 +113,7 @@ function mkGate(uri, gateId, modKv, heapApi) {
 async function main () {
   const dbFactory = await initDbFactory()
   const db = await dbFactory.openMainDatabase(conf_db_file)
+  const config = Config.getInstance()
 
   const modKv = new SqliteModKv()
 
@@ -126,7 +125,7 @@ async function main () {
   }
 }
 
-config.loadConfigFile(conf_config_file).then(() => {
+Config.getInstance().loadConfigFile(conf_config_file).then(() => {
   main()
   console.log('connect function started')
 }, (err) => {

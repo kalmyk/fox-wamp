@@ -1,16 +1,12 @@
-'use strict'
-
-const chai     = require('chai')
-const spies    = require('chai-spies')
-const promised = require('chai-as-promised')
-const assert   = chai.assert
-const expect   = chai.expect
+import chai, { expect, assert } from 'chai'
+import spies from 'chai-spies'
+import promised from 'chai-as-promised'
 chai.use(spies)
 chai.use(promised)
 
-const sqlite3 = require('sqlite3')
-const sqlite = require('sqlite')
-const History = require('../lib/sqlite/history')
+import sqlite3 from 'sqlite3'
+import * as sqlite from 'sqlite'
+import History from '../lib/sqlite/history.js'
 
 describe('30 message-storage', async () => {
   let db

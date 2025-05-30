@@ -1,11 +1,8 @@
-'use strict'
-
-const chai   = require('chai')
-const spies  = require('chai-spies')
-const expect = chai.expect
-const { keyDate, keyId, ProduceId } = require('../lib/masterfree/makeid')
-
+import chai, { expect } from 'chai'
+import spies from 'chai-spies'
 chai.use(spies)
+
+import { keyDate, keyId, ProduceId } from '../lib/masterfree/makeid'
 
 describe('02 make-id', function () {
   let id

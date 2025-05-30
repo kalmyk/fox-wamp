@@ -1,9 +1,6 @@
-'use strict'
+import { expect } from 'chai'
 
-const chai = require('chai')
-const expect = chai.expect
-
-const TopicPattern = require('../lib/topic_pattern')
+import TopicPattern from '../lib/topic_pattern.js'
 
 function mqttmatch (topic, pattern, result) {
   expect(TopicPattern.mqttMatch(topic, pattern), "mqttmatch('" + topic + "', '" + pattern + "')").to.equal(true)

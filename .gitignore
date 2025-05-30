@@ -2,7 +2,7 @@ node_modules
 *.log
 *.map
 coverage/*
-build/*
+out/*
 .nyc_output
 .idea/
 **/*.iml

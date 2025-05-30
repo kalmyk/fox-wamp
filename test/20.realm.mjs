@@ -1,19 +1,14 @@
-'use strict'
-
-const chai = require('chai')
-const spies = require('chai-spies')
-const expect = chai.expect
-const assert = chai.assert
-const promised    = require('chai-as-promised')
-
-const { isDataEmpty, deepDataMerge } = require('../lib/realm')
-const WAMP     = require('../lib/wamp/protocol')
-const { WampGate } = require('../lib/wamp/gate')
-const FoxRouter = require('../lib/fox_router')
-const MemKeyValueStorage = require('../lib/mono/memkv').MemKeyValueStorage
-
-chai.use(promised)
+import chai, { expect, assert } from 'chai'
+import spies from 'chai-spies'
+import promised from 'chai-as-promised'
 chai.use(spies)
+chai.use(promised)
+
+import { isDataEmpty, deepDataMerge } from '../lib/realm.js'
+import WAMP     from '../lib/wamp/protocol.js'
+import { WampGate } from '../lib/wamp/gate.js'
+import FoxRouter from '../lib/fox_router.js'
+import { MemKeyValueStorage } from '../lib/mono/memkv.js'
 
 describe('20 wamp-realm', async () => {
   let

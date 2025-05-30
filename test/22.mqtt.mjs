@@ -1,13 +1,9 @@
-'use strict'
-
-const chai = require('chai')
-const spies = require('chai-spies')
-const expect = chai.expect
-
-const { MqttGate } = require('../lib/mqtt/gate')
-const FoxRouter    = require('../lib/fox_router')
-
+import chai, { expect } from 'chai'
+import spies from 'chai-spies'
 chai.use(spies)
+
+import { MqttGate } from '../lib/mqtt/gate.js'
+import FoxRouter    from '../lib/fox_router.js'
 
 describe('22 mqtt-realm', () => {
   let

@@ -1,5 +1,3 @@
-'use strict'
-
 const conf_wamp_port = process.env.WAMP_PORT
   || console.log('WAMP_PORT must be defined') || process.exit(1)
 
@@ -12,15 +10,15 @@ const conf_fox_port = process.env.FOX_PORT
 const conf_node_id = process.env.NODE_ID
   || console.log('NODE_ID must be defined') || process.exit(1)
 
-const Router = require('../lib/router')
-const { BaseRealm } = require('../lib/realm')
-const { WampGate } = require('../lib/wamp/gate')
-const { FoxGate } = require('../lib/hyper/gate')
-const { FoxNetServer } = require('../lib/hyper/net_transport')
-const WampServer = require('../lib/wamp/transport')
-const MqttServer = require('../lib/mqtt/transport')
-const { NetEngine, NetEngineMill } = require('../lib/masterfree/netengine')
-const { MqttGate } = require('../lib/mqtt/gate')
+import Router from '../lib/router.js'
+import { BaseRealm } from '../lib/realm.js'
+import { WampGate } from '../lib/wamp/gate.js'
+import { FoxGate } from '../lib/hyper/gate.js'
+import { FoxNetServer } from '../lib/hyper/net_transport.js'
+import WampServer from '../lib/wamp/transport.js'
+import MqttServer from '../lib/mqtt/transport.js'
+import { NetEngine, NetEngineMill } from '../lib/masterfree/netengine.js'
+import { MqttGate } from '../lib/mqtt/gate.js'
 
 const router = new Router()
 const netEngineMill = new NetEngineMill(router)

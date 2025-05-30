@@ -1,24 +1,19 @@
-'use strict'
-
-const chai        = require('chai')
-const assert      = chai.assert
-const spies       = require('chai-spies')
-const expect      = chai.expect
-const promised    = require('chai-as-promised')
-
-const sqlite3 = require('sqlite3')
-const sqlite = require('sqlite')
-
-const { BaseRealm }  = require('../lib/realm')
-const Router         = require('../lib/router')
-const { DbEngine }   = require('../lib/sqlite/dbengine')
-const { MemEngine }  = require('../lib/mono/memengine')
-const { initDbFactory, getDbFactoryInstance } = require('../lib/sqlite/dbfactory')
-const { keyDate, ProduceId } = require('../lib/masterfree/makeid')
-const { SqliteModKv }    = require('../lib/sqlite/sqlitekv')
-
-chai.use(promised)
+import chai, { expect, assert } from 'chai'
+import spies from 'chai-spies'
+import promised from 'chai-as-promised'
 chai.use(spies)
+chai.use(promised)
+
+import sqlite3 from 'sqlite3'
+import * as sqlite from 'sqlite'
+
+import { BaseRealm }  from '../lib/realm.js'
+import Router         from '../lib/router.js'
+import { DbEngine }   from '../lib/sqlite/dbengine.js'
+import { MemEngine }  from '../lib/mono/memengine.js'
+import { initDbFactory, getDbFactoryInstance } from '../lib/sqlite/dbfactory.js'
+import { keyDate, ProduceId } from '../lib/masterfree/makeid.js'
+import { SqliteModKv }    from '../lib/sqlite/sqlitekv.js'
 
 initDbFactory()
 

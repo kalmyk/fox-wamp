@@ -1,13 +1,10 @@
-'use strict'
-
-const chai        = require('chai')
-const spies       = require('chai-spies')
-const expect      = chai.expect
+import chai, { expect } from 'chai'
+import spies from 'chai-spies'
 chai.use(spies)
 
-const Router         = require('../lib/router')
-const { NetEngine, NetEngineMill } = require('../lib/masterfree/netengine')
-const { BaseRealm } = require('../lib/realm')
+import Router         from '../lib/router.js'
+import { NetEngine, NetEngineMill } from '../lib/masterfree/netengine.js'
+import { BaseRealm } from '../lib/realm.js'
 
 describe('61 net-entry', function () {
   let

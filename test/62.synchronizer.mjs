@@ -1,12 +1,9 @@
-'use strict'
-
-const chai        = require('chai')
-const spies       = require('chai-spies')
-const expect      = chai.expect
+import chai, { expect } from 'chai'
+import spies from 'chai-spies'
 chai.use(spies)
 
-const Router         = require('../lib/router')
-const { StageOne } = require('../lib/masterfree/synchronizer')
+import Router       from '../lib/router.js'
+import { StageOne } from '../lib/masterfree/synchronizer.js'
 
 describe('62 synchronizer', function () {
   let

@@ -1,19 +1,17 @@
-'use strict'
-
 const conf_wamp_port = process.env.WAMP_PORT
   || console.log('WAMP_PORT must be defined') || process.exit(1)
 
 const conf_config_file = process.env.CONFIG
   || console.log('CONFIG file name must be defined') || process.exit(1)
 
-const autobahn = require('autobahn')
+import autobahn from 'autobahn'
 
-const Router = require('../lib/router')
-const {BaseRealm, BaseEngine} = require('../lib/realm')
-const { WampGate } = require('../lib/wamp/gate')
-const WampServer = require('../lib/wamp/transport')
-const { SessionEntrySync } = require('../lib/masterfree/session_entry_sync')
-const config = require('../lib/masterfree/config').getInstance()
+import Router from '../lib/router.js'
+import {BaseRealm, BaseEngine} from '../lib/realm.js'
+import { WampGate } from '../lib/wamp/gate.js'
+import WampServer from '../lib/wamp/transport.js'
+import { SessionEntrySync } from '../lib/masterfree/session_entry_sync.js'
+import Config from '../lib/masterfree/config.js'
 
 const app = new Router()
 const gateMass = new Map()
@@ -37,7 +35,7 @@ function mkGate(uri, gateId) {
   connection.open()
 }
 
-config.loadConfigFile(conf_config_file).then(async () => {
+Config.getInstance().loadConfigFile(conf_config_file).then(async () => {
   const sysRealm = new BaseRealm(app, new BaseEngine())
   await app.initRealm('sys', sysRealm)
   const synchronizer = new Synchronizer(sysRealm)
@@ -46,7 +44,7 @@ config.loadConfigFile(conf_config_file).then(async () => {
   /*const server = */new WampServer(new WampGate(app), { port: conf_wamp_port })
   console.log('Listening WAMP port:', conf_wamp_port)
 
-  for (const entry of config.getEntryNodes()) {
+  for (const entry of Config.getInstance().getEntryNodes()) {
     mkGate(entry.url, entry.nodeId)
   }
 })
