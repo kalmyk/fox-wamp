@@ -22,7 +22,7 @@ describe('63 storage', function () {
     sysRealm = await router.getRealm('sys')
     api = sysRealm.buildApi()
 
-    await api.subscribe('draftSegment', (event, opt) => { draftStack.push(opt.headers) })
+    await api.subscribe(EVENT_DRAFT_SEGMENT, (event, opt) => { draftStack.push(opt.headers) })
 
     const MAJOR_LIMIT = 2
     storage = new StorageTask(sysRealm)

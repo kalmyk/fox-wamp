@@ -7,25 +7,25 @@ let program
 
 // Prometheus metrics
 const txCount = new client.Counter({
-  name: 'tx_count',
+  name: 'gate_tx_total',
   help: 'Number of transmitted messages',
   labelNames: ['realm', 'gate'],
 })
 
 const txSize = new client.Counter({
-  name: 'tx_size',
+  name: 'gate_tx_bytes',
   help: 'Total size of transmitted messages',
   labelNames: ['realm', 'gate'],
 })
 
 const rxCount = new client.Counter({
-  name: 'rx_count',
+  name: 'gate_rx_total',
   help: 'Number of received messages',
   labelNames: ['realm', 'gate'],
 })
 
 const rxSize = new client.Counter({
-  name: 'rx_size',
+  name: 'gate_rx_bytes',
   help: 'Total size of received messages',
   labelNames: ['realm', 'gate'],
 })

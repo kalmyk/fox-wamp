@@ -2,8 +2,9 @@ import chai, { expect } from 'chai'
 import spies from 'chai-spies'
 chai.use(spies)
 
-import Router       from '../lib/router.js'
-import { StageOne } from '../lib/masterfree/synchronizer.js'
+import Router       from '../lib/router'
+import { EVENT_DRAFT_SEGMENT } from '../lib/masterfree/synchronizer.h'
+import { StageOneTask } from '../lib/masterfree/synchronizer'
 
 describe('62 synchronizer', function () {
   let
@@ -22,10 +23,10 @@ describe('62 synchronizer', function () {
     sysRealm = await router.getRealm('sys')
     api = sysRealm.buildApi()
 
-    await api.subscribe('draftSegment', (event, opt) => { draftStack.push(opt.headers) })
+    await api.subscribe(EVENT_DRAFT_SEGMENT, (event, opt) => { draftStack.push(opt.headers) })
 
     const MAJOR_LIMIT = 2
-    stageOne = new StageOne(sysRealm, MAJOR_LIMIT)
+    stageOne = new StageOneTask(sysRealm, MAJOR_LIMIT)
     stageOne.reconcilePos('PREFIX1:')
     await api.subscribe('challengerExtract', (event, opt) => { extractStack.push(opt.headers) })
   })
@@ -53,8 +54,8 @@ describe('62 synchronizer', function () {
 
     await api.publish('generateSegment', null, {headers:{advanceOwner:'entry1', advanceSegment:'a1'}})
 
-    await api.publish('draftSegment', null, {headers: {advanceOwner: 'entry1', advanceSegment: 'a1', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 2 }}})
-    await api.publish('draftSegment', null, {headers: {advanceOwner: 'entry1', advanceSegment: 'a2', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 3 }}})
+    await api.publish(EVENT_DRAFT_SEGMENT, null, {headers: {advanceOwner: 'entry1', advanceSegment: 'a1', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 2 }}})
+    await api.publish(EVENT_DRAFT_SEGMENT, null, {headers: {advanceOwner: 'entry1', advanceSegment: 'a2', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 3 }}})
 
     expect(extractStack).deep.equal([])
     expect(stageOne.getRecentValue()).equal('P:1')

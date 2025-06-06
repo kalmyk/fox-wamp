@@ -30,6 +30,7 @@
     "qlobber": "^3.1.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7",
+    "tsx": "^4.19.4",
     "ws": "^8.18.0"
   },
   "devDependencies": {

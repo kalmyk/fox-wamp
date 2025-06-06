@@ -2,9 +2,10 @@ import chai, { expect } from 'chai'
 import spies from 'chai-spies'
 chai.use(spies)
 
-import Router         from '../lib/router.js'
-import { NetEngine, NetEngineMill } from '../lib/masterfree/netengine.js'
-import { BaseRealm } from '../lib/realm.js'
+import Router from '../lib/router'
+import { NetEngine, NetEngineMill } from '../lib/masterfree/netengine'
+import { BaseRealm } from '../lib/realm'
+import { Config, setConfigInstance } from '../lib/masterfree/config'
 
 describe('61 net-entry', function () {
   let
@@ -24,6 +25,8 @@ describe('61 net-entry', function () {
   }
 
   beforeEach(async () => {
+    setConfigInstance(new Config({}))
+
     nextSysPromise = []
     router = new Router()
     router.setId('E1')

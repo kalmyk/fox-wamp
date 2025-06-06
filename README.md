@@ -239,39 +239,3 @@ register('inbound.topic.#', (args, kwargs, options) => {
         "sum": [ "total" ]
     }
 ```
-
-Take a look for more use cases at http://jeta.host/
-
-## Changes:
-2019-04-11
-- authorize function supported for SUBSCRIBE & PUBLISH
-
-2019-03-22
-- WAMP registration option.concurrency supported.
-
-2018-07-19
-- MQTT gate added. Functionality allows to subscribe to the MQTT messages.
-
-2018-01-25:
-- Pattern based subscription added. Thanks to https://github.com/davedoesdev/qlobber
-
-2017-05-24:
-- Session Meta Events added (wamp.session.on_join & wamp.session.on_leave).
-
-2017-05-17:
-- Concrete topic published to
-- Progressive Calls (receive_progress & progress)
-
-2017-05-07:
-- exclude_me option of publish
-
-2017-04-26:
-- integration with [StatsD](https://github.com/etsy/statsd)
-
-2016-04-03:
-- ticket auth support added
-
-2016-03-09:
-- internal api moved to realm
-- callrpc method has args & kwargs arguments
-- publish method does not require message id

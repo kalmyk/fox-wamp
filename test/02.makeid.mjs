@@ -7,11 +7,11 @@ import { keyDate, keyId, ProduceId } from '../lib/masterfree/makeid'
 describe('02 make-id', function () {
   let id
 
-  beforeEach(function () {
+  beforeEach(() => {
     id = new ProduceId((a) => a)
   })
 
-  afterEach(function () {
+  afterEach(() => {
     id = null
   })
 
@@ -29,7 +29,7 @@ describe('02 make-id', function () {
     expect(id.generateIdStr(2)).to.equal('test-prefix-a3')
   })
 
-  it('reconcilePos', function () {
+  it('reconcilePos', () => {
     id.reconcilePos('a')
     expect(id.generateIdStr()).to.equal('aa1')
     id.reconcilePos('a')

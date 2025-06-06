@@ -1,24 +1,27 @@
-'use strict'
+import { Actor, BaseRealm, BaseEngine, makeDataSerializable, unSerializeData } from '../realm'
+import Router from '../router'
+import { HyperClient } from '../hyper/client'
+import { MemKeyValueStorage } from '../mono/memkv'
 
-const { BaseRealm, BaseEngine, makeDataSerializable, unSerializeData } = require('../realm')
-const { MemKeyValueStorage } = require('../mono/memkv')
+export const INTRA_REALM_NAME = 'sys'
 
-const INTRA_REALM_NAME = 'sys'
+export class HistorySegment {
+  
+  private content: Map<number,Actor> = new Map()
+  private advanceSegment: string
+  private generator: number = 0
 
-class HistorySegment {
-  constructor (advanceSegment) {
-    this.content = new Map()
+  constructor (advanceSegment: string) {
     this.advanceSegment = advanceSegment
-    this.generator = 0
   }
 
-  addActor (actor) {
+  addActor (actor: Actor) {
     this.generator++
     this.content.set(this.generator, actor)
     return { segment: this.advanceSegment, offset: this.generator }
   }
 
-  fetchActor (advanceId) {
+  fetchActor (advanceId: any): Actor | undefined {
     if (advanceId.segment !== this.advanceSegment) {
       throw Error("advance is not identical "+advanceId.segment+" "+this.advanceSegment)
     }
@@ -29,53 +32,59 @@ class HistorySegment {
     return actor
   }
 
-  getAdvanceSegment() {
+  getAdvanceSegment(): string {
     return this.advanceSegment
   }
 }
 
-class NetEngine extends BaseEngine {
+export class NetEngine extends BaseEngine {
+  private netEngineMill: NetEngineMill
 
-  constructor (netEngineMill) {
+  constructor (netEngineMill: NetEngineMill) {
     super()
     this.netEngineMill = netEngineMill
   }
 
   // @return promise
-  doPush (actor) {
+  doPush (actor: any) {
     return this.netEngineMill.saveHistory(actor, this.getRealmName())
   }
 
-  getHistoryAfter (engine, after, uri, cbEmitRow) {
-    return History.getEventHistory(
-      getDbFactoryInstance().getMainDb(),
-      engine.getRealmName(),
-      { fromId: after, uri },
-      (event) => {
-        cbEmitRow({
-          qid: event.id,
-          uri: event.uri,
-          data: unSerializeData(event.body)
-        })
-      }
-    )
+  getHistoryAfter (after: string, uri: string, cbEmitRow: any): Promise<any> {
+    return Promise.resolve()
+    // return History.getEventHistory(
+    //   getDbFactoryInstance().getMainDb(),
+    //   engine.getRealmName(),
+    //   { fromId: after, uri },
+    //   (event) => {
+    //     cbEmitRow({
+    //       qid: event.id,
+    //       uri: event.uri,
+    //       data: unSerializeData(event.body)
+    //     })
+    //   }
+    // )
   }
-
 }
 
-class NetEngineMill {
-  constructor (router) {
-    this.curSegment = null
-    this.advanceSegmentGen = 0
-    this.segments = new Map()
-    this.router = router
+export class NetEngineMill {
 
+  private curSegment: HistorySegment | null = null
+  private advanceSegmentGen: number = 0
+  private segments = new Map()
+  private router: Router
+  private sysRealm: BaseRealm
+  private sysApi: HyperClient
+
+  constructor (router: any) {
+    this.router = router
     this.sysRealm = new BaseRealm(router, new BaseEngine())
-    router.initRealm(INTRA_REALM_NAME, this.sysRealm)
+
+    this.router.initRealm(INTRA_REALM_NAME, this.sysRealm)
     this.sysRealm.registerKeyValueEngine(['#'], new MemKeyValueStorage())
     this.sysApi = this.sysRealm.buildApi()
 
-    this.sysApi.subscribe('trim-advance-segment', (data, opt) => {
+    this.sysApi.subscribe('trim-advance-segment', (data: any, opt: any) => {
       // to do voute for complete
       if (!data.advanceSegment) {
         console.error('ERROR: no advanceSegment in package')
@@ -94,11 +103,11 @@ class NetEngineMill {
       }
     })
 
-    this.sysApi.subscribe('advance-segment-resolved', (data, opt) => {
+    this.sysApi.subscribe('advance-segment-resolved', (data: any, opt: any) => {
       this.advanceSegmentResolved(opt.headers)
     })
 
-    this.sysApi.subscribe('dispatchEvent', (data, opt) => {
+    this.sysApi.subscribe('dispatchEvent', (data: any, opt: any) => {
       console.log('=> dispatchEvent', opt.headers.qid)
       this.dispatchEvent(opt.headers)
     })
@@ -119,15 +128,15 @@ class NetEngineMill {
     return this.curSegment
   }
 
-  findSegment (advanceSegment) {
+  findSegment (advanceSegment: string) {
     return this.segments.get(advanceSegment)
   }
 
-  deleteSegment (advanceSegment) {
+  deleteSegment (advanceSegment: string) {
     return this.segments.delete(advanceSegment)
   }
 
-  advanceSegmentResolved (syncMessage) {
+  advanceSegmentResolved (syncMessage: any) {
     let segment = this.findSegment(syncMessage.advanceSegment)
     if (!segment) {
       return
@@ -151,7 +160,7 @@ class NetEngineMill {
   }
 
   // @return promise
-  saveHistory (actor, realmName) {
+  saveHistory (actor: any, realmName: string) {
     let segment = this.getSegment()
     let advanceId = segment.addActor(actor)
 
@@ -165,7 +174,7 @@ class NetEngineMill {
     }})
   }
 
-  dispatchEvent (eventData) {
+  dispatchEvent (eventData: any) {
     const realm = this.router.findRealm(eventData.realm)
     if (realm) {
       realm.getEngine().disperseToSubs({
@@ -178,7 +187,3 @@ class NetEngineMill {
     }
   }
 }
-
-exports.NetEngine = NetEngine
-exports.NetEngineMill = NetEngineMill
-exports.INTRA_REALM_NAME = INTRA_REALM_NAME
