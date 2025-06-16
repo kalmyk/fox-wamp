@@ -11,7 +11,7 @@ import * as sqlite from 'sqlite'
 import WAMP            from '../lib/wamp/protocol.js'
 import { WampGate }    from '../lib/wamp/gate.js'
 import Router          from '../lib/router.js'
-import { SqliteModKv, SqliteKv }    from '../lib/sqlite/sqlitekv.js'
+import { SqliteKvFabric, SqliteKv }    from '../lib/sqlite/sqlitekv.js'
 import { MemEngine }   from '../lib/mono/memengine.js'
 import { DbEngine } from '../lib/sqlite/dbengine.js'
 import { MemKeyValueStorage } from '../lib/mono/memkv.js'
@@ -37,7 +37,7 @@ const makeDbRealm = async (router) => {
   })
   getDbFactoryInstance().setMainDb(db)
 
-  let modKv = new SqliteModKv(db)
+  let modKv = new SqliteKvFabric(db)
   let makeId = new ProduceId(() => keyDate(new Date()))
   let realm = new BaseRealm(router, new DbEngine(makeId, modKv))
 

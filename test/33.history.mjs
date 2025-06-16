@@ -13,7 +13,7 @@ import { DbEngine }   from '../lib/sqlite/dbengine.js'
 import { MemEngine }  from '../lib/mono/memengine.js'
 import { initDbFactory, getDbFactoryInstance } from '../lib/sqlite/dbfactory.js'
 import { keyDate, ProduceId } from '../lib/masterfree/makeid.js'
-import { SqliteModKv }    from '../lib/sqlite/sqlitekv.js'
+import { SqliteKvFabric }    from '../lib/sqlite/sqlitekv.js'
 
 initDbFactory()
 
@@ -25,7 +25,7 @@ const mkDbEngine = async () => {
   getDbFactoryInstance().setMainDb(db)
   return new DbEngine(
     new ProduceId(() => keyDate(new Date())),
-    new SqliteModKv()
+    new SqliteKvFabric(db)
   )
 }
 

@@ -29,6 +29,11 @@ interface Opt {
   sid: string
 }
 
+export class SessionEntrySync {
+  constructor (client: HyperClient) {
+  }
+}
+
 export class StageOneTask {
   private realm: BaseRealm
   private majorLimit: number
@@ -73,7 +78,7 @@ export class StageOneTask {
     this.api.subscribe('syncId', (body: any, opt: Opt) => {
       console.log('SYNC-ID', body, opt)
       const syncIdMessage = <SyncIdMessage> opt.headers
-      this.makeId.reconcilePos(opt.headers.maxId!.dt, syncIdMessage.maxId!.id)
+      this.makeId.reconcilePos(syncIdMessage.maxId.dt, syncIdMessage.maxId.id)
       this.syncQuorum.vote(opt.sid, syncIdMessage.advanceSegment, syncIdMessage.syncId)
     })
     this.api.subscribe('generateSegment', this.event_generateSegment.bind(this))

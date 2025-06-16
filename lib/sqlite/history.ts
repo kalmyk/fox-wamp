@@ -1,8 +1,9 @@
-'use strict'
+import * as sqlite from 'sqlite'
+import { defaultParse, restoreUri } from '../topic_pattern'
 
-const { defaultParse, restoreUri } = require('../topic_pattern')
-
-async function forEachRealm (db, callback) {
+// Fetch all table names that match the pattern 'event_history_%'
+// and call the callback with the realm name extracted from the table name.
+export async function forEachRealm (db: sqlite.Database, callback: (realmName: string) => Promise<void>) {
   const tableNames = await db.all(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'event_history_%'",
     []
@@ -12,7 +13,7 @@ async function forEachRealm (db, callback) {
   }
 }
 
-async function createHistoryTables (db, realmName) {
+export async function createHistoryTables (db: sqlite.Database, realmName: string) {
   await db.run(
     `CREATE TABLE IF NOT EXISTS event_history_${realmName} (
       msg_id TEXT not null,
@@ -24,16 +25,16 @@ async function createHistoryTables (db, realmName) {
   )
 }
 
-async function saveEventHistory (db, realmName, id, uri, body, opt) {
+export async function saveEventHistory (db: sqlite.Database, realmName: string, id: string, uri:any, body:any, opt:any) {
   return db.run(
     `INSERT INTO event_history_${realmName} (msg_id, msg_uri, msg_body, msg_opt) VALUES (?, ?, ?, ?);`,
     [id, restoreUri(uri), JSON.stringify(body), JSON.stringify(opt)]
   )
 }
 
-async function scanMaxId (db) {
+export async function scanMaxId (db: sqlite.Database) {
   let maxId = ''
-  await forEachRealm(db, async (realmName) => {
+  await forEachRealm(db, async (realmName: string) => {
     const maxRow = await db.all(
       `SELECT MAX(msg_id) max_id FROM event_history_${realmName}`, []
     )
@@ -51,7 +52,7 @@ async function scanMaxId (db) {
   return maxId
 }
 
-async function getEventHistory (db, realmName, range, rowcb) {
+export async function getEventHistory (db: sqlite.Database, realmName: string, range:any, rowcb:any) {
   let sql = `SELECT msg_id, msg_uri, msg_body, msg_opt FROM event_history_${realmName}`
   let where = []
   if (range.fromId) {
@@ -76,9 +77,3 @@ async function getEventHistory (db, realmName, range, rowcb) {
     }
   )
 }
-
-exports.forEachRealm = forEachRealm
-exports.createHistoryTables = createHistoryTables
-exports.scanMaxId = scanMaxId
-exports.saveEventHistory = saveEventHistory
-exports.getEventHistory = getEventHistory

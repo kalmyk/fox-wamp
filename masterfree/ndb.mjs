@@ -7,31 +7,24 @@ const conf_config_file = process.env.CONFIG
 const autobahn = require('autobahn')
 
 import { QuorumEdge } from '../lib/masterfree/quorum_edge.js'
-import { mergeMin, mergeMax, makeEmpty } from '../lib/masterfree/makeid.js'
+import { mergeMax } from '../lib/masterfree/makeid.js'
 import { SessionEntryHistory } from '../lib/masterfree/session_entry_history.js'
-import { SqliteModKv } from '../lib/sqlite/sqlitekv.js'
+import { SqliteKvFabric } from '../lib/sqlite/sqlitekv.js'
 import Router from '../lib/router.js'
 import Config from '../lib/masterfree/config.js'
 import { initDbFactory } from '../lib/sqlite/dbfactory.js'
 import { StorageTask } from '../lib/masterfree/storage.js'
+import { INTRA_REALM_NAME } from '../lib/masterfree/netengine.h'
 
 const router = new Router()
-const sysRealm = await router.getRealm('sys')
+const sysRealm = await router.getRealm(INTRA_REALM_NAME)
 
-const syncMass = new Map()
-const gateMass = new Map()
 const storageTask = new StorageTask(sysRealm)
 
 const runQuorum = new QuorumEdge((advanceSegment, value) => {
   console.log('runQuorum:', storageTask.getMaxId(), advanceSegment, '=>', value)
   for (let [,ss] of syncMass) {
     ss.publish('syncId', [], {maxId: storageTask.getMaxId(), advanceSegment, syncId: value})
-  }
-}, mergeMin)
-
-const readyQuorum = new QuorumEdge((advanceSegment, segmentId) => {
-  for (let gg of gateMass.values()) {
-    gg.commitSegment(advanceSegment, segmentId)
   }
 }, mergeMin)
 
@@ -115,7 +108,7 @@ async function main () {
   const db = await dbFactory.openMainDatabase(conf_db_file)
   const config = Config.getInstance()
 
-  const modKv = new SqliteModKv()
+  const modKv = new SqliteKvFabric(db)
 
   for (const sync of config.getSyncNodes()) {
     mkSync(sync.url, sync.nodeId)

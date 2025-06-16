@@ -20,6 +20,8 @@ $ supervisord -c ./masterfree.supervisord.ini
 # blueprint
 Yes, I know about snowflake-id
 
+DateTime + Segment + Offset + [ Shard * ProcessingStep ]
+
 advanceId {segment, offset}
     advanceId.segment - nearly random string value
     advanceId.offset - offset inside the segment

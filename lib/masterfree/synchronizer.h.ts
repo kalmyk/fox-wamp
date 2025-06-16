@@ -11,6 +11,7 @@ export type StartDraftSegmentMessage = {
 
 export type SyncIdMessage = {
     maxId: ComplexId
+    syncId: ComplexId
     advanceSegment: string
     advanceOwner: string
 }

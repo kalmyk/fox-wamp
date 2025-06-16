@@ -2,8 +2,9 @@ import chai, { expect } from 'chai'
 import spies from 'chai-spies'
 chai.use(spies)
 
-import Router         from '../lib/router.js'
+import Router from '../lib/router.js'
 import { StorageTask } from '../lib/masterfree/storage.js'
+import { EVENT_DRAFT_SEGMENT } from '../lib/masterfree/synchronizer.h.js'
 
 describe('63 storage', function () {
   let

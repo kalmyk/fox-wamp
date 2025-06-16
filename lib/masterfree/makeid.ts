@@ -3,6 +3,10 @@ export type ComplexId = {
     id: number
 }
 
+export function keyComplexId(id: ComplexId): string {
+  return id.dt + keyId(id.id)
+}
+
 export function keyDate(date: Date): string {
   const month = date.getUTCMonth() + 1
   const day = date.getUTCDate()

@@ -2,8 +2,7 @@ import { Actor, BaseRealm, BaseEngine, makeDataSerializable, unSerializeData } f
 import Router from '../router'
 import { HyperClient } from '../hyper/client'
 import { MemKeyValueStorage } from '../mono/memkv'
-
-export const INTRA_REALM_NAME = 'sys'
+import { AdvanceHistoryEvent, AdvanceOffsetId, INTRA_REALM_NAME } from './netengine.h'
 
 export class HistorySegment {
   
@@ -15,13 +14,13 @@ export class HistorySegment {
     this.advanceSegment = advanceSegment
   }
 
-  addActor (actor: Actor) {
+  addActor (actor: Actor): AdvanceOffsetId {
     this.generator++
     this.content.set(this.generator, actor)
     return { segment: this.advanceSegment, offset: this.generator }
   }
 
-  fetchActor (advanceId: any): Actor | undefined {
+  fetchActor (advanceId: AdvanceOffsetId): Actor | undefined {
     if (advanceId.segment !== this.advanceSegment) {
       throw Error("advance is not identical "+advanceId.segment+" "+this.advanceSegment)
     }
@@ -164,14 +163,16 @@ export class NetEngineMill {
     let segment = this.getSegment()
     let advanceId = segment.addActor(actor)
 
-    return this.sysApi.publish('keep-advance-history', null, { headers:{
+    const event: AdvanceHistoryEvent = {
       advanceId: advanceId,
       realm: realmName,
       data: makeDataSerializable(actor.getData()),
       uri: actor.getUri(),
       opt: actor.getOpt(),
       sid: actor.getSid()
-    }})
+    }
+
+    return this.sysApi.publish('keep-advance-history', null, { headers: event})
   }
 
   dispatchEvent (eventData: any) {

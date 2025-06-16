@@ -10,7 +10,7 @@ import Router from '../lib/router.js'
 import {BaseRealm, BaseEngine} from '../lib/realm.js'
 import { WampGate } from '../lib/wamp/gate.js'
 import WampServer from '../lib/wamp/transport.js'
-import { SessionEntrySync } from '../lib/masterfree/session_entry_sync.js'
+import { SessionEntrySync } from '../lib/masterfree/synchronizer'
 import Config from '../lib/masterfree/config.js'
 
 const app = new Router()
