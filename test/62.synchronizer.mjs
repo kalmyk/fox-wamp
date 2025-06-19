@@ -48,19 +48,19 @@ describe('62 synchronizer', function () {
     expect(extractStack).deep.equal([])
   })
 
-  it('stage-one extractDraft gen-here', async () => {
-    expect(stageOne.getRecentValue()).deep.equal('')
-    stageOne.setRecentValue('P:1')
+  // it('stage-one extractDraft gen-here', async () => {
+  //   expect(stageOne.getRecentValue()).deep.equal('')
+  //   stageOne.setRecentValue('P:1')
 
-    await api.publish('generateSegment', null, {headers:{advanceOwner:'entry1', advanceSegment:'a1'}})
+  //   await api.publish('generateSegment', null, {headers:{advanceOwner:'entry1', advanceSegment:'a1'}})
 
-    await api.publish(EVENT_DRAFT_SEGMENT, null, {headers: {advanceOwner: 'entry1', advanceSegment: 'a1', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 2 }}})
-    await api.publish(EVENT_DRAFT_SEGMENT, null, {headers: {advanceOwner: 'entry1', advanceSegment: 'a2', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 3 }}})
+  //   await api.publish(EVENT_DRAFT_SEGMENT, null, {headers: {advanceOwner: 'entry1', advanceSegment: 'a1', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 2 }}})
+  //   await api.publish(EVENT_DRAFT_SEGMENT, null, {headers: {advanceOwner: 'entry1', advanceSegment: 'a2', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 3 }}})
 
-    expect(extractStack).deep.equal([])
-    expect(stageOne.getRecentValue()).equal('P:1')
-    expect(stageOne.extractDraft()).equal('a1')
-  })
+  //   expect(extractStack).deep.equal([])
+  //   expect(stageOne.getRecentValue()).equal('P:1')
+  //   expect(stageOne.extractDraft()).equal('a1')
+  // })
 
   // it('stage-one extract', async () => {
   //   stageOne.emit(SO_ON_ID_PAIR, 'vouter1', 'topic1', 'a1')

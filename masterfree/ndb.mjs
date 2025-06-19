@@ -9,6 +9,7 @@ const autobahn = require('autobahn')
 import { QuorumEdge } from '../lib/masterfree/quorum_edge.js'
 import { mergeMax } from '../lib/masterfree/makeid.js'
 import { SessionEntryHistory } from '../lib/masterfree/session_entry_history.js'
+import { ProduceId } from '../lib/masterfree/makeid.js'
 import { SqliteKvFabric } from '../lib/sqlite/sqlitekv.js'
 import Router from '../lib/router.js'
 import Config from '../lib/masterfree/config.js'
@@ -104,11 +105,12 @@ function mkGate(uri, gateId, modKv, heapApi) {
 }
 
 async function main () {
+  const makeId = new ProduceId(() => keyDate(new Date()))
   const dbFactory = await initDbFactory()
   const db = await dbFactory.openMainDatabase(conf_db_file)
   const config = Config.getInstance()
 
-  const modKv = new SqliteKvFabric(db)
+  const modKv = new SqliteKvFabric(dbFactory, makeId)
 
   for (const sync of config.getSyncNodes()) {
     mkSync(sync.url, sync.nodeId)

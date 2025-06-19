@@ -2,9 +2,9 @@ import * as sqlite from 'sqlite'
 import { match, restoreUri, defaultParse } from '../topic_pattern'
 import { KeyValueStorageAbstract, isDataEmpty, deepDataMerge, unSerializeData, makeDataSerializable } from '../realm'
 import { KPQueue } from '../masterfree/kpqueue'
-import { getDbFactoryInstance } from './dbfactory'
+import { DbFactory } from './dbfactory'
 import { ActorPush } from '../realm'
-import { keyDate, ProduceId } from '../masterfree/makeid'
+import { ProduceId } from '../masterfree/makeid'
 
 export async function createKvTables (db: sqlite.Database, realmName: string) {
   await db.run(
@@ -48,17 +48,23 @@ export async function saveUpdateHistory (db: sqlite.Database, realmName: string,
 }
 
 export class SqliteKvFabric {
-  private db: sqlite.Database
   private pkq: KPQueue = new KPQueue()
-  private makeId: ProduceId = new ProduceId(() => keyDate(new Date()))
+  private makeId: ProduceId
+  private dbFactory: DbFactory
 
-  constructor (db: sqlite.Database) {
-    this.db = db
+  constructor (dbFactory: DbFactory, makeId: ProduceId) {
+    this.dbFactory = dbFactory
+    this.makeId = makeId
+  }
+
+  async getDb(realmName: string): Promise<sqlite.Database> {
+    return this.dbFactory.getDb(realmName)
   }
 
   async eraseSessionData (realmName: string, sessionId: string, runInboundEvent: (sid: string, key: string[], will: any) => void) {
     const toRemove: {key: string, opt: any}[] = []
-    await this.db.each(
+    const db = await this.getDb(realmName)
+    await db.each(
       `SELECT key, opt FROM kv_${realmName} WHERE will_sid = ?`,
       [sessionId],
       (err, row) => {
@@ -67,9 +73,9 @@ export class SqliteKvFabric {
     )
     for (let row of toRemove) {
       if (row.opt.will) {
-        runInboundEvent(sessionId, defaultParse(row.key), row.opt.will)
+        await runInboundEvent(sessionId, defaultParse(row.key), row.opt.will)
       } else {
-        runInboundEvent(sessionId, defaultParse(row.key), null)
+        await runInboundEvent(sessionId, defaultParse(row.key), null)
       }
     }
     // erase is expected to be done by incoming message
@@ -78,7 +84,7 @@ export class SqliteKvFabric {
     //   [realmName, sessionId]
     // )
 
-    await this.db.run(
+    await db.run(
       `DELETE FROM set_value_${realmName} WHERE will_sid = ?`,
       [sessionId]
     )
@@ -87,10 +93,11 @@ export class SqliteKvFabric {
   // @return promise
   setKeyValue (realmName: string, suri: string, origin: string, data: any, opt: any, sid: string, pubOutEvent: (kind: string, outEvent: any) => void) {
     return this.pkq.enQueue(realmName + '|' + suri, async () => {
+      const db = await this.getDb(realmName)
       const willSid = ('will' in opt) ? sid : 0
   
       try {
-        const oldRow = await this.db.get(
+        const oldRow = await db.get(
           `SELECT value, opt FROM kv_${realmName} WHERE key = ?`,
           [suri]
         )
@@ -99,17 +106,17 @@ export class SqliteKvFabric {
 
         const updateHistoryId = this.makeId.generateIdStr()
         if (isDataEmpty(newData)) {
-          await this.db.run(`DELETE FROM kv_${realmName} WHERE key = ?`, [suri])
+          await db.run(`DELETE FROM kv_${realmName} WHERE key = ?`, [suri])
         } else {
-          await this.db.run(
+          await db.run(
             `INSERT OR REPLACE INTO kv_${realmName} (key, value, will_sid, opt, stamp) VALUES (?, ?, ?, ?, ?)`,
             [suri, JSON.stringify(makeDataSerializable(newData)), willSid, JSON.stringify(opt), updateHistoryId]
           )
         }
-        saveUpdateHistory(this.db, realmName, origin, updateHistoryId, suri, makeDataSerializable(oldData))
+        saveUpdateHistory(db, realmName, origin, updateHistoryId, suri, makeDataSerializable(oldData))
         pubOutEvent('event', { sid, oldData, newData })
       } catch (e: any) {
-        console.log('SetKeyValue ERROR:', e.message, e.stack)
+        console.error('SetKeyValue ERROR:', e.message, e.stack)
       }
     })
   }
@@ -135,8 +142,9 @@ export class SqliteKvFabric {
   getKey (realmName: string, uri: string[], cbRow: (key: string[], data: any, stamp: string) => void) {
     const strUri = restoreUri(uri)
     return this.pkq.enQueue(realmName + '|' + strUri, async () => {
+      const db = await this.getDb(realmName)
       // TODO: optimize search
-      await this.db.each(
+      await db.each(
         `SELECT key, value, opt, stamp FROM kv_${realmName}`,
         [],
         (err, row) => {

@@ -52,7 +52,7 @@ export class NetEngine extends BaseEngine {
   getHistoryAfter (after: string, uri: string, cbEmitRow: any): Promise<any> {
     return Promise.resolve()
     // return History.getEventHistory(
-    //   getDbFactoryInstance().getMainDb(),
+    //   getMainDb(),
     //   engine.getRealmName(),
     //   { fromId: after, uri },
     //   (event) => {

@@ -3,7 +3,7 @@ import { ComplexId, mergeMin, makeEmpty, keyId, keyComplexId } from './makeid'
 import { QuorumEdge } from './quorum_edge'
 import { HyperClient } from '../hyper/client'
 import * as History from '../sqlite/history'
-import { getDbFactoryInstance } from '../sqlite/dbfactory'
+import { DbFactory } from '../sqlite/dbfactory'
 import { AdvanceHistoryEvent } from './netengine.h'
 
 export class HistorySegment {
@@ -143,13 +143,15 @@ export class SessionEntryHistory {
 
 export class StorageTask {
   private sysRealm: BaseRealm
+  private dbFactory: DbFactory
   private maxId: ComplexId
   private readyQuorum: QuorumEdge<string, string, any>
   private gateMass: Map<string,SessionEntryHistory> = new Map()
   private syncMass: Map<string,HyperClient> = new Map()
 
-  constructor (sysRealm: BaseRealm) {
+  constructor (sysRealm: BaseRealm, dbFactory: DbFactory) {
     this.sysRealm = sysRealm
+    this.dbFactory = dbFactory
     this.maxId = makeEmpty(new Date())
 
     this.readyQuorum = new QuorumEdge(
@@ -181,7 +183,7 @@ export class StorageTask {
 
     for (let row of segment.getContent()) {
       let eventId: string = keySegment + keyId(++offset)
-      History.saveEventHistory(getDbFactoryInstance().getMainDb(), row.realm, eventId, row.uri, row.data, row.opt)
+      History.saveEventHistory(this.dbFactory.getMainDb(), row.realm, eventId, row.uri, row.data, row.opt)
       result.push(eventId) // keep event position in result array
     }
     return result

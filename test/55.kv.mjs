@@ -18,11 +18,10 @@ import { MemKeyValueStorage } from '../lib/mono/memkv.js'
 import { BaseRealm }   from '../lib/realm.js'
 import WampApi         from '../lib/wamp/api.js'
 import { getBodyValue } from '../lib/base_gate.js'
-import { initDbFactory, getDbFactoryInstance } from '../lib/sqlite/dbfactory.js'
+import { DbFactory } from '../lib/sqlite/dbfactory.js'
 import { keyDate, ProduceId } from '../lib/masterfree/makeid.js'
 
 const TEST_REALM_NAME = 'testrealm'
-initDbFactory()
 
 const makeMemRealm = async (router) => {
   let realm = new BaseRealm(router, new MemEngine())
@@ -35,13 +34,14 @@ const makeDbRealm = async (router) => {
     filename: ':memory:',
     driver: sqlite3.Database
   })
-  getDbFactoryInstance().setMainDb(db)
+  const dbFactory = new DbFactory()
+  dbFactory.setMainDb(db)
 
-  let modKv = new SqliteKvFabric(db)
   let makeId = new ProduceId(() => keyDate(new Date()))
+  let modKv = new SqliteKvFabric(dbFactory, makeId)
   let realm = new BaseRealm(router, new DbEngine(makeId, modKv))
 
-  let kv = new SqliteKv(modKv, makeId, TEST_REALM_NAME)
+  let kv = new SqliteKv(modKv, TEST_REALM_NAME)
   realm.registerKeyValueEngine(['#'], kv)
 
   return realm

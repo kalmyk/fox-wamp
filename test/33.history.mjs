@@ -11,21 +11,20 @@ import { BaseRealm }  from '../lib/realm.js'
 import Router         from '../lib/router.js'
 import { DbEngine }   from '../lib/sqlite/dbengine.js'
 import { MemEngine }  from '../lib/mono/memengine.js'
-import { initDbFactory, getDbFactoryInstance } from '../lib/sqlite/dbfactory.js'
+import { DbFactory } from '../lib/sqlite/dbfactory.js'
 import { keyDate, ProduceId } from '../lib/masterfree/makeid.js'
 import { SqliteKvFabric }    from '../lib/sqlite/sqlitekv.js'
-
-initDbFactory()
 
 const mkDbEngine = async () => {
   let db = await sqlite.open({
     filename: ':memory:',
     driver: sqlite3.Database
   })
-  getDbFactoryInstance().setMainDb(db)
+  const dbFactory = new DbFactory()
+  dbFactory.setMainDb(db)
   return new DbEngine(
     new ProduceId(() => keyDate(new Date())),
-    new SqliteKvFabric(db)
+    new SqliteKvFabric(dbFactory)
   )
 }
 

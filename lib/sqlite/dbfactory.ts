@@ -33,6 +33,11 @@ export class DbFactory {
     return db
   }
 
+  async getDb (realmName: string): Promise<sqlite.Database> {
+    // TODO: find realm db
+    return this.getMainDb()
+  }
+
   getMainDb (): sqlite.Database {
     if (this.mainDb === null) {
       throw new Error('Main database is not set')
@@ -66,21 +71,4 @@ export class DbFactory {
       await callback(db, realmName)
     }
   }
-}
-
-let dbFactoryInstance: DbFactory | null = null
-
-export function getDbFactoryInstance (): DbFactory {
-  if (!dbFactoryInstance) {
-    throw new Error('DbFactory not initialized')
-  }
-  return dbFactoryInstance
-}
-
-export function setDbFactoryInstance (dbFactory: DbFactory): DbFactory {
-  return dbFactoryInstance = dbFactory
-}
-
-export function initDbFactory (pathPrefix: string | null): DbFactory {
-  return setDbFactoryInstance(new DbFactory(pathPrefix))
 }
