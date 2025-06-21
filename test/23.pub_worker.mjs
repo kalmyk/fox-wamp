@@ -137,17 +137,17 @@ describe('23 pub-worker', () => {
       it('trace-publish-untrace', async () => {
         const publications = []
         let traceSpy = chai.spy((data, opt) => {
-          publications.push([data, opt.topic])
+          publications.push([data, opt.topic, opt.headers])
         })
         let regTrace = await worker.subscribe('customer', traceSpy, { someOpt: 987 })
 
         await assert.becomes(
-          client.publish('customer', { data1: 'value1' }, { acknowledge: true }),
+          client.publish('customer', { data1: 'value1' }, { acknowledge: true, headers: {h1:'test'} }),
           null, // TODO: publication id
           'publish done'
         )
         expect(traceSpy).to.have.been.called.once()
-        expect(publications.shift()).to.deep.equal([{ data1: 'value1' }, 'customer'])
+        expect(publications.shift()).to.deep.equal([{ data1: 'value1' }, 'customer', {h1:'test'}])
 
         await assert.becomes(
           worker.unsubscribe(regTrace),

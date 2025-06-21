@@ -1,6 +1,6 @@
 {
   "name": "fox-wamp",
-  "version": "0.7.22",
+  "version": "0.7.23",
   "description": "Web Application Message Router/Server WAMP/MQTT",
   "author": {
     "name": "Anatoly Tsapkov",
@@ -47,17 +47,12 @@
   },
   "main": "index.js",
   "engines": {
-    "node": ">=6.0.0"
+    "node": ">=8.5.0"
   },
   "scripts": {
     "mocha-node-test": "mocha",
     "lint": "eslint --ignore-path .gitignore .",
     "test": "npm run-script lint && npm run-script mocha-node-test",
-    "clean": "gts clean",
-    "compile": "tsc",
-    "fix": "gts fix",
-    "prepare": "npm run compile",
-    "pretest": "npm run compile",
-    "posttest": "npm run lint"
+    "compile": "tsc"
   }
 }

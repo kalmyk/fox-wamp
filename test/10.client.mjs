@@ -98,12 +98,17 @@ describe('10 clent', function () {
   })
 
   it('create-PUB-confirm', async () => {
-    const responsePromise = client.publish('queue.name', { attr1: 1, attr2: 'value' }, { some: 'option', acknowledge: true })
+    const responsePromise = client.publish(
+      'queue.name',
+      { attr1: 1, attr2: 'value' },
+      { some: 'option', acknowledge: true, headers: {h1:'ut1'} }
+    )
     expect(realmAdapterMock.hyperPkgWrite).to.have.been.called.once()
     expect(result.shift()).to.deep.equal({
       ft: 'PUSH',
       uri: ['queue', 'name'],
       opt: { some: 'option', exclude_me: true },
+      hdr: {h1:'ut1'},
       id: 1,
       ack: true,
       data: { kv: { attr1: 1, attr2: 'value' } }
@@ -119,12 +124,17 @@ describe('10 clent', function () {
   })
 
   it('create-PUB-no-confirm', async () => {
-    const responsePromise = client.publish('queue.name', { attr1: 1, attr2: 'value' }, { some: 'option' })
+    const responsePromise = client.publish(
+      'queue.name',
+      { attr1: 1, attr2: 'value' },
+      { some: 'option' }
+    )
     expect(realmAdapterMock.hyperPkgWrite).to.have.been.called.once()
     expect(result.shift()).to.deep.equal({
       ft: 'PUSH',
       uri: ['queue', 'name'],
       opt: { some: 'option', exclude_me: true },
+      hdr: {},
       id: 1,
       ack: false,
       data: { kv: { attr1: 1, attr2: 'value' } }
@@ -140,6 +150,7 @@ describe('10 clent', function () {
       ft: 'PUSH',
       uri: ['function', 'queue', 'name'],
       opt: { exclude_me: true },
+      hdr: {},
       id: 1,
       ack: false,
       data: { kv: { key: 'val' } }
