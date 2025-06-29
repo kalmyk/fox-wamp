@@ -2,7 +2,7 @@ import { Actor, BaseRealm, BaseEngine, makeDataSerializable, unSerializeData } f
 import Router from '../router'
 import { HyperClient } from '../hyper/client'
 import { MemKeyValueStorage } from '../mono/memkv'
-import { AdvanceHistoryEvent, AdvanceOffsetId, INTRA_REALM_NAME } from './netengine.h'
+import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY } from './hyper.h'
 
 export class HistorySegment {
   
@@ -83,7 +83,7 @@ export class NetEngineMill {
     this.sysRealm.registerKeyValueEngine(['#'], new MemKeyValueStorage())
     this.sysApi = this.sysRealm.buildApi()
 
-    this.sysApi.subscribe('trim-advance-segment', (data: any, opt: any) => {
+    this.sysApi.subscribe(Event.TRIM_ADVANCE_SEGMENT, (data: any, opt: any) => {
       // to do voute for complete
       if (!data.advanceSegment) {
         console.error('ERROR: no advanceSegment in package')
@@ -92,10 +92,12 @@ export class NetEngineMill {
         if (data.advanceSegment == this.curSegment.getAdvanceSegment()) {
           // it will be required to create new segment at the next inbound message
           this.curSegment = null
-          console.log('advance-segment-over =>', data.advanceSegment)
-          this.sysApi.publish('advance-segment-over', {
-            advanceSegment: data.advanceSegment
-          })
+          console.log('Event.ADVANCE_SEGMENT_OVER =>', data.advanceSegment)
+          const body: BODY_BEGIN_ADVANCE_SEGMENT = {
+            advanceSegment: data.advanceSegment,
+            advanceOwner: this.router.getId(),
+          }
+          this.sysApi.publish(Event.ADVANCE_SEGMENT_OVER, body)
         } else {
           console.warn('warn: new segment is not accepted, cur:', this.curSegment.getAdvanceSegment(), 'inbound:', data.advanceSegment)
         }
@@ -121,9 +123,11 @@ export class NetEngineMill {
     this.curSegment = new HistorySegment(curAdvanceSegment)
     this.segments.set(curAdvanceSegment, this.curSegment)
     // todo: sent all open advance segments, in case of sharding that keeps order
-    this.sysApi.publish('begin-advance-segment', {
-      advanceSegment: curAdvanceSegment
-    })
+    const body: BODY_BEGIN_ADVANCE_SEGMENT = {
+      advanceSegment: curAdvanceSegment,
+      advanceOwner: this.router.getId(),
+    }
+    this.sysApi.publish(Event.BEGIN_ADVANCE_SEGMENT, body)
     return this.curSegment
   }
 
@@ -163,7 +167,7 @@ export class NetEngineMill {
     let segment = this.getSegment()
     let advanceId = segment.addActor(actor)
 
-    const event: AdvanceHistoryEvent = {
+    const event: BODY_KEEP_ADVANCE_HISTORY = {
       advanceId: advanceId,
       realm: realmName,
       data: makeDataSerializable(actor.getData()),
@@ -171,8 +175,7 @@ export class NetEngineMill {
       opt: actor.getOpt(),
       sid: actor.getSid()
     }
-
-    return this.sysApi.publish('keep-advance-history', null, { headers: event})
+    return this.sysApi.publish(Event.KEEP_ADVANCE_HISTORY, null, { headers: event})
   }
 
   dispatchEvent (eventData: any) {

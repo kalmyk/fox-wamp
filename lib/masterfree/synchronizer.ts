@@ -1,10 +1,10 @@
 import MSG from '../messages'
 import { BaseRealm } from '../realm'
 import { HyperClient } from '../hyper/client'
-import { mergeMin, keyDate, ProduceId } from './makeid'
+import { mergeMin, keyDate, ProduceId, keyComplexId } from './makeid'
 import { QuorumEdge } from './quorum_edge'
 import { ComplexId } from './makeid'
-import { EVENT_DRAFT_SEGMENT, StartDraftSegmentMessage, SyncIdMessage } from './synchronizer.h'
+import { Event, BODY_SYNC_ID, BODY_DRAFT_SEGMENT, BODY_GENERATE_SEGMENT, BODY_CHALLENGER_EXTRACT } from './hyper.h'
 
 type AdvanceStage = {
   advanceOwner: string
@@ -29,38 +29,30 @@ interface Opt {
   sid: string
 }
 
-export class SessionEntrySync {
-  constructor (client: HyperClient) {
-  }
-}
-
 export class StageOneTask {
   private realm: BaseRealm
   private majorLimit: number
-  private advanceMap: Map<string, AdvanceStage>
+  private advanceMap: Map<string, AdvanceStage> = new Map()
   private makeId: ProduceId
   private recentValue: string
   private advanceIdHeap: Map<string, Set<string>>
   private doneHeap: Map<string, Set<string>>
-  private draftHeap: Set<string>
+  private draftHeap: Map<string, string[]>  // draftOwner -> set of draftId
   private api: HyperClient
   private syncQuorum: QuorumEdge<string, string, any>
 
   constructor(sysRealm: BaseRealm, majorLimit: number) {
     this.realm = sysRealm
     this.majorLimit = majorLimit
-    this.advanceMap = new Map()
     this.makeId = new ProduceId((date: any) => keyDate(date))
 
     this.recentValue = ''
     this.advanceIdHeap = new Map()
     this.doneHeap = new Map()
-    this.draftHeap = new Set()
+    this.draftHeap = new Map()
 
     // build api before new session handler to not to be caught
     this.api = sysRealm.buildApi()
-
-    this.api.subscribe(EVENT_DRAFT_SEGMENT, this.event_draftSegment.bind(this))
 
     sysRealm.on(MSG.SESSION_JOIN, (session: any) => {})
     sysRealm.on(MSG.SESSION_LEAVE, (session: any) => {})
@@ -70,57 +62,56 @@ export class StageOneTask {
       this.api.publish('commitSegment', null, { headers: { advanceSegment, readyId: value } })
     }, mergeMin)
 
-    this.api.subscribe('makeSegmentId', (body: any, opt: Opt) => {
-      console.log('=> receive MAKE-ID', body, opt.headers)
-      const advanceStageMessage = <StartDraftSegmentMessage> opt.headers
-      this.syncQuorum.vote(opt.sid, advanceStageMessage.advanceSegment, 1)
-    })
-    this.api.subscribe('syncId', (body: any, opt: Opt) => {
+    this.api.subscribe(Event.SYNC_ID, (body: any, opt: Opt) => {
       console.log('SYNC-ID', body, opt)
-      const syncIdMessage = <SyncIdMessage> opt.headers
+      const syncIdMessage = <BODY_SYNC_ID> opt.headers
       this.makeId.reconcilePos(syncIdMessage.maxId.dt, syncIdMessage.maxId.id)
       this.syncQuorum.vote(opt.sid, syncIdMessage.advanceSegment, syncIdMessage.syncId)
     })
-    this.api.subscribe('generateSegment', this.event_generateSegment.bind(this))
-    this.api.subscribe(EVENT_DRAFT_SEGMENT, this.event_draftSegment.bind(this))
+    this.api.subscribe(Event.GENERATE_SEGMENT, this.event_generate_segment.bind(this))
+    this.api.subscribe(Event.DRAFT_SEGMENT, this.event_draft_segment.bind(this))
   }
 
   // generate new segment id for each advanceId
   // if advanceId is duplicated new segment is not generated
   // input headers: advanceOwner, advanceSegment
-  event_generateSegment(body: any, opt: Opt) {
-    const advanceOwner = opt.headers.advanceOwner!
-    const advanceSegment = opt.headers.advanceSegment!
-    const advanceId = advanceOwner + ':' + advanceSegment
+  event_generate_segment(body: BODY_GENERATE_SEGMENT, opt: Opt) {
+    const advanceId = body.advanceOwner + ':' + body.advanceSegment
     if (!this.advanceMap.has(advanceId)) {
       const draftId: ComplexId = this.makeId.generateIdRec()
       const draftOwner: string = this.realm.getRouter().getId()
       const vouters = new Set<string>()
       vouters.add(draftOwner)
-      this.advanceMap.set(advanceId, { advanceOwner, advanceSegment, draftOwner, draftId, vouters })
-      this.api.publish(EVENT_DRAFT_SEGMENT, null, { headers: { advanceOwner, advanceSegment, draftOwner, draftId } })
+      const stage: AdvanceStage = {
+        advanceOwner: body.advanceOwner, advanceSegment: body.advanceSegment, draftOwner, draftId, vouters
+      }
+      this.advanceMap.set(advanceId, stage)
+      const draftSegment: BODY_DRAFT_SEGMENT = {
+        advanceOwner: body.advanceOwner, advanceSegment: body.advanceSegment, draftOwner, draftId
+      }
+      this.api.publish(Event.DRAFT_SEGMENT, draftSegment, {exclude_me: false})
     }
   }
 
   // when another generator made draft shift my generator
-  event_draftSegment(body: any, opt: Opt) {
-    const changed = this.makeId.reconcilePos(opt.headers.draftId!.dt, opt.headers.draftId!.id)
-    // todo register in advanceMap
+  event_draft_segment(body: BODY_DRAFT_SEGMENT, opt: Opt) {
+    this.makeId.reconcilePos(body.draftId.dt, body.draftId.id)
 
-    const draftOwner = opt.headers.draftOwner!
-    const advanceOwner = opt.headers.advanceOwner!
-    const advanceSegment = opt.headers.advanceSegment!
+    const draftOwner = body.draftOwner
+    const advanceOwner = body.advanceOwner
+    const advanceSegment = body.advanceSegment
     const advanceId = advanceOwner + ':' + advanceSegment
-    const draftId = opt.headers.draftId!.dt + opt.headers.draftId!.id
+    const draftId = keyComplexId(body.draftId)
 
-    this.draftHeap.add(draftId)
+    if (!this.draftHeap.has(draftOwner)) {
+      this.draftHeap.set(draftOwner, [])
+    }
+    const draftStack = this.draftHeap.get(draftOwner)!
+    draftStack.push(draftId)
 
     if (this.doneHeap.has(advanceId)) {
       const vouterSet = this.doneHeap.get(advanceId)!
       vouterSet.add(draftOwner)
-      while (this.draftHeap.size > this.advanceIdHeap.size) {
-        this.extractDraft()
-      }
       return
     }
 
@@ -130,15 +121,15 @@ export class StageOneTask {
     const vouterSet = this.advanceIdHeap.get(advanceId)!
     vouterSet.add(draftOwner)
 
-    while (this.draftHeap.size > this.advanceIdHeap.size) {
-      this.extractDraft()
-    }
-
     if (vouterSet.size >= this.majorLimit) {
       this.advanceIdHeap.delete(advanceId)
       this.doneHeap.set(advanceId, vouterSet)
-      const challenger = this.extractDraft()
-      this.api.publish('challengerExtract', null, { headers: { challenger, advanceOwner, advanceSegment } })
+      const challengerBody: BODY_CHALLENGER_EXTRACT = {
+        advanceOwner,
+        advanceSegment,
+        challenger: this.extractDraft(vouterSet)
+      }
+      this.api.publish(Event.CHALLENGER_EXTRACT, challengerBody, {exclude_me: false})
     }
   }
 
@@ -165,15 +156,23 @@ export class StageOneTask {
   }
 
   // extract minimal from draftHeap and save it to recentValue
-  extractDraft(): string | undefined {
+  extractDraft(vouters: Set<string>): string {
     let minValue: string | undefined
-    for (const cur of this.draftHeap.values()) {
+    for (const curVouter of vouters.values()) {
+      const stack: string[] = this.draftHeap.get(curVouter)!
+      const cur = stack[0]
       minValue = (minValue && minValue < cur) ? minValue : cur
     }
-    if (minValue) {
-      this.draftHeap.delete(minValue)
-      this.recentValue = minValue
+    if (!minValue) {
+      throw Error('No draft found in draftHeap for vouters: ' + Array.from(vouters).join(', '))
     }
+    for ( const curHeap of this.draftHeap.values()) {
+      // remove all less or equal values
+      while (curHeap.length > 0 && curHeap[0] <= minValue) {
+        curHeap.shift()
+      }
+    }
+    this.recentValue = minValue
     return minValue
   }
 }

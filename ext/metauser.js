@@ -24,7 +24,7 @@ function registerHandlers (router) {
 
     realm.on(MSG.SESSION_JOIN, (session) => {
       let sessionData = {
-        session: session.sessionId,
+        session: session.getSid(),
         authmethod: session.authmethod,
         transport: {
           protocol: session.getGateProtocol()
@@ -34,7 +34,7 @@ function registerHandlers (router) {
     })
   
     realm.on(MSG.SESSION_LEAVE, function (session) {
-      api.publish('wamp.session.on_leave', [session.sessionId])
+      api.publish('wamp.session.on_leave', [session.getSid()])
     })  
   })
 }

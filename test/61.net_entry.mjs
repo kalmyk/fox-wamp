@@ -6,6 +6,7 @@ import Router from '../lib/router'
 import { NetEngine, NetEngineMill } from '../lib/masterfree/netengine'
 import { BaseRealm } from '../lib/realm'
 import { Config, setConfigInstance } from '../lib/masterfree/config'
+import { Event } from '../lib/masterfree/hyper.h'
 
 describe('61 net-entry', function () {
   let
@@ -56,8 +57,8 @@ describe('61 net-entry', function () {
     const admanceEventSent = getSysPackage()
 
     await netApi.publish('any-test-topic', {data:'test'}, {})
-    expect(await advanceSegmentStarted).deep.equal(['begin-advance-segment',{advanceSegment: 'E1-1'}])
-    expect(await admanceEventSent).deep.equal(['keep-advance-history',null])
+    expect(await advanceSegmentStarted).deep.equal([Event.BEGIN_ADVANCE_SEGMENT,{advanceOwner: "E1", advanceSegment: 'E1-1'}])
+    expect(await admanceEventSent).deep.equal([Event.KEEP_ADVANCE_HISTORY,null])
     expect(sysStack.length).equal(0)
   })
 

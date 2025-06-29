@@ -38,7 +38,7 @@ entry
 ndb-storage
     when begin-advance-segment arrived, the trim-advance-segment message is generated immidiatelly to terminate segment at entry. arriving inbound messages in keep-advance-history are stored temporary with advance-id marker. when advance-segment-resolved arrived the temporary storage is moved to permanent.
 
-    advance-segment-over event starts permanent id election procedure 
+    advance-segment-over event starts permanent id election procedure
 
 sync
     the sync cluster is responsible to transform nearly random advance-id to monotonic id.
@@ -47,10 +47,15 @@ sync
     entry                        ndb                          sync
 
         begin-advance-segment ->
+
         keep-advance-history  ->
-        <- trim-advance-segment
-        advance-segment-over  ->
-                                            makeSegmentId -> generate mew time+genId for tmp-id
+
+        <- trim-advance-segment * each ndb
+        [vote to take network lag for segment]
+
+        advance-segment-over ->
+
+                                            GENERATE_SEGMENT -> generate mew time+genId for tmp-id
                                                              send to next sync stage
                                                              vote, take low _in_vouter_ time+genId for tmp-id
                                                              send to final sync stage

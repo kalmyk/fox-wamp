@@ -25,7 +25,7 @@ const storageTask = new StorageTask(sysRealm)
 const runQuorum = new QuorumEdge((advanceSegment, value) => {
   console.log('runQuorum:', storageTask.getMaxId(), advanceSegment, '=>', value)
   for (let [,ss] of syncMass) {
-    ss.publish('syncId', [], {maxId: storageTask.getMaxId(), advanceSegment, syncId: value})
+    ss.publish(Event.SYNC_ID, [], {maxId: storageTask.getMaxId(), advanceSegment, syncId: value})
   }
 }, mergeMin)
 

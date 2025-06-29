@@ -4,7 +4,7 @@ import { QuorumEdge } from './quorum_edge'
 import { HyperClient } from '../hyper/client'
 import * as History from '../sqlite/history'
 import { DbFactory } from '../sqlite/dbfactory'
-import { AdvanceHistoryEvent } from './netengine.h'
+import { Event, BODY_KEEP_ADVANCE_HISTORY } from './hyper.h'
 
 export class HistorySegment {
   private content: Array<any> = []
@@ -44,19 +44,19 @@ export class SessionEntryHistory {
     this.client = client
 
     this.client.afterOpen(() => {
-      this.client.subscribe('begin-advance-segment', (args: any, opts: any) => {
+      this.client.subscribe(Event.BEGIN_ADVANCE_SEGMENT, (args: any, opts: any) => {
         const advanceSegment = args.advanceSegment
-        this.client.publish('trim-advance-segment', [{advanceSegment: advanceSegment}])
+        this.client.publish(Event.TRIM_ADVANCE_SEGMENT, [{advanceSegment: advanceSegment}])
       })
 
-      this.client.subscribe('keep-advance-history', (args: any, opts: any) => {
-        console.log("keep-advance-history", args, opts)
+      this.client.subscribe(Event.KEEP_ADVANCE_HISTORY, (args: any, opts: any) => {
+        console.log("Event.KEEP_ADVANCE_HISTORY", args, opts)
         this.lineupEvent(args)
       })
 
-      this.client.subscribe('advance-segment-over', (args: any, opts: any) => {
+      this.client.subscribe(Event.ADVANCE_SEGMENT_OVER, (args: any, opts: any) => {
         const advanceSegment = args[0].advanceSegment
-        this.queueSync(advanceSegment)
+        client.publish(Event.GENERATE_SEGMENT, {advanceSegment: advanceSegment})
       })
 
       this.client.subscribe('eventSourceLock', (args: any, opts: any) => {
@@ -77,7 +77,7 @@ export class SessionEntryHistory {
     })
   }
 
-  lineupEvent (event: AdvanceHistoryEvent) {
+  lineupEvent (event: BODY_KEEP_ADVANCE_HISTORY) {
     let segment = this.segmentToWrite.get(event.advanceId.segment)
     if (!segment) {
       segment = new HistorySegment()
@@ -87,23 +87,6 @@ export class SessionEntryHistory {
     if (segment.count() !== event.advanceId.offset) {
       console.error('serment position is not equal', segment.count(), event.advanceId.offset)
     }
-  }
-
-  checkLine () {
-    if (this.curAdvanceSegment) {
-      return false
-    }
-    this.curAdvanceSegment = this.stackAdvanceSegment.shift()
-    if (this.curAdvanceSegment) {
-      this.storage.sendToMakeSegment(this.curAdvanceSegment)
-      return true
-    }
-    return false
-  }
-
-  queueSync (advanceSegment: string): boolean {
-    this.stackAdvanceSegment.push(advanceSegment)
-    return this.checkLine()
   }
 
   publishSegment (segment: HistorySegment) {
@@ -135,7 +118,6 @@ export class SessionEntryHistory {
         console.error("advanceSegment not found in segments [", advanceSegment, "]")
       }
       this.curAdvanceSegment = undefined
-      return this.checkLine()
     }
     return false
   }
@@ -147,7 +129,6 @@ export class StorageTask {
   private maxId: ComplexId
   private readyQuorum: QuorumEdge<string, string, any>
   private gateMass: Map<string,SessionEntryHistory> = new Map()
-  private syncMass: Map<string,HyperClient> = new Map()
 
   constructor (sysRealm: BaseRealm, dbFactory: DbFactory) {
     this.sysRealm = sysRealm
@@ -166,13 +147,6 @@ export class StorageTask {
 
   getMaxId (): ComplexId {
     return this.maxId
-  }
-
-  sendToMakeSegment (advanceSegment: string) {
-    console.log('sendToMakeSegment on SYNC advanceSegment[', advanceSegment, '] to count:', this.syncMass.size)
-    for (let [,ss] of this.syncMass) {
-      ss.publish('makeSegmentId', [], {advanceSegment, step: 2})
-    }
   }
 
   // todo: wait for promise in saveEventHistory

@@ -1,6 +1,6 @@
 'use strict'
 
-const { hyperConnect, FoxNetClient } = require('../lib/hyper/net_transport')
+const { FoxNetClient } = require('../lib/hyper/net_transport')
 
 async function main () {
   const params = {
@@ -30,9 +30,9 @@ async function main () {
 }
 
 main()
-    .then(() => {
-        console.log('Hyper client main function completed.')
-    })
-    .catch((err) => {
-        console.error('Error in Hyper client main function:', err)
-    })
+  .then(() => {
+    console.log('Hyper client main function completed.')
+  })
+  .catch((err) => {
+    console.error('Error in Hyper client main function:', err)
+  })

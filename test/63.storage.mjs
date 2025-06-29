@@ -6,9 +6,9 @@ import sqlite3 from 'sqlite3'
 import * as sqlite from 'sqlite'
 
 import Router from '../lib/router.js'
-import { StorageTask } from '../lib/masterfree/storage.js'
-import { DbFactory } from '../lib/sqlite/dbfactory.js'
-import { EVENT_DRAFT_SEGMENT } from '../lib/masterfree/synchronizer.h.js'
+import { StorageTask } from '../lib/masterfree/storage'
+import { DbFactory } from '../lib/sqlite/dbfactory'
+import { Event } from '../lib/masterfree/hyper.h'
 
 describe('63 storage', function () {
   let
@@ -39,14 +39,14 @@ describe('63 storage', function () {
     )
 
     api = sysRealm.buildApi()
-    await api.subscribe(EVENT_DRAFT_SEGMENT, (event, opt) => { draftStack.push(opt.headers) })
-    await api.subscribe('challengerExtract', (event, opt) => { extractStack.push(opt.headers) })
+    await api.subscribe(Event.DRAFT_SEGMENT, (event, opt) => { draftStack.push(opt.headers) })
+    await api.subscribe(Event.CHALLENGER_EXTRACT, (event, opt) => { extractStack.push(opt.headers) })
   })
 
   afterEach(async () => {})
 
   it('receive draft segment', async () => {
-    // await api.publish(EVENT_DRAFT_SEGMENT, null, {
+    // await api.publish(Event.DRAFT_SEGMENT, null, {
     //   headers: {
     //     advanceOwner: 'entry1',
     //     advanceSegment: 'a0',

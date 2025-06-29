@@ -26,6 +26,10 @@ export class Config {
   getSyncNodes () {
     return this.config.syncNodes
   }
+
+  getMajorLimit () {
+    return this.config.majorLimit || 2
+  }
 }
 
 let configInstance: Config | undefined = undefined
