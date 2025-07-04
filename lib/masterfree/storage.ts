@@ -4,7 +4,7 @@ import { QuorumEdge } from './quorum_edge'
 import { HyperClient } from '../hyper/client'
 import * as History from '../sqlite/history'
 import { DbFactory } from '../sqlite/dbfactory'
-import { Event, BODY_KEEP_ADVANCE_HISTORY } from './hyper.h'
+import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT } from './hyper.h'
 
 export class HistorySegment {
   private content: Array<any> = []
@@ -31,7 +31,6 @@ export class SessionEntryHistory {
   private client: HyperClient
 
     // this.wampSession = wampSession
-  private stackAdvanceSegment: string[] = []
   private curAdvanceSegment: string | undefined = undefined
   private pubResult: PublishResult
 
@@ -44,17 +43,17 @@ export class SessionEntryHistory {
     this.client = client
 
     this.client.afterOpen(() => {
-      this.client.subscribe(Event.BEGIN_ADVANCE_SEGMENT, (args: any, opts: any) => {
-        const advanceSegment = args.advanceSegment
-        this.client.publish(Event.TRIM_ADVANCE_SEGMENT, [{advanceSegment: advanceSegment}])
+      this.client.subscribe(Event.BEGIN_ADVANCE_SEGMENT, (args: BODY_BEGIN_ADVANCE_SEGMENT) => {
+        const boby: BODY_TRIM_ADVANCE_SEGMENT = {advanceSegment: args.advanceSegment, advanceOwner: args.advanceOwner}
+        this.client.publish(Event.TRIM_ADVANCE_SEGMENT + '.' + args.advanceOwner, boby)
       })
 
-      this.client.subscribe(Event.KEEP_ADVANCE_HISTORY, (args: any, opts: any) => {
-        console.log("Event.KEEP_ADVANCE_HISTORY", args, opts)
+      this.client.subscribe(Event.KEEP_ADVANCE_HISTORY, (args: any) => {
+        console.log("Event.KEEP_ADVANCE_HISTORY", args)
         this.lineupEvent(args)
       })
 
-      this.client.subscribe(Event.ADVANCE_SEGMENT_OVER, (args: any, opts: any) => {
+      this.client.subscribe(Event.ADVANCE_SEGMENT_OVER, (args: any) => {
         const advanceSegment = args[0].advanceSegment
         client.publish(Event.GENERATE_SEGMENT, {advanceSegment: advanceSegment})
       })
@@ -105,7 +104,7 @@ export class SessionEntryHistory {
     }
   }
 
-  commitSegment (advanceSegment: string, segmentId: ComplexId): boolean {
+  commit_segment (advanceSegment: string, segmentId: ComplexId): boolean {
     // check is advanceSegment of mine session
     if (this.curAdvanceSegment === advanceSegment) {
       console.log("dbSaveSegment", advanceSegment, segmentId)
@@ -138,7 +137,7 @@ export class StorageTask {
     this.readyQuorum = new QuorumEdge(
       (advanceSegment, segmentId) => {
         for (let gg of this.gateMass.values()) {
-          gg.commitSegment(advanceSegment, segmentId)
+          gg.commit_segment(advanceSegment, segmentId)
         }
       },
       mergeMin

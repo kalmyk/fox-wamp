@@ -6,7 +6,7 @@ import Router       from '../lib/router'
 import { StageOneTask } from '../lib/masterfree/synchronizer'
 import { Event } from '../lib/masterfree/hyper.h'
 
-describe('62 synchronizer', function () {
+describe('62.synchronizer', function () {
   let
     draftStack,
     extractStack,
@@ -91,24 +91,5 @@ describe('62 synchronizer', function () {
     ])
     expect(stageOne.getRecentValue()).equal('PREFIX1:a2')
   })
-
-  // it('stage-one extract', async () => {
-  //   stageOne.emit(SO_ON_ID_PAIR, 'vouter1', 'topic1', 'a1')
-  //   stageOne.emit(SO_ON_ID_PAIR, 'vouter2', 'topic2', 'a1')
-
-  //   stageOne.emit(SO_ON_ID_PAIR, 'vouter1', 'topic2', 'a2')
-  //   assert.deepEqual(extractHistory.shift(), ['topic2','a1'])
-  //   assert.equal(stageOne.getRecentValue(), 'a1')
-
-  //   // vote for closed topic
-  //   stageOne.emit(SO_ON_ID_PAIR, 'vouter3', 'topic2', 'a3')
-  //   assert.equal(extractHistory.shift(), undefined)
-  //   assert.equal(stageOne.getRecentValue(), 'a2')
-
-  //   // value is taken from recent vote
-  //   stageOne.emit(SO_ON_ID_PAIR, 'vouter2', 'topic1', 'a2')
-  //   assert.deepEqual(extractHistory.shift(), ['topic1','a3'])
-  //   assert.equal(stageOne.getRecentValue(), 'a3')
-  // })
 
 })

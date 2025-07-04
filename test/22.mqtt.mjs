@@ -5,7 +5,7 @@ chai.use(spies)
 import { MqttGate } from '../lib/mqtt/gate.js'
 import FoxRouter    from '../lib/fox_router.js'
 
-describe('22 mqtt-realm', () => {
+describe('22.mqtt-realm', () => {
   let
     nextPackagePromise,
     socketHistory,

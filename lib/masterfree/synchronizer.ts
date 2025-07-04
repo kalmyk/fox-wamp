@@ -1,10 +1,9 @@
 import MSG from '../messages'
 import { BaseRealm } from '../realm'
 import { HyperClient } from '../hyper/client'
-import { mergeMin, keyDate, ProduceId, keyComplexId } from './makeid'
-import { QuorumEdge } from './quorum_edge'
+import { keyDate, ProduceId, keyComplexId } from './makeid'
 import { ComplexId } from './makeid'
-import { Event, BODY_SYNC_ID, BODY_DRAFT_SEGMENT, BODY_GENERATE_SEGMENT, BODY_CHALLENGER_EXTRACT } from './hyper.h'
+import { Event, BODY_DRAFT_SEGMENT, BODY_GENERATE_SEGMENT, BODY_CHALLENGER_EXTRACT } from './hyper.h'
 
 type AdvanceStage = {
   advanceOwner: string
@@ -20,13 +19,7 @@ interface Headers {
   draftOwner?: string
   draftId?: ComplexId
   step?: any
-  syncId?: any
   maxId?: ComplexId
-}
-
-interface Opt {
-  headers: Headers
-  sid: string
 }
 
 export class StageOneTask {
@@ -39,7 +32,6 @@ export class StageOneTask {
   private doneHeap: Map<string, Set<string>>
   private draftHeap: Map<string, string[]>  // draftOwner -> set of draftId
   private api: HyperClient
-  private syncQuorum: QuorumEdge<string, string, any>
 
   constructor(sysRealm: BaseRealm, majorLimit: number) {
     this.realm = sysRealm
@@ -57,17 +49,6 @@ export class StageOneTask {
     sysRealm.on(MSG.SESSION_JOIN, (session: any) => {})
     sysRealm.on(MSG.SESSION_LEAVE, (session: any) => {})
 
-    this.syncQuorum = new QuorumEdge((advanceSegment: any, value: any) => {
-      console.log('QSYNC!', advanceSegment, '=>', value)
-      this.api.publish('commitSegment', null, { headers: { advanceSegment, readyId: value } })
-    }, mergeMin)
-
-    this.api.subscribe(Event.SYNC_ID, (body: any, opt: Opt) => {
-      console.log('SYNC-ID', body, opt)
-      const syncIdMessage = <BODY_SYNC_ID> opt.headers
-      this.makeId.reconcilePos(syncIdMessage.maxId.dt, syncIdMessage.maxId.id)
-      this.syncQuorum.vote(opt.sid, syncIdMessage.advanceSegment, syncIdMessage.syncId)
-    })
     this.api.subscribe(Event.GENERATE_SEGMENT, this.event_generate_segment.bind(this))
     this.api.subscribe(Event.DRAFT_SEGMENT, this.event_draft_segment.bind(this))
   }
@@ -75,7 +56,7 @@ export class StageOneTask {
   // generate new segment id for each advanceId
   // if advanceId is duplicated new segment is not generated
   // input headers: advanceOwner, advanceSegment
-  event_generate_segment(body: BODY_GENERATE_SEGMENT, opt: Opt) {
+  event_generate_segment(body: BODY_GENERATE_SEGMENT) {
     const advanceId = body.advanceOwner + ':' + body.advanceSegment
     if (!this.advanceMap.has(advanceId)) {
       const draftId: ComplexId = this.makeId.generateIdRec()
@@ -94,7 +75,7 @@ export class StageOneTask {
   }
 
   // when another generator made draft shift my generator
-  event_draft_segment(body: BODY_DRAFT_SEGMENT, opt: Opt) {
+  event_draft_segment(body: BODY_DRAFT_SEGMENT) {
     this.makeId.reconcilePos(body.draftId.dt, body.draftId.id)
 
     const draftOwner = body.draftOwner
@@ -172,7 +153,19 @@ export class StageOneTask {
         curHeap.shift()
       }
     }
-    this.recentValue = minValue
+    this.setRecentValue(minValue)
     return minValue
   }
+}
+
+export class StageTwoTask {
+
+  private realm: BaseRealm
+  private majorLimit: number
+
+  constructor(sysRealm: BaseRealm, majorLimit: number) {
+    this.realm = sysRealm
+    this.majorLimit = majorLimit
+  }
+
 }

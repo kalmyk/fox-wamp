@@ -10,7 +10,7 @@ import { WampGate } from '../lib/wamp/gate.js'
 import FoxRouter from '../lib/fox_router.js'
 import { MemKeyValueStorage } from '../lib/mono/memkv.js'
 
-describe('20 wamp-realm', async () => {
+describe('20.wamp-realm', async () => {
   let
     socketHistory,
     router,

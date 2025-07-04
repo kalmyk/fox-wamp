@@ -7,7 +7,7 @@ chai.use(promised)
 import { RESULT_OK, RESULT_ACK, RESULT_EMIT, RESULT_ERR, REQUEST_EVENT, REQUEST_TASK } from '../lib/messages.js'
 import { HyperSocketFormatter, HyperApiContext, HyperClient } from '../lib/hyper/client.js'
 
-describe('10 clent', function () {
+describe('10.clent', function () {
   let
     realmAdapterMock,
     clientFormater,
@@ -15,7 +15,7 @@ describe('10 clent', function () {
     result,
     ctx
 
-  beforeEach(function () {
+  beforeEach(() => {
     result = []
     realmAdapterMock = { hyperPkgWrite: chai.spy(
       (command) => result.push(command)
@@ -28,7 +28,7 @@ describe('10 clent', function () {
     )
   })
 
-  afterEach(function () {
+  afterEach(() => {
     clientFormater = null
     client = null
   })

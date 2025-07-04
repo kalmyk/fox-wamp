@@ -4,11 +4,11 @@ import promised from 'chai-as-promised'
 chai.use(spies)
 chai.use(promised)
 
-import { MemServer } from '../lib/hyper/mem_transport.js'
-import { FoxGate }   from '../lib/hyper/gate.js'
-import Router        from '../lib/router.js'
+import { MemServer } from '../lib/hyper/mem_transport'
+import { FoxGate }   from '../lib/hyper/gate'
+import Router        from '../lib/router'
 
-describe('23 pub-worker', () => {
+describe('23.pub-worker', () => {
   let
     memServer,
     router,

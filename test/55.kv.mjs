@@ -52,7 +52,7 @@ const runs = [
   {it: 'db',  mkRealm: makeDbRealm  },
 ]
 
-describe('55 hyper events', () => {
+describe('55.hyper events', () => {
   runs.forEach((run) => {
     describe('storage:' + run.it, function () {
       let

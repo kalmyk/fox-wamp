@@ -4,7 +4,7 @@ chai.use(spies)
 
 import { keyDate, keyId, ProduceId } from '../lib/masterfree/makeid'
 
-describe('02 make-id', function () {
+describe('02.make-id', function () {
   let id
 
   beforeEach(() => {

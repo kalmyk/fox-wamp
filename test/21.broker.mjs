@@ -16,7 +16,7 @@ const runs = [
   {it: 'mem',  mkEngine: () => new MemEngine()},
 ]
 
-describe('21 hyper-broker', () => {
+describe('21.hyper-broker', () => {
   runs.forEach(function (run) {
     describe('binder:' + run.it, function () {
       let

@@ -8,7 +8,7 @@ import sqlite3 from 'sqlite3'
 import * as sqlite from 'sqlite'
 import History from '../lib/sqlite/history.js'
 
-describe('30 message-storage', async () => {
+describe('30.message-storage', async () => {
   let db
 
   before(async () => {

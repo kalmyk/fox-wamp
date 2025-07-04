@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { isDataFit } from '../lib/realm.js'
 
-describe('01 isDataFit', function () {
+describe('01.isDataFit', function () {
   it('level-one-null', function () {
     expect(isDataFit(null, null)).to.equal(true)
   })

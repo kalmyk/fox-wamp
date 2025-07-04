@@ -33,7 +33,7 @@ const runs = [
   {it: 'db',  mkEngine: mkDbEngine },
 ]
 
-describe('33 history', function () {
+describe('33.history', function () {
   runs.forEach(function (run) {
     describe('event-history:' + run.it, function () {
       let

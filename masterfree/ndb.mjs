@@ -14,20 +14,15 @@ import { SqliteKvFabric } from '../lib/sqlite/sqlitekv.js'
 import Router from '../lib/router.js'
 import Config from '../lib/masterfree/config.js'
 import { initDbFactory } from '../lib/sqlite/dbfactory.js'
-import { StorageTask } from '../lib/masterfree/storage.js'
+import { StorageTask } from '../lib/masterfree/storage'
+import { StageTwoTask } from '../lib/masterfree/synchronizer'
 import { INTRA_REALM_NAME } from '../lib/masterfree/netengine.h'
 
 const router = new Router()
 const sysRealm = await router.getRealm(INTRA_REALM_NAME)
 
 const storageTask = new StorageTask(sysRealm)
-
-const runQuorum = new QuorumEdge((advanceSegment, value) => {
-  console.log('runQuorum:', storageTask.getMaxId(), advanceSegment, '=>', value)
-  for (let [,ss] of syncMass) {
-    ss.publish(Event.SYNC_ID, [], {maxId: storageTask.getMaxId(), advanceSegment, syncId: value})
-  }
-}, mergeMin)
+const stageTwoTask = new StageTwoTask(sysRealm)
 
 function mkSync(uri, ssId) {
   console.log('connect to sync:', ssId, uri)
@@ -36,17 +31,10 @@ function mkSync(uri, ssId) {
   connection.onopen = function (session, details) {
     console.log('sync session open', ssId, uri)
     syncMass.set(ssId, session)
-    runQuorum.addMember(ssId)
     readyQuorum.addMember(ssId)
 
-    session.subscribe('draftSegmentId', (args, kwargs, opts) => {
-      console.log('=> draftSegmentId', ssId, args, kwargs)
-      runQuorum.vote(ssId, kwargs.applicantId, kwargs.runId)
-      storageTask.setMaxId(mergeMax(maxId, kwargs.runId))
-    })
-
-    session.subscribe('commitSegment', (args, kwargs, opts) => {
-      console.log('=> commitSegment', ssId, args, kwargs)
+    session.subscribe(Event.COMMIT_SEGMENT, (args, kwargs, opts) => {
+      console.log('=> COMMIT_SEGMENT', ssId, args, kwargs)
       readyQuorum.vote(ssId, kwargs.advanceSegment, kwargs.readyId)
     })
   }
@@ -54,7 +42,6 @@ function mkSync(uri, ssId) {
   connection.onclose = function (reason, details) {
     console.log('disconnected '+ssId, reason, details)
     syncMass.delete(ssId)
-    runQuorum.delMember(ssId)
     readyQuorum.delMember(ssId)
   }
   
@@ -86,9 +73,7 @@ function mkGate(uri, gateId, modKv, heapApi) {
         session.publish('advance-segment-resolved', [], {advanceSegment, pkg: readyEvent})
 
         modKv.applySegment(heapEvent, (kind, outEvent) => {
-          heapApi.publish('heapEvent', outEvent)
           session.publish('dispatchEvent', [], outEvent)
-          console.log('heapEvent', outEvent)
         }).then(() => {
           // session.publish('final-segment', [], {advanceSegment})
         })

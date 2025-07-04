@@ -10,7 +10,7 @@ import { StorageTask } from '../lib/masterfree/storage'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { Event } from '../lib/masterfree/hyper.h'
 
-describe('63 storage', function () {
+describe('63.storage', function () {
   let
     draftStack,
     extractStack,

@@ -2,7 +2,7 @@ import { Actor, BaseRealm, BaseEngine, makeDataSerializable, unSerializeData } f
 import Router from '../router'
 import { HyperClient } from '../hyper/client'
 import { MemKeyValueStorage } from '../mono/memkv'
-import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY } from './hyper.h'
+import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT } from './hyper.h'
 
 export class HistorySegment {
   
@@ -83,7 +83,7 @@ export class NetEngineMill {
     this.sysRealm.registerKeyValueEngine(['#'], new MemKeyValueStorage())
     this.sysApi = this.sysRealm.buildApi()
 
-    this.sysApi.subscribe(Event.TRIM_ADVANCE_SEGMENT, (data: any, opt: any) => {
+    this.sysApi.subscribe(Event.TRIM_ADVANCE_SEGMENT+'.*', (data: BODY_TRIM_ADVANCE_SEGMENT) => {
       // to do voute for complete
       if (!data.advanceSegment) {
         console.error('ERROR: no advanceSegment in package')

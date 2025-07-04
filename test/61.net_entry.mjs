@@ -8,7 +8,7 @@ import { BaseRealm } from '../lib/realm'
 import { Config, setConfigInstance } from '../lib/masterfree/config'
 import { Event } from '../lib/masterfree/hyper.h'
 
-describe('61 net-entry', function () {
+describe('61.net-entry', function () {
   let
     nextSysPromise,
     sysRealm,

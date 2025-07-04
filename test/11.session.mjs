@@ -22,7 +22,7 @@ const Auth = function () {
   }
 }
 
-describe('11 wamp-session', async () => {
+describe('11.wamp-session', async () => {
   var
     nextPackagePromise,
     router,

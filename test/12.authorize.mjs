@@ -20,7 +20,7 @@ const runs = [
   {it: 'mem',  mkRouter: () => new FoxRouter()},
 ]
 
-describe('12 authorize-topic', async () => {
+describe('12.authorize-topic', async () => {
   runs.forEach(function (run) {
     describe('authorize:' + run.it, async () => {
       var
