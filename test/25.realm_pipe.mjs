@@ -6,7 +6,7 @@ chai.use(promised)
 
 import { MemServer } from '../lib/hyper/mem_transport'
 import { FoxGate }   from '../lib/hyper/gate'
-import FoxRouter        from '../lib/fox_router'
+import Router        from '../lib/router'
 
 describe('25.realm_pipe', async () => {
   let
@@ -25,24 +25,25 @@ describe('25.realm_pipe', async () => {
 
   beforeEach(async () => {
     nextPromise = []
-    router = new FoxRouter()
+    router = new Router()
     realm1 = await router.getRealm('realm1')
     realm2 = await router.getRealm('realm2')
-    api1 = realm1.buildApi()
-    api2 = realm2.buildApi()
-
-    api2.subscribe('pubtest', (event, opt) => {
-      console.log('pubtest event', event, opt)
-      if (nextPromise.length > 0) {
-        const promiseResolve = nextPromise.shift()
-        promiseResolve([opt.topic, event])
-      } else {
-      }
-    })
+    api1 = realm1.api()
+    api2 = realm2.api()
 
     const memServer = new MemServer(new FoxGate(router))
-    const pipeClient = memServer.createClient(realm2)
-    api1.pipe(pipeClient, 'pubtest')
+    const pipeClient = memServer.createClient(realm1)
+
+    await pipeClient.pipe(realm2.buildApi(), 'pubtest')
+
+    await api2.subscribe('pubtest', (event, opt) => {
+      if (nextPromise.length > 0) {
+        const promiseResolve = nextPromise.shift()
+        promiseResolve([opt.topic, event, opt.headers])
+      } else {
+        console.log('pubtest event', event, opt)
+      }
+    })
   })
 
   afterEach(async () => {
@@ -51,9 +52,11 @@ describe('25.realm_pipe', async () => {
   })
 
   it('pipe-publist', async () => {
-    // const realm2Event = getNextPackage()
-    // await api1.publish('pubtest', {info:'pkg'}, { headers: { test: 'value' } })
-    // console.log('realm1Eventawait', await realm2Event);    
+    const realm2Event = getNextPackage()
+
+    await api1.publish('pubtest', {info:'pkg'}, { headers: { test: 'value' } })
+   
+    assert.deepEqual(await realm2Event, ['pubtest', {info:'pkg'}, { test: 'value' }])
   })
 
 })
