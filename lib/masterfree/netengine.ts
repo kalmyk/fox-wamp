@@ -104,8 +104,8 @@ export class NetEngineMill {
       }
     })
 
-    this.sysApi.subscribe('advance-segment-resolved', (data: any, opt: any) => {
-      this.advanceSegmentResolved(opt.headers)
+    this.sysApi.subscribe(Event.ADVANCE_SEGMENT_RESOLVED + '.' + this.router.getId(), (data: any, opt: any) => {
+      this.advance_segment_resolved(opt.headers)
     })
 
     this.sysApi.subscribe('dispatchEvent', (data: any, opt: any) => {
@@ -139,7 +139,7 @@ export class NetEngineMill {
     return this.segments.delete(advanceSegment)
   }
 
-  advanceSegmentResolved (syncMessage: any) {
+  advance_segment_resolved (syncMessage: any) {
     let segment = this.findSegment(syncMessage.advanceSegment)
     if (!segment) {
       return

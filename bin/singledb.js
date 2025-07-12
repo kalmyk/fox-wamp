@@ -16,7 +16,7 @@ async function main () {
   router.startActualizePrefixTimer()
   router.listenWAMP({ port: 9000 })
   router.listenMQTT({ port: 1883 })
-  router.listenFoxNet({ port: 1735 })
+  router.listenHyperNet({ port: 1735 })
 }
 
 main().then((value) => {

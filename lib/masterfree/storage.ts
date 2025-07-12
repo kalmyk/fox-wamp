@@ -1,6 +1,5 @@
 import { BaseRealm } from '../realm'
-import { ComplexId, mergeMin, makeEmpty, keyId, keyComplexId } from './makeid'
-import { QuorumEdge } from './quorum_edge'
+import { ComplexId, makeEmpty, keyId, keyComplexId } from './makeid'
 import { HyperClient } from '../hyper/client'
 import * as History from '../sqlite/history'
 import { DbFactory } from '../sqlite/dbfactory'
@@ -22,58 +21,59 @@ export class HistorySegment {
   }
 }
 
-export type PublishResult = (advanceSegment: string, segment: HistorySegment, effectId: string[]) => void
-
-export class SessionEntryHistory {
-  private gateId: string
-  private storage: StorageTask
-  private isEventSource: boolean = false
-  private client: HyperClient
-
-    // this.wampSession = wampSession
-  private curAdvanceSegment: string | undefined = undefined
-  private pubResult: PublishResult
-
+export class StorageTask {
+  private sysRealm: BaseRealm
+  private dbFactory: DbFactory
+  private maxId: ComplexId
   private segmentToWrite = new Map()
 
-  constructor (storage: StorageTask, gateId: string, client: HyperClient, pubResult: PublishResult) {
-    this.pubResult = pubResult
-    this.storage = storage
-    this.gateId = gateId
-    this.client = client
+  constructor (sysRealm: BaseRealm, dbFactory: DbFactory) {
+    this.sysRealm = sysRealm
+    this.dbFactory = dbFactory
+    this.maxId = makeEmpty(new Date())
 
-    this.client.afterOpen(() => {
-      this.client.subscribe(Event.BEGIN_ADVANCE_SEGMENT, (args: BODY_BEGIN_ADVANCE_SEGMENT) => {
-        const boby: BODY_TRIM_ADVANCE_SEGMENT = {advanceSegment: args.advanceSegment, advanceOwner: args.advanceOwner}
-        this.client.publish(Event.TRIM_ADVANCE_SEGMENT + '.' + args.advanceOwner, boby)
-      })
+    const api = sysRealm.buildApi()
 
-      this.client.subscribe(Event.KEEP_ADVANCE_HISTORY, (args: any) => {
-        console.log("Event.KEEP_ADVANCE_HISTORY", args)
-        this.lineupEvent(args)
-      })
-
-      this.client.subscribe(Event.ADVANCE_SEGMENT_OVER, (args: any) => {
-        const advanceSegment = args[0].advanceSegment
-        client.publish(Event.GENERATE_SEGMENT, {advanceSegment: advanceSegment})
-      })
-
-      this.client.subscribe('eventSourceLock', (args: any, opts: any) => {
-        if (args.pid == process.pid) {
-          console.log('gate '+this.gateId + ": eventSource in "+this.isEventSource, args, opts)
-        }
-      }, {retained: true})
-
-      this.client.publish(
-        'eventSourceLock',
-        { pid: process.pid },
-        { acknowledge: true, retain: true, when: null, will: null, watch: true, exclude_me: false }
-      ).then((result) => {
-        console.log('GATE:'+this.gateId+': use that db as event source', result)
-        this.isEventSource = true
-      })
-      
+    api.subscribe(Event.BEGIN_ADVANCE_SEGMENT, (args: BODY_BEGIN_ADVANCE_SEGMENT) => {
+      const boby: BODY_TRIM_ADVANCE_SEGMENT = {
+        advanceSegment: args.advanceSegment, 
+        advanceOwner: args.advanceOwner
+      }
+      api.publish(Event.TRIM_ADVANCE_SEGMENT + '.' + args.advanceOwner, boby)
     })
+
+    api.subscribe(Event.KEEP_ADVANCE_HISTORY, (args: any) => {
+      console.log("Event.KEEP_ADVANCE_HISTORY", args)
+      this.lineupEvent(args)
+    })
+
+    api.subscribe(Event.ADVANCE_SEGMENT_OVER, (args: any) => {
+      const advanceSegment = args[0].advanceSegment
+      api.publish(Event.GENERATE_SEGMENT, {advanceSegment: advanceSegment})
+    })
+
+    // api.subscribe(
+    //   'eventSourceLock',
+    //   (args: any, opts: any) => {
+    //     if (args.pid == process.pid) {
+    //       console.log('gate '+this.gateId + ": eventSource in "+this.isEventSource, args, opts)
+    //     }
+    //   },
+    //   {retained: true}
+    // )
+
+    // api.publish(
+    //   'eventSourceLock',
+    //   { pid: process.pid },
+    //   { acknowledge: true, retain: true, when: null, will: null, watch: true, exclude_me: false }
+    // ).then((result) => {
+    //   console.log('GATE:'+this.gateId+': use that db as event source', result)
+    //   this.isEventSource = true
+    // })
+  }
+
+  getMaxId (): ComplexId {
+    return this.maxId
   }
 
   lineupEvent (event: BODY_KEEP_ADVANCE_HISTORY) {
@@ -88,65 +88,39 @@ export class SessionEntryHistory {
     }
   }
 
-  publishSegment (segment: HistorySegment) {
-    if (this.isEventSource) {
-      for (const event of segment.getContent()) {
-        console.log('publishSegment-dispatchEvent', event)
-        this.client.publish('dispatchEvent', {
-          realm: event.realm,
-          data: event.data,
-          uri: event.uri,
-          opt: event.opt,
-          sid: event.sid,
-          qid: event.qid
-        })
-      }
+  commit_segment (advanceSegment: string, segmentId: ComplexId) {
+    console.log("dbSaveSegment", advanceSegment, segmentId)
+    let segment = this.segmentToWrite.get(advanceSegment)
+    if (segment) {
+      let effectId = this.dbSaveSegment(segment, segmentId)
+      this.segmentToWrite.delete(advanceSegment)
+//      this.pubResult(advanceSegment, segment, effectId)
+    } else {
+      console.error("advanceSegment not found in segments [", advanceSegment, "]")
     }
   }
 
-  commit_segment (advanceSegment: string, segmentId: ComplexId): boolean {
-    // check is advanceSegment of mine session
-    if (this.curAdvanceSegment === advanceSegment) {
-      console.log("dbSaveSegment", advanceSegment, segmentId)
-      let segment = this.segmentToWrite.get(advanceSegment)
-      if (segment) {
-        this.segmentToWrite.delete(advanceSegment)
-        let effectId = this.storage.dbSaveSegment(segment, segmentId)
-        this.pubResult(advanceSegment, segment, effectId)
-      } else {
-        console.error("advanceSegment not found in segments [", advanceSegment, "]")
-      }
-      this.curAdvanceSegment = undefined
-    }
-    return false
-  }
-}
+  // pubResult (advanceSegment: string, segment: HistorySegment, effectId: string[]) {
+  //       const readyEvent = []
+  //       const heapEvent = []
+  //       for (let i = 0; i<segment.content.length; i++) {
+  //         const event = segment.content[i]
+  //         event.qid = effectId[i]
+  //         if (event.opt.trace) {
+  //           heapEvent.push(event)
+  //         } else {
+  //           readyEvent.push(event)
+  //         }
+  //       }
+  //       // TODO: publish event to all gates publishSegment(segment)
+  //       session.publish(Event.ADVANCE_SEGMENT_RESOLVED + '.' + gateId, [], {advanceSegment, pkg: readyEvent})
 
-export class StorageTask {
-  private sysRealm: BaseRealm
-  private dbFactory: DbFactory
-  private maxId: ComplexId
-  private readyQuorum: QuorumEdge<string, string, any>
-  private gateMass: Map<string,SessionEntryHistory> = new Map()
-
-  constructor (sysRealm: BaseRealm, dbFactory: DbFactory) {
-    this.sysRealm = sysRealm
-    this.dbFactory = dbFactory
-    this.maxId = makeEmpty(new Date())
-
-    this.readyQuorum = new QuorumEdge(
-      (advanceSegment, segmentId) => {
-        for (let gg of this.gateMass.values()) {
-          gg.commit_segment(advanceSegment, segmentId)
-        }
-      },
-      mergeMin
-    )
-  }
-
-  getMaxId (): ComplexId {
-    return this.maxId
-  }
+  //       modKv.applySegment(heapEvent, (kind, outEvent) => {
+  //         session.publish('dispatchEvent', [], outEvent)
+  //       }).then(() => {
+  //         // session.publish('final-segment', [], {advanceSegment})
+  //       })
+  // }
 
   // todo: wait for promise in saveEventHistory
   dbSaveSegment (segment: HistorySegment, segmentId: ComplexId): string[] {

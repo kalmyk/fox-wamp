@@ -5,8 +5,8 @@
         {"nodeId":"E3", "url":"ws://127.0.0.1:9033/wamp"}
     ],
     "syncNodes" : [
-        {"nodeId":"S1", "url":"ws://127.0.0.1:9021/wamp"},
-        {"nodeId":"S2", "url":"ws://127.0.0.1:9022/wamp"},
-        {"nodeId":"S3", "url":"ws://127.0.0.1:9023/wamp"}
+        {"nodeId":"S1", "host": "127.0.0.1", "port": "9021"},
+        {"nodeId":"S2", "host": "127.0.0.1", "port": "9022"},
+        {"nodeId":"S3", "host": "127.0.0.1", "port": "9023"}
     ]
 }

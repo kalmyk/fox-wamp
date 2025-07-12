@@ -14,7 +14,7 @@ import Router from '../lib/router.js'
 import { BaseRealm } from '../lib/realm.js'
 import { WampGate } from '../lib/wamp/gate.js'
 import { FoxGate } from '../lib/hyper/gate.js'
-import { FoxNetServer } from '../lib/hyper/net_transport.js'
+import { HyperNetServer } from '../lib/hyper/net_transport.js'
 import WampServer from '../lib/wamp/transport.js'
 import MqttServer from '../lib/mqtt/transport.js'
 import { NetEngine, NetEngineMill } from '../lib/masterfree/netengine.js'
@@ -28,6 +28,6 @@ router.createRealm = () => new BaseRealm(router, new NetEngine(netEngineMill))
 
 new WampServer(new WampGate(router), { port: conf_wamp_port })
 new MqttServer(new MqttGate(router), { port: conf_mqtt_port })
-new FoxNetServer(new FoxGate(router), { port: conf_fox_port })
+new HyperNetServer(new FoxGate(router), { port: conf_fox_port })
 
 console.log('at NODE_ID:', conf_node_id, 'listening WAMP:', conf_wamp_port, 'MQTT:', conf_mqtt_port, 'FOX:', conf_fox_port)

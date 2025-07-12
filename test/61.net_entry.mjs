@@ -52,7 +52,7 @@ describe('61.net-entry', function () {
 
   afterEach(async () => {})
   
-  it('begin-advance-segment', async () => {
+  it('Event.BEGIN_ADVANCE_SEGMENT', async () => {
     const advanceSegmentStarted = getSysPackage()
     const admanceEventSent = getSysPackage()
 

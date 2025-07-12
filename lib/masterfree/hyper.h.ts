@@ -8,14 +8,17 @@ export type AdvanceOffsetId = {
 }
 
 export enum Event {
-  BEGIN_ADVANCE_SEGMENT = 'begin-advance-segment',
+  BEGIN_ADVANCE_SEGMENT = 'BEGIN_ADVANCE_SEGMENT',
   KEEP_ADVANCE_HISTORY = 'keep-advance-history',
   TRIM_ADVANCE_SEGMENT = 'trim-advance-segment',  // sub-topic to dedicated gate
   ADVANCE_SEGMENT_OVER = 'advance-segment-over',
-  DRAFT_SEGMENT = 'DRAFT_SEGMENT',
+  
   GENERATE_SEGMENT = 'GENERATE_SEGMENT',
+  DRAFT_SEGMENT = 'DRAFT_SEGMENT',
   CHALLENGER_EXTRACT = 'CHALLENGER_EXTRACT',
   COMMIT_SEGMENT = 'COMMIT_SEGMENT',
+
+  ADVANCE_SEGMENT_RESOLVED = 'advance-segment-resolved', // sub-topic to dedicated gate to send ACK
 }
 
 export type BODY_BEGIN_ADVANCE_SEGMENT = {

@@ -27,21 +27,16 @@ export class StageOneTask {
   private majorLimit: number
   private advanceMap: Map<string, AdvanceStage> = new Map()
   private makeId: ProduceId
-  private recentValue: string
-  private advanceIdHeap: Map<string, Set<string>>
-  private doneHeap: Map<string, Set<string>>
-  private draftHeap: Map<string, string[]>  // draftOwner -> set of draftId
+  private recentValue: string = ''
+  private advanceIdHeap: Map<string, Set<string>> = new Map()
+  private doneHeap: Map<string, Set<string>> = new Map()
+  private draftHeap: Map<string, string[]> = new Map() // draftOwner -> set of draftId
   private api: HyperClient
 
   constructor(sysRealm: BaseRealm, majorLimit: number) {
     this.realm = sysRealm
     this.majorLimit = majorLimit
     this.makeId = new ProduceId((date: any) => keyDate(date))
-
-    this.recentValue = ''
-    this.advanceIdHeap = new Map()
-    this.doneHeap = new Map()
-    this.draftHeap = new Map()
 
     // build api before new session handler to not to be caught
     this.api = sysRealm.buildApi()
@@ -162,10 +157,18 @@ export class StageTwoTask {
 
   private realm: BaseRealm
   private majorLimit: number
+  private api: HyperClient
+  private readyQuorum: QuorumEdge<string, string, any>
 
   constructor(sysRealm: BaseRealm, majorLimit: number) {
     this.realm = sysRealm
     this.majorLimit = majorLimit
+    this.api = sysRealm.buildApi()
+
+    this.api.subscribe(Event.COMMIT_SEGMENT, (body: COMMIT_SEGMENT_BODY, opts) => {
+      console.log('=> COMMIT_SEGMENT', ssId, args)
+      readyQuorum.vote(ssId, kwargs.advanceSegment, kwargs.readyId)
+    })
   }
 
 }

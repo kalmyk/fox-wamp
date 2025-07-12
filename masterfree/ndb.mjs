@@ -4,19 +4,15 @@ const conf_db_file = process.env.DB_FILE
 const conf_config_file = process.env.CONFIG
   || console.log('CONFIG file name must be defined') || process.exit(1)
 
-const autobahn = require('autobahn')
-
-import { QuorumEdge } from '../lib/masterfree/quorum_edge.js'
-import { mergeMax } from '../lib/masterfree/makeid.js'
-import { SessionEntryHistory } from '../lib/masterfree/session_entry_history.js'
-import { ProduceId } from '../lib/masterfree/makeid.js'
-import { SqliteKvFabric } from '../lib/sqlite/sqlitekv.js'
-import Router from '../lib/router.js'
-import Config from '../lib/masterfree/config.js'
-import { initDbFactory } from '../lib/sqlite/dbfactory.js'
+import { ProduceId } from '../lib/masterfree/makeid'
+import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
+import Router from '../lib/router'
+import Config from '../lib/masterfree/config'
+import { initDbFactory } from '../lib/sqlite/dbfactory'
 import { StorageTask } from '../lib/masterfree/storage'
 import { StageTwoTask } from '../lib/masterfree/synchronizer'
 import { INTRA_REALM_NAME } from '../lib/masterfree/netengine.h'
+import { HyperNetClient } from '../lib/hyper/net_transport'
 
 const router = new Router()
 const sysRealm = await router.getRealm(INTRA_REALM_NAME)
@@ -24,84 +20,37 @@ const sysRealm = await router.getRealm(INTRA_REALM_NAME)
 const storageTask = new StorageTask(sysRealm)
 const stageTwoTask = new StageTwoTask(sysRealm)
 
-function mkSync(uri, ssId) {
-  console.log('connect to sync:', ssId, uri)
-  const connection = new autobahn.Connection({url: uri, realm: 'sys'})
+function mkSync(host, port, nodeId) {
+  const client = new HyperNetClient({host, port})
+  client.onopen(() => {
+    client.login({realm: 'realm1'})
+    console.log('login successful', nodeId, host, port)
+  })
+  client.onclose(() => {
+    console.log('Sync client closed:', nodeId)
+  })
 
-  connection.onopen = function (session, details) {
-    console.log('sync session open', ssId, uri)
-    syncMass.set(ssId, session)
-    readyQuorum.addMember(ssId)
-
-    session.subscribe(Event.COMMIT_SEGMENT, (args, kwargs, opts) => {
-      console.log('=> COMMIT_SEGMENT', ssId, args, kwargs)
-      readyQuorum.vote(ssId, kwargs.advanceSegment, kwargs.readyId)
-    })
-  }
-
-  connection.onclose = function (reason, details) {
-    console.log('disconnected '+ssId, reason, details)
-    syncMass.delete(ssId)
-    readyQuorum.delMember(ssId)
-  }
-  
-  connection.open()
+  console.log('connect to sync:', nodeId, host, port)
+  return client.connect()
 }
 
-function mkGate(uri, gateId, modKv, heapApi) {
-  const connection = new autobahn.Connection({url: uri, realm: 'sys'})
-
-  connection.onopen = function (session, details) {
-    console.log('connect gate', gateId, uri)
-    gateMass.set(
-      gateId,
-      new SessionEntryHistory(session, syncMass, gateId, (advanceSegment, segment, effectId) => {
-        const readyEvent = []
-        const heapEvent = []
-        for (let i = 0; i<segment.content.length; i++) {
-          const event = segment.content[i]
-          event.qid = effectId[i]
-          if (event.opt.trace) {
-            heapEvent.push(event)
-          } else {
-            readyEvent.push(event)
-          }
-        }
-        for (const gg of gateMass.values()) {
-          gg.publishSegment(segment)
-        }
-        session.publish('advance-segment-resolved', [], {advanceSegment, pkg: readyEvent})
-
-        modKv.applySegment(heapEvent, (kind, outEvent) => {
-          session.publish('dispatchEvent', [], outEvent)
-        }).then(() => {
-          // session.publish('final-segment', [], {advanceSegment})
-        })
-      })
-    )
-  }
-
-  connection.onclose = function (reason, details) {
-    console.log('Gate disconnected '+gateId, reason, details)
-    gateMass.delete(gateId)
-  }
-  
-  connection.open()
+function mkGate(uri, gateId, modKv) {
 }
 
 async function main () {
+  const config = Config.getInstance()
+
   const makeId = new ProduceId(() => keyDate(new Date()))
   const dbFactory = await initDbFactory()
   const db = await dbFactory.openMainDatabase(conf_db_file)
-  const config = Config.getInstance()
 
   const modKv = new SqliteKvFabric(dbFactory, makeId)
 
-  for (const sync of config.getSyncNodes()) {
-    mkSync(sync.url, sync.nodeId)
+  for (const syncNodeConf of config.getSyncNodes()) {
+    mkSync(syncNodeConf.host, syncNodeConf.port, syncNodeConf.nodeId)
   }
   for (const entry of config.getEntryNodes()) {
-    mkGate(entry.url, entry.nodeId, modKv, sysRealm.api())
+    mkGate(entry.url, entry.nodeId, modKv)
   }
 }
 
