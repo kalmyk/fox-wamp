@@ -49,7 +49,7 @@ export class StorageTask {
 
     api.subscribe(Event.ADVANCE_SEGMENT_OVER, (args: any) => {
       const advanceSegment = args[0].advanceSegment
-      api.publish(Event.GENERATE_SEGMENT, {advanceSegment: advanceSegment})
+      api.publish(Event.GENERATE_DRAFT, {advanceSegment: advanceSegment})
     })
 
     // api.subscribe(
@@ -88,7 +88,7 @@ export class StorageTask {
     }
   }
 
-  commit_segment (advanceSegment: string, segmentId: ComplexId) {
+  write_segment (advanceSegment: string, segmentId: ComplexId) {
     console.log("dbSaveSegment", advanceSegment, segmentId)
     let segment = this.segmentToWrite.get(advanceSegment)
     if (segment) {

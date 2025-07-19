@@ -55,22 +55,23 @@ sync
 
         advance-segment-over ->
 
-                                            GENERATE_SEGMENT -> generate mew time+genId for tmp-id
+                                            GENERATE_DRAFT -> generate mew time+genId for tmp-id
                                                         send to next sync stage
                                                         
                                                     +---- VOTE
                                                     |        take low _in_vouter_ time+genId
                                                     |        for tmp-id send to final
                                                     |        sync stage
-                                                    +->  DRAFT_SEGMENT ->
-                                                        draft id is generated
+                                                    +->  PICK_CHALLENGER ->
+                                                        challenger id is generated
 
                                                         <-> VOTE <->
                                                             two sync units generates draft id,
                                                             pair of lower is elected
-                                                    CHALLENGER_EXTRACT ->
+
+                                                    ELECT_SEGMENT_ID ->
 
                                                                                                 VOTE / StageTwoTask
-                                                                                                COMMIT_SEGMENT
+                                                                                                
 
     -> ADVANCE_SEGMENT_RESOLVED

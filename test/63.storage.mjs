@@ -39,14 +39,14 @@ describe('63.storage', function () {
     )
 
     api = sysRealm.buildApi()
-    await api.subscribe(Event.DRAFT_SEGMENT, (event, opt) => { draftStack.push(opt.headers) })
-    await api.subscribe(Event.CHALLENGER_EXTRACT, (event, opt) => { extractStack.push(opt.headers) })
+    await api.subscribe(Event.PICK_CHALLENGER, (event, opt) => { draftStack.push(opt.headers) })
+    await api.subscribe(Event.ELECT_SEGMENT_ID, (event, opt) => { extractStack.push(opt.headers) })
   })
 
   afterEach(async () => {})
 
   it('receive draft segment', async () => {
-    // await api.publish(Event.DRAFT_SEGMENT, null, {
+    // await api.publish(Event.PICK_CHALLENGER, null, {
     //   headers: {
     //     advanceOwner: 'entry1',
     //     advanceSegment: 'a0',

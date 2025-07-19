@@ -27,8 +27,24 @@ export class Config {
     return this.config.syncNodes
   }
 
-  getMajorLimit () {
-    return this.config.majorLimit || 2
+  getSyncById (nodeId: string) {
+    const result = this.config.syncNodes[nodeId]
+    if (!result) {
+      throw Error('Sync node with id ' + nodeId + ' not found')
+    }
+    return result
+  }
+
+  getGateById (nodeId: string) {
+    const result = this.config.entryNodes[nodeId]
+    if (!result) {
+      throw Error('Entry node with id ' + nodeId + ' not found')
+    }
+    return result
+  }
+
+  getSyncQuorum () {
+    return this.config.syncQuorum || 2
   }
 }
 

@@ -13,10 +13,9 @@ export enum Event {
   TRIM_ADVANCE_SEGMENT = 'trim-advance-segment',  // sub-topic to dedicated gate
   ADVANCE_SEGMENT_OVER = 'advance-segment-over',
   
-  GENERATE_SEGMENT = 'GENERATE_SEGMENT',
-  DRAFT_SEGMENT = 'DRAFT_SEGMENT',
-  CHALLENGER_EXTRACT = 'CHALLENGER_EXTRACT',
-  COMMIT_SEGMENT = 'COMMIT_SEGMENT',
+  GENERATE_DRAFT = 'GENERATE_DRAFT',
+  PICK_CHALLENGER = 'PICK_CHALLENGER',
+  ELECT_SEGMENT_ID = 'ELECT_SEGMENT_ID',
 
   ADVANCE_SEGMENT_RESOLVED = 'advance-segment-resolved', // sub-topic to dedicated gate to send ACK
 }
@@ -35,12 +34,12 @@ export type BODY_TRIM_ADVANCE_SEGMENT = {
   advanceSegment: string
 }
 
-export type BODY_GENERATE_SEGMENT = {
+export type BODY_GENERATE_DRAFT = {
   advanceOwner: string
   advanceSegment: string
 }
 
-export type BODY_DRAFT_SEGMENT = {
+export type BODY_PICK_CHALLENGER = {
   advanceOwner: string
   advanceSegment: string
   draftOwner: string
@@ -56,7 +55,7 @@ export type BODY_KEEP_ADVANCE_HISTORY = {
   sid: string
 }
 
-export type BODY_CHALLENGER_EXTRACT = {
+export type BODY_ELECT_SEGMENT_ID = {
   challenger: string
   advanceOwner: string
   advanceSegment: string
