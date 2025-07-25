@@ -27,8 +27,10 @@ const WampAuth = function () {
       api.subscribe(
         'sys.user.info.' + secureDetails.authid,
         (id, args, kwargs) => {
-          if (kwargs.password === secret) {
-            cb(undefined, kwargs)
+          console.log('ticket_auth:', id, args, kwargs)
+          const userInfo = args[0]
+          if (userInfo.password === secret) {
+            cb(undefined, userInfo)
           } else {
             cb(new Error('authentication_failed'))
           }
@@ -36,6 +38,7 @@ const WampAuth = function () {
         },
         { retained: true }
       ).then((subId) => {
+        console.log('ticket_auth: subscribed', found)
         if (!found) {
           cb(new Error('authentication_failed'))
         }
@@ -64,8 +67,8 @@ const WampAuth = function () {
 app.getRealm('realm1', async (realm) => {
   var api = realm.wampApi()
   // create demo user table
-  await api.publish('sys.user.info.joe', [], { role: 'user', password: 'joe-secret' }, { retain: true })
-  await api.publish('sys.user.info.admin', [], { role: 'admin', password: 'admin-secret' }, { retain: true })
+  await api.publish('sys.user.info.joe', [{ role: 'user', password: 'joe-secret' }], null, { retain: true })
+  await api.publish('sys.user.info.admin', [{ role: 'admin', password: 'admin-secret' }], null, { retain: true })
 })
 
 console.log('Listening port:', program.port)

@@ -10,9 +10,11 @@ console.log('connect to server:', program.server)
 
 let user = 'joe'
 let key = 'joe-secret'
+let is_auth_used = false
 
 // this callback is fired during authentication
 function onchallenge (session, method, extra) {
+  is_auth_used = true
   if (method === 'ticket') {
     return key
   }
@@ -95,14 +97,16 @@ connection.onopen = function (session) {
     }
   )
 
-  session.subscribe('sys.user.#', onEvent).then(
-    function (subscription) {
-      console.log('user subscription passed', subscription.topic)
-    },
-    function (error) {
-      console.log('access to user password is denied')
-    }
-  )
+  if (is_auth_used) {
+    session.subscribe('sys.user.#', onEvent).then(
+      function (subscription) {
+        console.log('fail: access to sys.user.* need to be denied', subscription.topic)
+      },
+      function (error) {
+        console.log('check passed: access to user password is denied, no access to sys.user.*')
+      }
+    )
+  }
 }
 
 connection.onclose = function (reason, details) {
