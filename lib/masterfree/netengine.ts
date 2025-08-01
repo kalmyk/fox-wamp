@@ -175,7 +175,7 @@ export class NetEngineMill {
       opt: actor.getOpt(),
       sid: actor.getSid()
     }
-    return this.sysApi.publish(Event.KEEP_ADVANCE_HISTORY, null, { headers: event})
+    return this.sysApi.publish(Event.KEEP_ADVANCE_HISTORY, event)
   }
 
   dispatchEvent (eventData: any) {

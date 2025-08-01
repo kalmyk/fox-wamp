@@ -7,23 +7,32 @@ const conf_node_id = process.env.NODE_ID
 import Router from '../lib/router'
 import {BaseRealm, BaseEngine} from '../lib/realm'
 import { StageOneTask } from '../lib/masterfree/synchronizer'
-import { Config, getConfigInstance } from '../lib/masterfree/config'
+import { getConfigInstance } from '../lib/masterfree/config'
 import { HyperNetClient, listenHyperNetServer } from '../lib/hyper/net_transport'
 import { FoxGate } from '../lib/hyper/gate'
 import { INTRA_REALM_NAME } from '../lib/masterfree/hyper.h'
 
-const config: Config = getConfigInstance()
-const router: Router = new Router()
+const config = getConfigInstance()
+const router = new Router()
 router.setId(conf_node_id)
 
-function mkSync(host: string, port: number, nodeId: string, stageOneTask: StageOneTask) {
+function mkGate(host, port, gateId, stageOneTask) {
   const client = new HyperNetClient({host, port})
   client.onopen(async () => {
-    await client.login({realm: 'realm1'})
+    await client.login({realm: INTRA_REALM_NAME})
+    console.log('login successful', gateId, host, port)
+    await stageOneTask.listenEntry(client)
+  })
+  client.connect()
+}
+
+function mkSync(host, port, nodeId, stageOneTask) {
+  const client = new HyperNetClient({host, port})
+  client.onopen(async () => {
+    await client.login({realm: INTRA_REALM_NAME})
     console.log('login successful', nodeId, host, port)
     await stageOneTask.listenStageOne(client)
   })
-  console.log('connect to sync:', nodeId, host, port)
   return client.connect()
 }
 
@@ -32,11 +41,12 @@ config.loadConfigFile(conf_config_file).then(async () => {
 
   const sysRealm = new BaseRealm(router, new BaseEngine())
   await router.initRealm(INTRA_REALM_NAME, sysRealm)
+  router.setLogTrace(true)
   const stageOneTask = new StageOneTask(sysRealm, config.getSyncQuorum())
   stageOneTask.startActualizePrefixTimer()
 
   console.log('SYNC_ID:', conf_node_id, 'Listening FOX port:', nodeConf.port)
-  listenHyperNetServer(new FoxGate(router), <any>{ port: nodeConf.port })
+  listenHyperNetServer(new FoxGate(router), { port: nodeConf.port })
 
   const syncNodes = config.getSyncNodes()
   for (const syncNodeId of Object.keys(syncNodes)) {
@@ -46,6 +56,12 @@ config.loadConfigFile(conf_config_file).then(async () => {
       continue
     }
     mkSync(syncNodeConf.host, syncNodeConf.port, syncNodeId, stageOneTask)
+  }
+
+  const entryNodes = config.getEntryNodes()
+  for (const entryNodeId of Object.keys(entryNodes)) {
+    const entryNodeConf = entryNodes[entryNodeId]
+    mkGate(entryNodeConf.host, entryNodeConf.port, entryNodeId, stageOneTask)
   }
 }).catch((err) => {
   console.error('Error loading:', err)

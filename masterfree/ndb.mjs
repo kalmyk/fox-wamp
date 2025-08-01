@@ -7,31 +7,38 @@ const conf_config_file = process.env.CONFIG
 import { keyDate, ProduceId } from '../lib/masterfree/makeid'
 import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
 import Router from '../lib/router'
-import { Config, getConfigInstance } from '../lib/masterfree/config'
+import { getConfigInstance } from '../lib/masterfree/config'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { StorageTask } from '../lib/masterfree/storage'
 import { StageTwoTask } from '../lib/masterfree/synchronizer'
 import { INTRA_REALM_NAME } from '../lib/masterfree/hyper.h'
 import { HyperNetClient } from '../lib/hyper/net_transport'
 
-function mkSync(host: string, port: number, nodeId: string, stageTwoTask: StageTwoTask) {
+function mkSync(host, port, nodeId, stageTwoTask) {
   const client = new HyperNetClient({host, port})
   client.onopen(async () => {
-    await client.login({realm: 'realm1'})
+    await client.login({realm: INTRA_REALM_NAME})
     console.log('login successful', nodeId, host, port)
     await stageTwoTask.listenStageOne(client)
   })
-  console.log('connect to sync:', nodeId, host, port)
   return client.connect()
 }
 
-function mkGate(uri:  string, gateId: string, modKv: SqliteKvFabric) {
+function mkGate(host, port, gateId, storageTask) {
+  const client = new HyperNetClient({host, port})
+  client.onopen(async () => {
+    await client.login({realm: INTRA_REALM_NAME})
+    console.log('login successful', gateId, host, port)
+    await storageTask.listenEntry(client, gateId)
+  })
+  client.connect()
 }
 
-const config: Config = getConfigInstance()
+const config = getConfigInstance()
 
 async function main () {
   const router = new Router()
+  router.setLogTrace(true)
   const sysRealm = await router.getRealm(INTRA_REALM_NAME)
 
   const dbFactory = new DbFactory(null)
@@ -52,7 +59,7 @@ async function main () {
   const entryNodes = config.getEntryNodes()
   for (const entryNodeId of Object.keys(entryNodes)) {
     const entryNodeConf = entryNodes[entryNodeId]
-    mkGate(entryNodeConf.url, entryNodeId, modKv)
+    mkGate(entryNodeConf.host, entryNodeConf.port, entryNodeId, storageTask)
   }
 }
 

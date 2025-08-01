@@ -3,21 +3,24 @@ import spies from 'chai-spies'
 chai.use(spies)
 
 import Router       from '../lib/router'
-import { StageOneTask } from '../lib/masterfree/synchronizer'
+import { StageOneTask, StageTwoTask } from '../lib/masterfree/synchronizer'
 import { Event } from '../lib/masterfree/hyper.h'
 
 describe('62.synchronizer', function () {
   let
     draftStack,
     extractStack,
+    resolvedStack,
     api,
     router,
     sysRealm,
-    stageOne
+    stageOne,
+    stageTwo
 
   beforeEach(async () => {
     draftStack = []
     extractStack = []
+    resolvedStack = []
     router = new Router()
     router.setId('sync1')
     sysRealm = await router.getRealm('sys')
@@ -27,11 +30,19 @@ describe('62.synchronizer', function () {
     stageOne = new StageOneTask(sysRealm, MAJOR_LIMIT)
     stageOne.reconcilePos('PREFIX1:')
 
+    stageTwo = new StageTwoTask(sysRealm, MAJOR_LIMIT)
+
     await api.subscribe(Event.PICK_CHALLENGER, (event, opt) => { 
-      // console.log('PICK_CHALLENGER', event, opt.headers)
+      console.log('PICK_CHALLENGER', event, opt.headers)
       draftStack.push(event)
     })
-    await api.subscribe(Event.ELECT_SEGMENT_ID, (event, opt) => { extractStack.push(event) })
+    await api.subscribe(Event.ELECT_SEGMENT, (event, opt) => { extractStack.push(event) })
+
+    // stage two
+    await api.subscribe(Event.ADVANCE_SEGMENT_RESOLVED, (event, opt) => {
+      console.log('ADVANCE_SEGMENT_RESOLVED', event, opt.headers)
+      resolvedStack.push(event)
+    })
   })
 
   afterEach(async () => {})
@@ -90,6 +101,10 @@ describe('62.synchronizer', function () {
       }
     ])
     expect(stageOne.getRecentValue()).equal('PREFIX1:a2')
+  })
+
+  it('stage-two resolve', async () => {
+
   })
 
 })

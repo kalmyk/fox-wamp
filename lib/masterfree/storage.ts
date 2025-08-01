@@ -3,7 +3,7 @@ import { ComplexId, makeEmpty, keyId, keyComplexId } from './makeid'
 import { HyperClient } from '../hyper/client'
 import * as History from '../sqlite/history'
 import { DbFactory } from '../sqlite/dbfactory'
-import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT } from './hyper.h'
+import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER } from './hyper.h'
 
 export class HistorySegment {
   private content: Array<any> = []
@@ -26,33 +26,40 @@ export class StorageTask {
   private dbFactory: DbFactory
   private maxId: ComplexId
   private segmentToWrite = new Map()
+  private api: HyperClient
 
   constructor (sysRealm: BaseRealm, dbFactory: DbFactory) {
     this.sysRealm = sysRealm
     this.dbFactory = dbFactory
     this.maxId = makeEmpty(new Date())
 
-    const api = sysRealm.buildApi()
+    this.api = sysRealm.buildApi()
 
-    api.subscribe(Event.BEGIN_ADVANCE_SEGMENT, (args: BODY_BEGIN_ADVANCE_SEGMENT) => {
-      const boby: BODY_TRIM_ADVANCE_SEGMENT = {
+    this.api.subscribe(Event.BEGIN_ADVANCE_SEGMENT, (args: BODY_BEGIN_ADVANCE_SEGMENT) => {
+      console.log("Event.BEGIN_ADVANCE_SEGMENT", args)
+      const msg: BODY_TRIM_ADVANCE_SEGMENT = {
         advanceSegment: args.advanceSegment, 
         advanceOwner: args.advanceOwner
       }
-      api.publish(Event.TRIM_ADVANCE_SEGMENT + '.' + args.advanceOwner, boby)
+      this.api.publish(Event.TRIM_ADVANCE_SEGMENT + '.' + args.advanceOwner, msg, {exclude_me: false})
     })
 
-    api.subscribe(Event.KEEP_ADVANCE_HISTORY, (args: any) => {
+    this.api.subscribe(Event.KEEP_ADVANCE_HISTORY, (args: BODY_KEEP_ADVANCE_HISTORY) => {
       console.log("Event.KEEP_ADVANCE_HISTORY", args)
-      this.lineupEvent(args)
+      this.event_keep_advance_history(args)
     })
 
-    api.subscribe(Event.ADVANCE_SEGMENT_OVER, (args: any) => {
-      const advanceSegment = args[0].advanceSegment
-      api.publish(Event.GENERATE_DRAFT, {advanceSegment: advanceSegment})
+    this.api.subscribe(Event.ADVANCE_SEGMENT_OVER, (body: BODY_ADVANCE_SEGMENT_OVER) => {
+      const advanceSegment = body.advanceSegment
+      this.api.publish(Event.GENERATE_DRAFT, {advanceSegment: advanceSegment})
     })
 
-    // api.subscribe(
+    this.api.subscribe(Event.ADVANCE_SEGMENT_RESOLVED, (body: BODY_ADVANCE_SEGMENT_RESOLVED) => {
+      console.log("Event.ADVANCE_SEGMENT_RESOLVED", body)
+      // const advanceSegment = body.advanceSegment
+    })
+
+    // this.api.subscribe(
     //   'eventSourceLock',
     //   (args: any, opts: any) => {
     //     if (args.pid == process.pid) {
@@ -62,7 +69,7 @@ export class StorageTask {
     //   {retained: true}
     // )
 
-    // api.publish(
+    // this.api.publish(
     //   'eventSourceLock',
     //   { pid: process.pid },
     //   { acknowledge: true, retain: true, when: null, will: null, watch: true, exclude_me: false }
@@ -76,7 +83,21 @@ export class StorageTask {
     return this.maxId
   }
 
-  lineupEvent (event: BODY_KEEP_ADVANCE_HISTORY) {
+  async listenEntry(client: HyperClient, gateId: string) {
+    await client.pipe(this.api, Event.BEGIN_ADVANCE_SEGMENT, {exclude_me: false})
+    await client.pipe(this.api, Event.KEEP_ADVANCE_HISTORY, {exclude_me: false})
+    await client.pipe(this.api, Event.ADVANCE_SEGMENT_OVER, {exclude_me: false})
+
+    await this.api.pipe(client, Event.TRIM_ADVANCE_SEGMENT + '.' + gateId)
+
+    // await client.callrpc('registerStorage', {nodeId: this.sysRealm.getId()})
+  }
+
+  async listenStageTwo(client: HyperClient) {
+    await client.pipe(this.api, Event.ADVANCE_SEGMENT_RESOLVED, {exclude_me: false})
+  }
+
+  event_keep_advance_history (event: BODY_KEEP_ADVANCE_HISTORY) {
     let segment = this.segmentToWrite.get(event.advanceId.segment)
     if (!segment) {
       segment = new HistorySegment()

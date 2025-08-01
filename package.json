@@ -1,6 +1,6 @@
 {
   "name": "fox-wamp",
-  "version": "0.7.27",
+  "version": "0.7.28",
   "description": "Web Application Message Router/Server WAMP/MQTT",
   "author": {
     "name": "Anatoly Tsapkov",
@@ -34,6 +34,8 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/chai": "^5.2.2",
+    "@types/chai-spies": "^1.0.6",
     "@types/node": "^22.7.5",
     "autobahn": "^22.11.1",
     "chai": "^4.5.0",

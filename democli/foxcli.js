@@ -11,7 +11,6 @@ async function main () {
   try {
     const client = new HyperNetClient(params)
     client.onopen(async () => {
-      console.log('onopen: Hyper client connected successfully')
       await client.login({realm: 'realm1'})
       console.log('login successful')
 

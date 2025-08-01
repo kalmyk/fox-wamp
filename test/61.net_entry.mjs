@@ -56,9 +56,31 @@ describe('61.net-entry', function () {
     const advanceSegmentStarted = getSysPackage()
     const admanceEventSent = getSysPackage()
 
-    await netApi.publish('any-test-topic', {data:'test'}, {})
+    await netApi.publish('any-test-topic', {package:'test'}, {})
     expect(await advanceSegmentStarted).deep.equal([Event.BEGIN_ADVANCE_SEGMENT,{advanceOwner: "E1", advanceSegment: 'E1-1'}])
-    expect(await admanceEventSent).deep.equal([Event.KEEP_ADVANCE_HISTORY,null])
+    const event_KEEP_ADVANCE_HISTORY = await admanceEventSent
+    delete event_KEEP_ADVANCE_HISTORY[1].sid
+    expect(event_KEEP_ADVANCE_HISTORY).deep.equal([
+      Event.KEEP_ADVANCE_HISTORY,
+      {
+        advanceId: {
+          offset: 1,
+          segment: "E1-1"
+        },
+        data: {
+          kv: {
+            package: "test"
+          }
+        },
+        opt: {
+          "exclude_me": true
+        },
+        realm: "testnet",
+        uri: [
+          "any-test-topic"
+        ]
+      }
+    ])
     expect(sysStack.length).equal(0)
   })
 

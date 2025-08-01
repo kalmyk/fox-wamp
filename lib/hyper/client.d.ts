@@ -39,7 +39,7 @@ export class HyperClient {
   subscribe(uri: string, cb: CallbackFn, opt?: any): Promise<any>
   unsubscribe(subId: any): Promise<any>
   publish(uri: string, data: any, opt?: any): Promise<any>
-  pipe(writeToClient: HyperClient, topic: string): Promise<any>
+  pipe(writeToClient: HyperClient, topic: string, opt?: any): Promise<any>
   afterOpen(callback: CallbackFn): any
 }
 

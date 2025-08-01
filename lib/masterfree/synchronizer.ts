@@ -3,7 +3,7 @@ import { BaseRealm } from '../realm'
 import { HyperClient } from '../hyper/client'
 import { keyDate, ProduceId, keyComplexId } from './makeid'
 import { ComplexId } from './makeid'
-import { Event, BODY_PICK_CHALLENGER, BODY_GENERATE_DRAFT, BODY_ELECT_SEGMENT_ID } from './hyper.h'
+import { Event, BODY_PICK_CHALLENGER, BODY_GENERATE_DRAFT, BODY_ELECT_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED } from './hyper.h'
 
 type AdvanceStage = {
   advanceOwner: string
@@ -49,11 +49,11 @@ export class StageOneTask {
   }
 
   listenEntry(client: HyperClient) {
-    client.pipe(this.api, Event.GENERATE_DRAFT)
+    client.pipe(this.api, Event.GENERATE_DRAFT, {exclude_me: false})
   }
 
   listenStageOne(client: HyperClient) {
-    client.pipe(this.api, Event.PICK_CHALLENGER)
+    client.pipe(this.api, Event.PICK_CHALLENGER, {exclude_me: false})
   }
 
   // generate new segment id for each advanceId
@@ -108,12 +108,12 @@ export class StageOneTask {
     if (vouterSet.size >= this.syncQuorum) {
       this.advanceIdHeap.delete(advanceId)
       this.doneHeap.set(advanceId, vouterSet)
-      const challengerBody: BODY_ELECT_SEGMENT_ID = {
+      const challengerBody: BODY_ELECT_SEGMENT = {
         advanceOwner,
         advanceSegment,
         challenger: this.extractDraft(vouterSet)
       }
-      this.api.publish(Event.ELECT_SEGMENT_ID, challengerBody, {exclude_me: false})
+      this.api.publish(Event.ELECT_SEGMENT, challengerBody, {exclude_me: false})
     }
   }
 
@@ -167,24 +167,25 @@ export class StageTwoTask {
   private syncQuorum: number
   private api: HyperClient
   private readyQuorum: Map<string, Set<string>> = new Map() // advanceSegment -> set of readyId
+  private recentValue: string = ''
 
   constructor(sysRealm: BaseRealm, syncQuorum: number) {
     this.realm = sysRealm
     this.syncQuorum = syncQuorum
     this.api = sysRealm.buildApi()
 
-    this.api.subscribe(Event.ELECT_SEGMENT_ID, (body: BODY_ELECT_SEGMENT_ID, opts: any) => {
-      console.log('=> Event.ELECT_SEGMENT_ID', body)
-      this.event_elect_segment_id(body)
+    this.api.subscribe(Event.ELECT_SEGMENT, (body: BODY_ELECT_SEGMENT, opts: any) => {
+      console.log('=> Event.ELECT_SEGMENT', body)
+      this.event_elect_segment(body)
     })
 
   }
 
   listenStageOne(client: HyperClient) {
-    client.pipe(this.api, Event.ELECT_SEGMENT_ID)
+    client.pipe(this.api, Event.ELECT_SEGMENT, {exclude_me: false})
   }
 
-  event_elect_segment_id(body: BODY_ELECT_SEGMENT_ID) {
+  event_elect_segment(body: BODY_ELECT_SEGMENT) {
     const advanceSegment = body.advanceSegment
     const challenger = body.challenger
 
@@ -196,7 +197,18 @@ export class StageTwoTask {
 
     if (readySet.size >= this.syncQuorum) {
       this.readyQuorum.delete(advanceSegment)
-      this.api.publish(Event.ADVANCE_SEGMENT_RESOLVED, {advanceSegment}, {exclude_me: false})
+      let maxValue = '';
+      readySet.forEach((id) => {
+        if (maxValue === '' || maxValue < id) {
+          maxValue = id
+        }
+      })
+      const msg: BODY_ADVANCE_SEGMENT_RESOLVED = {
+        advanceSegment,
+        advanceOwner: body.advanceOwner,
+        segment: maxValue
+      }
+      this.api.publish(Event.ADVANCE_SEGMENT_RESOLVED, msg, {})
     }
   }
 

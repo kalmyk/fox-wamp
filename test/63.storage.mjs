@@ -40,7 +40,7 @@ describe('63.storage', function () {
 
     api = sysRealm.buildApi()
     await api.subscribe(Event.PICK_CHALLENGER, (event, opt) => { draftStack.push(opt.headers) })
-    await api.subscribe(Event.ELECT_SEGMENT_ID, (event, opt) => { extractStack.push(opt.headers) })
+    await api.subscribe(Event.ELECT_SEGMENT, (event, opt) => { extractStack.push(opt.headers) })
   })
 
   afterEach(async () => {})

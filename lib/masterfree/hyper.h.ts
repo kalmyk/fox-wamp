@@ -9,13 +9,13 @@ export type AdvanceOffsetId = {
 
 export enum Event {
   BEGIN_ADVANCE_SEGMENT = 'BEGIN_ADVANCE_SEGMENT',
-  KEEP_ADVANCE_HISTORY = 'keep-advance-history',
-  TRIM_ADVANCE_SEGMENT = 'trim-advance-segment',  // sub-topic to dedicated gate
-  ADVANCE_SEGMENT_OVER = 'advance-segment-over',
+  KEEP_ADVANCE_HISTORY = 'KEEP_ADVANCE_HISTORY',
+  TRIM_ADVANCE_SEGMENT = 'TRIM_ADVANCE_SEGMENT',  // sub-topic to dedicated gate
+  ADVANCE_SEGMENT_OVER = 'ADVANCE_SEGMENT_OVER',
   
   GENERATE_DRAFT = 'GENERATE_DRAFT',
   PICK_CHALLENGER = 'PICK_CHALLENGER',
-  ELECT_SEGMENT_ID = 'ELECT_SEGMENT_ID',
+  ELECT_SEGMENT = 'ELECT_SEGMENT',
 
   ADVANCE_SEGMENT_RESOLVED = 'advance-segment-resolved', // sub-topic to dedicated gate to send ACK
 }
@@ -55,8 +55,14 @@ export type BODY_KEEP_ADVANCE_HISTORY = {
   sid: string
 }
 
-export type BODY_ELECT_SEGMENT_ID = {
-  challenger: string
+export type BODY_ELECT_SEGMENT = {
   advanceOwner: string
   advanceSegment: string
+  challenger: string
+}
+
+export type BODY_ADVANCE_SEGMENT_RESOLVED = {
+  advanceOwner: string
+  advanceSegment: string
+  segment: string
 }
