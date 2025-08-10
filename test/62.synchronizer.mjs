@@ -27,12 +27,12 @@ describe('62.synchronizer', function () {
     api = sysRealm.buildApi()
 
     const MAJOR_LIMIT = 2
-    stageOne = new StageOneTask(sysRealm, MAJOR_LIMIT)
+    stageOne = new StageOneTask(sysRealm, 'SYNC1', MAJOR_LIMIT, ['SYNC2', 'SYNC3'])
     stageOne.reconcilePos('PREFIX1:')
 
     stageTwo = new StageTwoTask(sysRealm, MAJOR_LIMIT)
 
-    await api.subscribe(Event.PICK_CHALLENGER, (event, opt) => { 
+    await api.subscribe(Event.PICK_CHALLENGER + '.SYNC2', (event, opt) => { 
       console.log('PICK_CHALLENGER', event, opt.headers)
       draftStack.push(event)
     })
@@ -58,19 +58,19 @@ describe('62.synchronizer', function () {
         advanceOwner: 'entry1',
         advanceSegment: 'a0',
         draftId: { dt: 'PREFIX1:', id: 1 },
-        draftOwner: 'sync1'
+        draftOwner: 'SYNC1'
       },
       {
         advanceOwner: 'entry1',
         advanceSegment: 'a1',
         draftId: { dt: 'PREFIX1:', id: 2 },
-        draftOwner: 'sync1'
+        draftOwner: 'SYNC1'
       },
       {
         advanceOwner: 'entry2',
         advanceSegment: 'a0',
         draftId: { dt: 'PREFIX1:', id: 3 },
-        draftOwner: 'sync1'
+        draftOwner: 'SYNC1'
       }]
     )
 
@@ -85,18 +85,20 @@ describe('62.synchronizer', function () {
     await api.publish(Event.GENERATE_DRAFT, {advanceOwner:'entry1', advanceSegment:'a1'})
     await api.publish(Event.GENERATE_DRAFT, {advanceOwner:'entry1', advanceSegment:'a2'})
 
-    await api.publish(Event.PICK_CHALLENGER, {advanceOwner: 'entry1', advanceSegment: 'a1', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 2 }})
-    await api.publish(Event.PICK_CHALLENGER, {advanceOwner: 'entry1', advanceSegment: 'a2', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 3 }})
+    await api.publish(Event.PICK_CHALLENGER + '.SYNC1', {advanceOwner: 'entry1', advanceSegment: 'a1', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 2 }})
+    await api.publish(Event.PICK_CHALLENGER + '.SYNC1', {advanceOwner: 'entry1', advanceSegment: 'a2', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 3 }})
 
     expect(extractStack).deep.equal([
       {
         advanceOwner: "entry1",
         advanceSegment: "a1",
+        voter: "SYNC1",
         challenger: "PREFIX1:a1"
       },
       {
         advanceOwner: "entry1",
         advanceSegment: "a2",
+        voter: "SYNC1",
         challenger: "PREFIX1:a2"
       }
     ])

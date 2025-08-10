@@ -1,11 +1,13 @@
+import * as sqlite from 'sqlite'
+
 import { BaseRealm } from '../realm'
 import { ComplexId, makeEmpty, keyId, keyComplexId } from './makeid'
 import { HyperClient } from '../hyper/client'
 import * as History from '../sqlite/history'
 import { DbFactory } from '../sqlite/dbfactory'
-import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER } from './hyper.h'
+import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER, BODY_GENERATE_DRAFT } from './hyper.h'
 
-export class HistorySegment {
+export class HistoryBuffer {
   private content: Array<any> = []
 
   addEvent (event: any) {
@@ -25,8 +27,9 @@ export class StorageTask {
   private sysRealm: BaseRealm
   private dbFactory: DbFactory
   private maxId: ComplexId
-  private segmentToWrite = new Map()
+  private bufferToWrite: Map<string, HistoryBuffer> = new Map()
   private api: HyperClient
+  private realms: Map<string, string> = new Map()
 
   constructor (sysRealm: BaseRealm, dbFactory: DbFactory) {
     this.sysRealm = sysRealm
@@ -36,27 +39,27 @@ export class StorageTask {
     this.api = sysRealm.buildApi()
 
     this.api.subscribe(Event.BEGIN_ADVANCE_SEGMENT, (args: BODY_BEGIN_ADVANCE_SEGMENT) => {
-      console.log("Event.BEGIN_ADVANCE_SEGMENT", args)
       const msg: BODY_TRIM_ADVANCE_SEGMENT = {
-        advanceSegment: args.advanceSegment, 
+        advanceSegment: args.advanceSegment,
         advanceOwner: args.advanceOwner
       }
       this.api.publish(Event.TRIM_ADVANCE_SEGMENT + '.' + args.advanceOwner, msg, {exclude_me: false})
+      console.log("PING: BEGIN_ADVANCE_SEGMENT => TRIM_ADVANCE_SEGMENT", args.advanceSegment)
     })
 
-    this.api.subscribe(Event.KEEP_ADVANCE_HISTORY, (args: BODY_KEEP_ADVANCE_HISTORY) => {
-      console.log("Event.KEEP_ADVANCE_HISTORY", args)
-      this.event_keep_advance_history(args)
-    })
+    this.api.subscribe(Event.KEEP_ADVANCE_HISTORY, this.event_keep_advance_history.bind(this))
 
     this.api.subscribe(Event.ADVANCE_SEGMENT_OVER, (body: BODY_ADVANCE_SEGMENT_OVER) => {
-      const advanceSegment = body.advanceSegment
-      this.api.publish(Event.GENERATE_DRAFT, {advanceSegment: advanceSegment})
+      const msg: BODY_GENERATE_DRAFT = {
+        advanceSegment: body.advanceSegment,
+        advanceOwner: body.advanceOwner
+      }
+      this.api.publish(Event.GENERATE_DRAFT, msg, {exclude_me: false})
     })
 
     this.api.subscribe(Event.ADVANCE_SEGMENT_RESOLVED, (body: BODY_ADVANCE_SEGMENT_RESOLVED) => {
       console.log("Event.ADVANCE_SEGMENT_RESOLVED", body)
-      // const advanceSegment = body.advanceSegment
+      this.commit_segment(body.advanceSegment, body.segment)
     })
 
     // this.api.subscribe(
@@ -88,34 +91,43 @@ export class StorageTask {
     await client.pipe(this.api, Event.KEEP_ADVANCE_HISTORY, {exclude_me: false})
     await client.pipe(this.api, Event.ADVANCE_SEGMENT_OVER, {exclude_me: false})
 
+    // export to GATE
     await this.api.pipe(client, Event.TRIM_ADVANCE_SEGMENT + '.' + gateId)
 
     // await client.callrpc('registerStorage', {nodeId: this.sysRealm.getId()})
+  }
+
+  async listenStageOne(client: HyperClient) {
+    // export GENERATE_DRAFT to all sync hosts
+    await this.api.pipe(client, Event.GENERATE_DRAFT, {exclude_me: false})
   }
 
   async listenStageTwo(client: HyperClient) {
     await client.pipe(this.api, Event.ADVANCE_SEGMENT_RESOLVED, {exclude_me: false})
   }
 
-  event_keep_advance_history (event: BODY_KEEP_ADVANCE_HISTORY) {
-    let segment = this.segmentToWrite.get(event.advanceId.segment)
-    if (!segment) {
-      segment = new HistorySegment()
-      this.segmentToWrite.set(event.advanceId.segment, segment)
+  async event_keep_advance_history (event: BODY_KEEP_ADVANCE_HISTORY) {
+    let buffer = this.bufferToWrite.get(event.advanceId.segment)
+    if (!buffer) {
+      buffer = new HistoryBuffer()
+      this.bufferToWrite.set(event.advanceId.segment, buffer)
     }
-    segment.addEvent(event)
-    if (segment.count() !== event.advanceId.offset) {
-      console.error('serment position is not equal', segment.count(), event.advanceId.offset)
+    buffer.addEvent(event)
+    if (buffer.count() !== event.advanceId.offset) {
+      console.error('serment position is not equal', buffer.count(), event.advanceId.offset)
+    }
+    if (this.realms.get(event.realm) === undefined) {
+      this.realms.set(event.realm, event.realm)
+      await History.createHistoryTables(this.dbFactory.getMainDb(), event.realm)
     }
   }
 
-  write_segment (advanceSegment: string, segmentId: ComplexId) {
-    console.log("dbSaveSegment", advanceSegment, segmentId)
-    let segment = this.segmentToWrite.get(advanceSegment)
-    if (segment) {
-      let effectId = this.dbSaveSegment(segment, segmentId)
-      this.segmentToWrite.delete(advanceSegment)
-//      this.pubResult(advanceSegment, segment, effectId)
+  commit_segment (advanceSegment: string, segment: string) {
+    let buffer = this.bufferToWrite.get(advanceSegment)
+    if (buffer) {
+      let effectId = this.dbSaveSegment(buffer, segment)
+      this.bufferToWrite.delete(advanceSegment)
+//      this.pubResult(advanceSegment, buffer, effectId)
     } else {
       console.error("advanceSegment not found in segments [", advanceSegment, "]")
     }
@@ -144,14 +156,14 @@ export class StorageTask {
   // }
 
   // todo: wait for promise in saveEventHistory
-  dbSaveSegment (segment: HistorySegment, segmentId: ComplexId): string[] {
+  dbSaveSegment (historyBuffer: HistoryBuffer, segment: string): string[] {
+    const db: sqlite.Database = this.dbFactory.getMainDb()
     let result = []
-    const keySegment: string = keyComplexId(segmentId)
     let offset: number = 0
 
-    for (let row of segment.getContent()) {
-      let eventId: string = keySegment + keyId(++offset)
-      History.saveEventHistory(this.dbFactory.getMainDb(), row.realm, eventId, row.uri, row.data, row.opt)
+    for (let row of historyBuffer.getContent()) {
+      let eventId: string = segment + keyId(++offset)
+      History.saveEventHistory(db, row.realm, eventId, row.uri, row.data, row.opt)
       result.push(eventId) // keep event position in result array
     }
     return result

@@ -14,12 +14,13 @@ import { StageTwoTask } from '../lib/masterfree/synchronizer'
 import { INTRA_REALM_NAME } from '../lib/masterfree/hyper.h'
 import { HyperNetClient } from '../lib/hyper/net_transport'
 
-function mkSync(host, port, nodeId, stageTwoTask) {
+function mkSync(host, port, nodeId, storageTask, stageTwoTask) {
   const client = new HyperNetClient({host, port})
   client.onopen(async () => {
     await client.login({realm: INTRA_REALM_NAME})
     console.log('login successful', nodeId, host, port)
     await stageTwoTask.listenStageOne(client)
+    await storageTask.listenStageOne(client)
   })
   return client.connect()
 }
@@ -53,7 +54,7 @@ async function main () {
   const syncNodes = config.getSyncNodes()
   for (const syncNodeId of Object.keys(syncNodes)) {
     const syncNodeConf = syncNodes[syncNodeId]
-    mkSync(syncNodeConf.host, syncNodeConf.port, syncNodeId, stageTwoTask)
+    mkSync(syncNodeConf.host, syncNodeConf.port, syncNodeId, storageTask, stageTwoTask)
   }
 
   const entryNodes = config.getEntryNodes()

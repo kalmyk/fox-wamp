@@ -83,26 +83,7 @@ export class NetEngineMill {
     this.sysRealm.registerKeyValueEngine(['#'], new MemKeyValueStorage())
     this.sysApi = this.sysRealm.buildApi()
 
-    this.sysApi.subscribe(Event.TRIM_ADVANCE_SEGMENT+'.*', (data: BODY_TRIM_ADVANCE_SEGMENT) => {
-      // to do voute for complete
-      if (!data.advanceSegment) {
-        console.error('ERROR: no advanceSegment in package')
-      }
-      if (this.curSegment) {
-        if (data.advanceSegment == this.curSegment.getAdvanceSegment()) {
-          // it will be required to create new segment at the next inbound message
-          this.curSegment = null
-          console.log('Event.ADVANCE_SEGMENT_OVER =>', data.advanceSegment)
-          const body: BODY_BEGIN_ADVANCE_SEGMENT = {
-            advanceSegment: data.advanceSegment,
-            advanceOwner: this.router.getId(),
-          }
-          this.sysApi.publish(Event.ADVANCE_SEGMENT_OVER, body)
-        } else {
-          console.warn('warn: new segment is not accepted, cur:', this.curSegment.getAdvanceSegment(), 'inbound:', data.advanceSegment)
-        }
-      }
-    })
+    this.sysApi.subscribe(Event.TRIM_ADVANCE_SEGMENT+'.*', this.event_trim_advance_segment.bind(this))
 
     this.sysApi.subscribe(Event.ADVANCE_SEGMENT_RESOLVED + '.' + this.router.getId(), (data: any, opt: any) => {
       this.advance_segment_resolved(opt.headers)
@@ -112,6 +93,28 @@ export class NetEngineMill {
       console.log('=> dispatchEvent', opt.headers.qid)
       this.dispatchEvent(opt.headers)
     })
+  }
+
+  event_trim_advance_segment(data: BODY_TRIM_ADVANCE_SEGMENT) {
+    if (!data.advanceSegment) {
+      console.error('ERROR: no advanceSegment in package')
+      return
+    }
+    // to do voute for complete
+    if (this.curSegment) {
+      if (data.advanceSegment == this.curSegment.getAdvanceSegment()) {
+        // it will be required to create new segment at the next inbound message
+        this.curSegment = null
+        console.log('Event.ADVANCE_SEGMENT_OVER =>', data.advanceSegment)
+        const body: BODY_BEGIN_ADVANCE_SEGMENT = {
+          advanceSegment: data.advanceSegment,
+          advanceOwner: this.router.getId(),
+        }
+        this.sysApi.publish(Event.ADVANCE_SEGMENT_OVER, body, {exclude_me: false})
+      } else {
+        console.warn('warn: new segment is not accepted, cur:', this.curSegment.getAdvanceSegment(), 'inbound:', data.advanceSegment)
+      }
+    }
   }
 
   getSegment () {

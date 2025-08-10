@@ -14,7 +14,7 @@ export enum Event {
   ADVANCE_SEGMENT_OVER = 'ADVANCE_SEGMENT_OVER',
   
   GENERATE_DRAFT = 'GENERATE_DRAFT',
-  PICK_CHALLENGER = 'PICK_CHALLENGER',
+  PICK_CHALLENGER = 'PICK_CHALLENGER', // sub-topic to dedicated sync
   ELECT_SEGMENT = 'ELECT_SEGMENT',
 
   ADVANCE_SEGMENT_RESOLVED = 'advance-segment-resolved', // sub-topic to dedicated gate to send ACK
@@ -26,6 +26,7 @@ export type BODY_BEGIN_ADVANCE_SEGMENT = {
 }
 
 export type BODY_ADVANCE_SEGMENT_OVER = {
+  advanceOwner: string
   advanceSegment: string
 }
 
@@ -58,6 +59,7 @@ export type BODY_KEEP_ADVANCE_HISTORY = {
 export type BODY_ELECT_SEGMENT = {
   advanceOwner: string
   advanceSegment: string
+  voter: string
   challenger: string
 }
 

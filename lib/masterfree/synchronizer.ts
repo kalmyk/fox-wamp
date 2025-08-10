@@ -13,18 +13,10 @@ type AdvanceStage = {
   vouters: Set<string>
 }
 
-interface Headers {
-  advanceOwner?: string
-  advanceSegment?: string
-  draftOwner?: string
-  draftId?: ComplexId
-  step?: any
-  maxId?: ComplexId
-}
-
 export class StageOneTask {
   private realm: BaseRealm
   private syncQuorum: number
+  private myId: string
   private advanceMap: Map<string, AdvanceStage> = new Map()
   private makeId: ProduceId
   private recentValue: string = ''
@@ -32,10 +24,15 @@ export class StageOneTask {
   private doneHeap: Map<string, Set<string>> = new Map()
   private draftHeap: Map<string, string[]> = new Map() // draftOwner -> set of draftId
   private api: HyperClient
+  private clusterNodes: string[]
 
-  constructor(sysRealm: BaseRealm, syncQuorum: number) {
+  constructor(sysRealm: BaseRealm, myId: string, syncQuorum: number, clusterNodes: string[]) {
     this.realm = sysRealm
     this.syncQuorum = syncQuorum
+    this.myId = myId
+    this.clusterNodes = clusterNodes.filter((nodeId) => nodeId !== myId)
+    console.log('StageOneTask: clusterNodes:', this.clusterNodes);
+    
     this.makeId = new ProduceId((date: any) => keyDate(date))
 
     // build api before new session handler to not to be caught
@@ -45,25 +42,26 @@ export class StageOneTask {
     sysRealm.on(MSG.SESSION_LEAVE, (session: any) => {})
 
     this.api.subscribe(Event.GENERATE_DRAFT, this.event_generate_draft.bind(this))
-    this.api.subscribe(Event.PICK_CHALLENGER, this.event_pick_challenger.bind(this))
+    this.api.subscribe(Event.PICK_CHALLENGER + '.' + myId, this.event_pick_challenger.bind(this))
   }
 
   listenEntry(client: HyperClient) {
-    client.pipe(this.api, Event.GENERATE_DRAFT, {exclude_me: false})
+    // client.pipe(this.api, Event.ADVANCE_SEGMENT_OVER, {exclude_me: false})
   }
 
-  listenStageOne(client: HyperClient) {
-    client.pipe(this.api, Event.PICK_CHALLENGER, {exclude_me: false})
+  listenPeerStageOne(client: HyperClient) {
+    client.pipe(this.api, Event.PICK_CHALLENGER + '.' + this.myId, {exclude_me: false})
   }
 
   // generate new segment id for each advanceId
   // if advanceId is duplicated new segment is not generated
   // input headers: advanceOwner, advanceSegment
   event_generate_draft(body: BODY_GENERATE_DRAFT) {
+    console.log('=> Event.GENERATE_DRAFT', body)
     const advanceId = body.advanceOwner + ':' + body.advanceSegment
     if (!this.advanceMap.has(advanceId)) {
       const draftId: ComplexId = this.makeId.generateIdRec()
-      const draftOwner: string = this.realm.getRouter().getId()
+      const draftOwner: string = this.myId
       const vouters = new Set<string>()
       vouters.add(draftOwner)
       const stage: AdvanceStage = {
@@ -71,9 +69,17 @@ export class StageOneTask {
       }
       this.advanceMap.set(advanceId, stage)
       const draftSegment: BODY_PICK_CHALLENGER = {
-        advanceOwner: body.advanceOwner, advanceSegment: body.advanceSegment, draftOwner, draftId
+        advanceOwner: body.advanceOwner,
+        advanceSegment: body.advanceSegment,
+        draftOwner,
+        draftId
       }
-      this.api.publish(Event.PICK_CHALLENGER, draftSegment, {exclude_me: false})
+      console.log('Event.GENERATE_DRAFT: draftSegment:', draftSegment);      
+      for (const nodeId of this.clusterNodes) {
+        this.api.publish(Event.PICK_CHALLENGER + '.' + nodeId, draftSegment, {exclude_me: false, headers: {owner: this.myId}})
+      }
+      // TODO: make as event
+      this.event_pick_challenger(draftSegment)
     }
   }
 
@@ -111,6 +117,7 @@ export class StageOneTask {
       const challengerBody: BODY_ELECT_SEGMENT = {
         advanceOwner,
         advanceSegment,
+        voter: this.myId,
         challenger: this.extractDraft(vouterSet)
       }
       this.api.publish(Event.ELECT_SEGMENT, challengerBody, {exclude_me: false})
@@ -161,12 +168,17 @@ export class StageOneTask {
   }
 }
 
+class ReadyVouterChallenger {
+  public vouters: Set<string> = new Set()
+  public challengers: Set<string> = new Set()
+}
+
 export class StageTwoTask {
 
   private realm: BaseRealm
   private syncQuorum: number
   private api: HyperClient
-  private readyQuorum: Map<string, Set<string>> = new Map() // advanceSegment -> set of readyId
+  private readyQuorum: Map<string, ReadyVouterChallenger> = new Map() // advanceSegment -> {vouter, challenger}
   private recentValue: string = ''
 
   constructor(sysRealm: BaseRealm, syncQuorum: number) {
@@ -174,11 +186,7 @@ export class StageTwoTask {
     this.syncQuorum = syncQuorum
     this.api = sysRealm.buildApi()
 
-    this.api.subscribe(Event.ELECT_SEGMENT, (body: BODY_ELECT_SEGMENT, opts: any) => {
-      console.log('=> Event.ELECT_SEGMENT', body)
-      this.event_elect_segment(body)
-    })
-
+    this.api.subscribe(Event.ELECT_SEGMENT, this.event_elect_segment.bind(this))
   }
 
   listenStageOne(client: HyperClient) {
@@ -186,19 +194,20 @@ export class StageTwoTask {
   }
 
   event_elect_segment(body: BODY_ELECT_SEGMENT) {
+    console.log('=> Event.ELECT_SEGMENT', body)
     const advanceSegment = body.advanceSegment
-    const challenger = body.challenger
 
     if (!this.readyQuorum.has(advanceSegment)) {
-      this.readyQuorum.set(advanceSegment, new Set())
+      this.readyQuorum.set(advanceSegment, new ReadyVouterChallenger())
     }
-    const readySet = this.readyQuorum.get(advanceSegment)!
-    readySet.add(challenger)
+    const readySet: ReadyVouterChallenger = this.readyQuorum.get(advanceSegment)!
+    readySet.challengers.add(body.challenger)
+    readySet.vouters.add(body.voter)
 
-    if (readySet.size >= this.syncQuorum) {
+    if (readySet.vouters.size >= this.syncQuorum) {
       this.readyQuorum.delete(advanceSegment)
       let maxValue = '';
-      readySet.forEach((id) => {
+      readySet.challengers.forEach((id) => {
         if (maxValue === '' || maxValue < id) {
           maxValue = id
         }

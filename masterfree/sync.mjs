@@ -17,13 +17,13 @@ const router = new Router()
 router.setId(conf_node_id)
 
 function mkGate(host, port, gateId, stageOneTask) {
-  const client = new HyperNetClient({host, port})
-  client.onopen(async () => {
-    await client.login({realm: INTRA_REALM_NAME})
-    console.log('login successful', gateId, host, port)
-    await stageOneTask.listenEntry(client)
-  })
-  client.connect()
+  // const client = new HyperNetClient({host, port})
+  // client.onopen(async () => {
+  //   await client.login({realm: INTRA_REALM_NAME})
+  //   console.log('login successful', gateId, host, port)
+  //   await stageOneTask.listenEntry(client)
+  // })
+  // client.connect()
 }
 
 function mkSync(host, port, nodeId, stageOneTask) {
@@ -31,28 +31,29 @@ function mkSync(host, port, nodeId, stageOneTask) {
   client.onopen(async () => {
     await client.login({realm: INTRA_REALM_NAME})
     console.log('login successful', nodeId, host, port)
-    await stageOneTask.listenStageOne(client)
+    await stageOneTask.listenPeerStageOne(client)
   })
   return client.connect()
 }
 
 config.loadConfigFile(conf_config_file).then(async () => {
   const nodeConf = config.getSyncById(conf_node_id)
+  const syncNodes = config.getSyncNodes()
 
   const sysRealm = new BaseRealm(router, new BaseEngine())
   await router.initRealm(INTRA_REALM_NAME, sysRealm)
   router.setLogTrace(true)
-  const stageOneTask = new StageOneTask(sysRealm, config.getSyncQuorum())
+  const stageOneTask = new StageOneTask(sysRealm, conf_node_id, config.getSyncQuorum(), Object.keys(syncNodes))
   stageOneTask.startActualizePrefixTimer()
 
   console.log('SYNC_ID:', conf_node_id, 'Listening FOX port:', nodeConf.port)
   listenHyperNetServer(new FoxGate(router), { port: nodeConf.port })
 
-  const syncNodes = config.getSyncNodes()
   for (const syncNodeId of Object.keys(syncNodes)) {
     const syncNodeConf = syncNodes[syncNodeId]
     if (syncNodeId === conf_node_id) {
-      stageOneTask.listenStageOne(sysRealm.api())
+      // do not listen to self realm
+      // stageOneTask.listenPeerStageOne(sysRealm.api())
       continue
     }
     mkSync(syncNodeConf.host, syncNodeConf.port, syncNodeId, stageOneTask)
