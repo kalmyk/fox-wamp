@@ -17,6 +17,7 @@ export async function createHistoryTables (db: sqlite.Database, realmName: strin
   await db.run(
     `CREATE TABLE IF NOT EXISTS event_history_${realmName} (
       msg_id TEXT not null,
+      msg_shard INTEGER,
       msg_uri TEXT not null,
       msg_body TEXT,
       msg_opt TEXT,
@@ -25,10 +26,10 @@ export async function createHistoryTables (db: sqlite.Database, realmName: strin
   )
 }
 
-export async function saveEventHistory (db: sqlite.Database, realmName: string, id: string, uri:any, body:any, opt:any) {
+export async function saveEventHistory (db: sqlite.Database, realmName: string, id: string, shard: number, uri:any, body:any, opt:any) {
   return db.run(
-    `INSERT INTO event_history_${realmName} (msg_id, msg_uri, msg_body, msg_opt) VALUES (?, ?, ?, ?);`,
-    [id, restoreUri(uri), JSON.stringify(body), JSON.stringify(opt)]
+    `INSERT INTO event_history_${realmName} (msg_id, msg_shard, msg_uri, msg_body, msg_opt) VALUES (?, ?, ?, ?, ?);`,
+    [id, shard, restoreUri(uri), JSON.stringify(body), JSON.stringify(opt)]
   )
 }
 
@@ -53,7 +54,7 @@ export async function scanMaxId (db: sqlite.Database) {
 }
 
 export async function getEventHistory (db: sqlite.Database, realmName: string, range:any, rowcb:any) {
-  let sql = `SELECT msg_id, msg_uri, msg_body, msg_opt FROM event_history_${realmName}`
+  let sql = `SELECT msg_id, msg_shard, msg_uri, msg_body, msg_opt FROM event_history_${realmName}`
   let where = []
   if (range.fromId) {
     where.push('msg_id > "' + range.fromId + '"')
@@ -70,6 +71,7 @@ export async function getEventHistory (db: sqlite.Database, realmName: string, r
     (err, row) => {
       rowcb({
         id: row.msg_id,
+        shard: row.msg_shard,
         uri: defaultParse(row.msg_uri),
         body: JSON.parse(row.msg_body),
         opt: JSON.parse(row.msg_opt)

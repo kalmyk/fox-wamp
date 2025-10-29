@@ -20,7 +20,7 @@ describe('63.storage', function () {
     storage
 
   beforeEach(async () => {
-    let db = await sqlite.open({
+    const db = await sqlite.open({
       filename: ':memory:',
       driver: sqlite3.Database
     })

@@ -34,6 +34,7 @@ describe('30.message-storage', async () => {
       db,
       'testrealm',
       '12345678b11',
+      12345,
       ['msg', 'test', 'com'],
       {
         some_row_1: 'line1',
@@ -63,6 +64,7 @@ describe('30.message-storage', async () => {
     )
     expect([{
       id: '12345678b11',
+      shard: 12345,
       uri: ['msg', 'test', 'com'],
       body: {
         some_row_1: 'line1',

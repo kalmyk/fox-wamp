@@ -8,13 +8,13 @@ import { DbFactory } from '../sqlite/dbfactory'
 import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER, BODY_GENERATE_DRAFT } from './hyper.h'
 
 export class HistoryBuffer {
-  private content: Array<any> = []
+  private content: Array<BODY_KEEP_ADVANCE_HISTORY> = []
 
-  addEvent (event: any) {
+  addEvent (event: BODY_KEEP_ADVANCE_HISTORY) {
     this.content.push(event)
   }
 
-  getContent (): Array<any> {
+  getContent (): Array<BODY_KEEP_ADVANCE_HISTORY> {
     return this.content
   }
 
@@ -52,7 +52,8 @@ export class StorageTask {
     this.api.subscribe(Event.ADVANCE_SEGMENT_OVER, (body: BODY_ADVANCE_SEGMENT_OVER) => {
       const msg: BODY_GENERATE_DRAFT = {
         advanceSegment: body.advanceSegment,
-        advanceOwner: body.advanceOwner
+        advanceOwner: body.advanceOwner,
+        tag: body.tag,
       }
       this.api.publish(Event.GENERATE_DRAFT, msg, {exclude_me: false})
     })
@@ -106,12 +107,17 @@ export class StorageTask {
     await client.pipe(this.api, Event.ADVANCE_SEGMENT_RESOLVED, {exclude_me: false})
   }
 
-  async event_keep_advance_history (event: BODY_KEEP_ADVANCE_HISTORY) {
-    let buffer = this.bufferToWrite.get(event.advanceId.segment)
+  getHystoryBuffer(segment: string, shard: number): HistoryBuffer {
+    let buffer = this.bufferToWrite.get(segment)
     if (!buffer) {
-      buffer = new HistoryBuffer()
-      this.bufferToWrite.set(event.advanceId.segment, buffer)
+      buffer = new HistoryBuffer(shard)
+      this.bufferToWrite.set(segment, buffer)
     }
+    return buffer
+  }
+
+  async event_keep_advance_history (event: BODY_KEEP_ADVANCE_HISTORY) {
+    let buffer = this.getHystoryBuffer(event.advanceId.segment, event.shard)
     buffer.addEvent(event)
     if (buffer.count() !== event.advanceId.offset) {
       console.error('serment position is not equal', buffer.count(), event.advanceId.offset)
@@ -163,7 +169,7 @@ export class StorageTask {
 
     for (let row of historyBuffer.getContent()) {
       let eventId: string = segment + keyId(++offset)
-      History.saveEventHistory(db, row.realm, eventId, row.uri, row.data, row.opt)
+      History.saveEventHistory(db, row.realm, eventId, historyBuffer.getShard(), row.uri, row.data, row.opt)
       result.push(eventId) // keep event position in result array
     }
     return result

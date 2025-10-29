@@ -53,36 +53,40 @@ describe('61.net-entry', function () {
   afterEach(async () => {})
   
   it('Event.BEGIN_ADVANCE_SEGMENT', async () => {
-    const advanceSegmentStarted = getSysPackage()
-    const admanceEventSent = getSysPackage()
+    const advanceSegmentStartedPkg = getSysPackage()
+    const admanceEventSentPkg = getSysPackage()
 
     await netApi.publish('any-test-topic', {package:'test'}, {})
-    expect(await advanceSegmentStarted).deep
-      .equal([Event.BEGIN_ADVANCE_SEGMENT,{advanceOwner: "E1", advanceSegment: 'E1-1'}])
 
-    const event_KEEP_ADVANCE_HISTORY = await admanceEventSent
-    delete event_KEEP_ADVANCE_HISTORY[1].sid
-    expect(event_KEEP_ADVANCE_HISTORY).deep.equal([
-      Event.KEEP_ADVANCE_HISTORY,
-      {
-        advanceId: {
-          offset: 1,
-          segment: "E1-1"
-        },
-        data: {
-          kv: {
-            package: "test"
-          }
-        },
-        opt: {
-          "exclude_me": true
-        },
-        realm: "testnet",
-        uri: [
-          "any-test-topic"
-        ]
-      }
-    ])
+    const advanceSegmentStarted = await advanceSegmentStartedPkg
+    expect(advanceSegmentStarted.length).equal(2)
+    expect(advanceSegmentStarted[0]).equal(Event.BEGIN_ADVANCE_SEGMENT)
+    expect(advanceSegmentStarted[1])
+      .deep.include({advanceOwner: "E1", advanceSegment: 'E1-1'})
+
+    const admanceEventSent = await admanceEventSentPkg
+    expect(admanceEventSent.length).equal(2)
+    expect(admanceEventSent[0]).equal(Event.KEEP_ADVANCE_HISTORY)
+    delete admanceEventSent[1].shard
+    delete admanceEventSent[1].sid
+    expect(admanceEventSent[1]).deep.equal({
+      advanceId: {
+        offset: 1,
+        segment: "E1-1"
+      },
+      data: {
+        kv: {
+          package: "test"
+        }
+      },
+      opt: {
+        "exclude_me": true
+      },
+      realm: "testnet",
+      uri: [
+        "any-test-topic"
+      ]
+    })
     expect(sysStack.length).equal(0)
 
     await sysApi.publish(Event.TRIM_ADVANCE_SEGMENT + '.E1', {

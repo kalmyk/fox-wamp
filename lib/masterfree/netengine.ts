@@ -2,16 +2,33 @@ import { Actor, BaseRealm, BaseEngine, makeDataSerializable, unSerializeData } f
 import Router from '../router'
 import { HyperClient } from '../hyper/client'
 import { MemKeyValueStorage } from '../mono/memkv'
-import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT } from './hyper.h'
+import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_OVER } from './hyper.h'
+
+const TOTAL_SHARDS_COUNT = 65535
 
 export class HistorySegment {
   
   private content: Map<number,Actor> = new Map()
   private advanceSegment: string
   private generator: number = 0
+  private shard: number = 0
 
-  constructor (advanceSegment: string) {
+  constructor (advanceSegment: string, shard: number = 0) {
     this.advanceSegment = advanceSegment
+    this.shard = shard
+  }
+
+  getShard(): number {
+    return this.shard
+  }
+
+  size(): number {
+    return this.content.size
+  }
+
+  getDestinationTopics(): Array<string> {
+    // to do: sharding by topic
+    return [Event.KEEP_ADVANCE_HISTORY /* + '.' + (this.shard % 16) */ ]
   }
 
   addActor (actor: Actor): AdvanceOffsetId {
@@ -74,9 +91,11 @@ export class NetEngineMill {
   private router: Router
   private sysRealm: BaseRealm
   private sysApi: HyperClient
+  private lastShard: number = 0
 
   constructor (router: any) {
     this.router = router
+    this.lastShard = Math.floor(Math.random() * TOTAL_SHARDS_COUNT)
     this.sysRealm = new BaseRealm(router, new BaseEngine())
 
     this.router.initRealm(INTRA_REALM_NAME, this.sysRealm)
@@ -95,6 +114,11 @@ export class NetEngineMill {
     })
   }
 
+  nextShard(): number {
+    this.lastShard = (this.lastShard + 1) % TOTAL_SHARDS_COUNT
+    return this.lastShard
+  }
+
   event_trim_advance_segment(data: BODY_TRIM_ADVANCE_SEGMENT) {
     if (!data.advanceSegment) {
       console.error('ERROR: no advanceSegment in package')
@@ -104,12 +128,13 @@ export class NetEngineMill {
     if (this.curSegment) {
       if (data.advanceSegment == this.curSegment.getAdvanceSegment()) {
         // it will be required to create new segment at the next inbound message
-        this.curSegment = null
         console.log('Event.ADVANCE_SEGMENT_OVER =>', data.advanceSegment)
-        const body: BODY_BEGIN_ADVANCE_SEGMENT = {
+        const body: BODY_ADVANCE_SEGMENT_OVER = {
           advanceSegment: data.advanceSegment,
           advanceOwner: this.router.getId(),
+          tag: "s" + this.curSegment.getShard()
         }
+        this.curSegment = null
         this.sysApi.publish(Event.ADVANCE_SEGMENT_OVER, body, {exclude_me: false})
       } else {
         console.warn('warn: new segment is not accepted, cur:', this.curSegment.getAdvanceSegment(), 'inbound:', data.advanceSegment)
@@ -117,24 +142,25 @@ export class NetEngineMill {
     }
   }
 
-  getSegment () {
+  getSegment () : HistorySegment {
     if (this.curSegment) {
       return this.curSegment
     }
     this.advanceSegmentGen++
     let curAdvanceSegment = '' + this.router.getId() + '-' + this.advanceSegmentGen
-    this.curSegment = new HistorySegment(curAdvanceSegment)
+    this.curSegment = new HistorySegment(curAdvanceSegment, this.nextShard())
     this.segments.set(curAdvanceSegment, this.curSegment)
     // todo: sent all open advance segments, in case of sharding that keeps order
     const body: BODY_BEGIN_ADVANCE_SEGMENT = {
       advanceSegment: curAdvanceSegment,
       advanceOwner: this.router.getId(),
+      tag: this.curSegment.getShard()
     }
     this.sysApi.publish(Event.BEGIN_ADVANCE_SEGMENT, body)
     return this.curSegment
   }
 
-  findSegment (advanceSegment: string) {
+  findSegment (advanceSegment: string) : HistorySegment | undefined {
     return this.segments.get(advanceSegment)
   }
 
@@ -172,13 +198,18 @@ export class NetEngineMill {
 
     const event: BODY_KEEP_ADVANCE_HISTORY = {
       advanceId: advanceId,
+      shard: segment.getShard(),
       realm: realmName,
       data: makeDataSerializable(actor.getData()),
       uri: actor.getUri(),
       opt: actor.getOpt(),
       sid: actor.getSid()
     }
-    return this.sysApi.publish(Event.KEEP_ADVANCE_HISTORY, event)
+    const all = []
+    for (let topic of segment.getDestinationTopics()) {
+      all.push(this.sysApi.publish(topic, event))
+    }
+    return Promise.all(all)
   }
 
   dispatchEvent (eventData: any) {

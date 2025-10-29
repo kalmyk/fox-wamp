@@ -23,11 +23,13 @@ export enum Event {
 export type BODY_BEGIN_ADVANCE_SEGMENT = {
   advanceOwner: string
   advanceSegment: string
+  tag: string
 }
 
 export type BODY_ADVANCE_SEGMENT_OVER = {
   advanceOwner: string
   advanceSegment: string
+  tag: string
 }
 
 export type BODY_TRIM_ADVANCE_SEGMENT = {
@@ -38,6 +40,7 @@ export type BODY_TRIM_ADVANCE_SEGMENT = {
 export type BODY_GENERATE_DRAFT = {
   advanceOwner: string
   advanceSegment: string
+  tag: string
 }
 
 export type BODY_PICK_CHALLENGER = {
@@ -49,6 +52,7 @@ export type BODY_PICK_CHALLENGER = {
 
 export type BODY_KEEP_ADVANCE_HISTORY = {
   advanceId: AdvanceOffsetId
+  shard: number
   realm: string
   data: string
   uri: string[]

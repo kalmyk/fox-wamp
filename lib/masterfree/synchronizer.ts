@@ -65,7 +65,11 @@ export class StageOneTask {
       const vouters = new Set<string>()
       vouters.add(draftOwner)
       const stage: AdvanceStage = {
-        advanceOwner: body.advanceOwner, advanceSegment: body.advanceSegment, draftOwner, draftId, vouters
+        advanceOwner: body.advanceOwner,
+        advanceSegment: body.advanceSegment,
+        draftOwner,
+        draftId,
+        vouters
       }
       this.advanceMap.set(advanceId, stage)
       const draftSegment: BODY_PICK_CHALLENGER = {
@@ -194,6 +198,10 @@ export class StageTwoTask {
   }
 
   event_elect_segment(body: BODY_ELECT_SEGMENT) {
+    if (body.challenger < this.recentValue) {
+      console.log('=> Event.ELECT_SEGMENT skipped as applied:', body.challenger, '<', this.recentValue)
+      return
+    }
     console.log('=> Event.ELECT_SEGMENT', body)
     const advanceSegment = body.advanceSegment
 
