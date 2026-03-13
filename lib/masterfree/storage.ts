@@ -110,7 +110,7 @@ export class StorageTask {
   getHystoryBuffer(segment: string, shard: number): HistoryBuffer {
     let buffer = this.bufferToWrite.get(segment)
     if (!buffer) {
-      buffer = new HistoryBuffer(shard)
+      buffer = new HistoryBuffer()
       this.bufferToWrite.set(segment, buffer)
     }
     return buffer

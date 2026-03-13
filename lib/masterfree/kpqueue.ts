@@ -9,8 +9,8 @@ class Deferred {
   }
 }
 
-// key promise queue
-// one only unresolved promise in queue under key/uri
+// Key Promise Queue
+// one started promise in the queue under key/uri
 export class KPQueue {
   private keyLock: Map<string, any[]> = new Map() // of uri, queue of defer objects
 
@@ -41,6 +41,7 @@ export class KPQueue {
     return result
   }
 
+  // private
   deQueue (strUri: string) {
     let queue = this.keyLock.get(strUri)
     if (!queue) {
