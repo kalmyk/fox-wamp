@@ -1,19 +1,19 @@
-'use strict'
+import { makeDataSerializable, unSerializeData, BaseEngine, ActorPush } from '../realm'
+import * as History from './history'
+import { createKvTables, SqliteKvFabric } from './sqlitekv'
+import { ProduceId } from '../masterfree/makeid'
 
-const { makeDataSerializable, unSerializeData } = require('../realm')
-const { BaseEngine } = require('../realm')
-const History = require('./history')
-const { createKvTables }    = require('./sqlitekv')
+export class DbEngine extends BaseEngine {
+  private idMill: ProduceId
+  private modKv: SqliteKvFabric
 
-class DbEngine extends BaseEngine {
-
-  constructor (idMill, modKv) {
+  constructor (idMill: ProduceId, modKv: SqliteKvFabric) {
     super()
     this.idMill = idMill
     this.modKv = modKv
   }
 
-  async launchEngine (realmName) {
+  public override async launchEngine (realmName: string): Promise<void> {
     await super.launchEngine(realmName)
 
     const db = await this.modKv.getDb(realmName)
@@ -22,7 +22,7 @@ class DbEngine extends BaseEngine {
   }
 
   // @return promise
-  doPush (actor) {
+  public override doPush (actor: ActorPush): Promise<void> {
     return this.saveHistory(actor).then(() => {
       this.disperseToSubs(actor.getEvent())
       if (actor.getOpt().retain) {
@@ -34,7 +34,7 @@ class DbEngine extends BaseEngine {
     })
   }
 
-  async saveHistory (actor) {
+  public async saveHistory (actor: ActorPush): Promise<any> {
     const id = this.idMill.generateIdStr()
     actor.setEventId(id)
 
@@ -46,18 +46,19 @@ class DbEngine extends BaseEngine {
         id,
         0,  // todo: shardId
         actor.getUri(),
-        makeDataSerializable(actor.getData())
+        makeDataSerializable(actor.getData()),
+        actor.getOpt()
       )
     }
   }
 
-  async getHistoryAfter (after, uri, cbRow) {
+  public override async getHistoryAfter (after: string, uri: any, cbRow: (row: any) => void): Promise<any> {
     const db = await this.modKv.getDb(this.getRealmName())
     return History.getEventHistory(
       db,
       this.getRealmName(),
       { fromId: after, uri },
-      (event) => {
+      (event: any) => {
         cbRow({
           qid: event.id,
           uri: event.uri,
@@ -67,5 +68,3 @@ class DbEngine extends BaseEngine {
     )
   }
 }
-
-exports.DbEngine = DbEngine
