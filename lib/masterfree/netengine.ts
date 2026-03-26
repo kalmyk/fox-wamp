@@ -1,4 +1,4 @@
-import { Actor, BaseRealm, BaseEngine, makeDataSerializable, unSerializeData } from '../realm'
+import { ActorPush, BaseRealm, BaseEngine, makeDataSerializable, unSerializeData } from '../realm'
 import Router from '../router'
 import { HyperClient } from '../hyper/client'
 import { MemKeyValueStorage } from '../mono/memkv'
@@ -7,8 +7,8 @@ import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, B
 const TOTAL_SHARDS_COUNT = 65535
 
 export class HistorySegment {
-  
-  private content: Map<number,Actor> = new Map()
+
+  private content: Map<number,ActorPush> = new Map()
   private advanceSegment: string
   private generator: number = 0
   private shard: number = 0
@@ -28,18 +28,18 @@ export class HistorySegment {
 
   getDestinationTopics(): Array<string> {
     // to do: sharding by topic
-    return [Event.KEEP_ADVANCE_HISTORY /* + '.' + (this.shard % 16) */ ]
+    return [Event.KEEP_ADVANCE_HISTORY /* + '.' + (this.shard % 16) */]
   }
 
-  addActor (actor: Actor): AdvanceOffsetId {
+  addActorPush (actor: ActorPush): AdvanceOffsetId {
     this.generator++
     this.content.set(this.generator, actor)
     return { segment: this.advanceSegment, offset: this.generator }
   }
 
-  fetchActor (advanceId: AdvanceOffsetId): Actor | undefined {
+  fetchActor (advanceId: AdvanceOffsetId): ActorPush | undefined {
     if (advanceId.segment !== this.advanceSegment) {
-      throw Error("advance is not identical "+advanceId.segment+" "+this.advanceSegment)
+      throw Error("advance is not identical " + advanceId.segment + " " + this.advanceSegment)
     }
     let actor = this.content.get(advanceId.offset)
     if (actor) {
@@ -62,7 +62,7 @@ export class NetEngine extends BaseEngine {
   }
 
   // @return promise
-  doPush (actor: any) {
+  doPush (actor: ActorPush) {
     return this.netEngineMill.saveHistory(actor, this.getRealmName())
   }
 
@@ -102,7 +102,7 @@ export class NetEngineMill {
     this.sysRealm.registerKeyValueEngine(['#'], new MemKeyValueStorage())
     this.sysApi = this.sysRealm.buildApi()
 
-    this.sysApi.subscribe(Event.TRIM_ADVANCE_SEGMENT+'.*', this.event_trim_advance_segment.bind(this))
+    this.sysApi.subscribe(Event.TRIM_ADVANCE_SEGMENT + '.*', this.event_trim_advance_segment.bind(this))
 
     this.sysApi.subscribe(Event.ADVANCE_SEGMENT_RESOLVED + '.' + this.router.getId(), (data: any, opt: any) => {
       this.advance_segment_resolved(opt.headers)
@@ -154,7 +154,7 @@ export class NetEngineMill {
     const body: BODY_BEGIN_ADVANCE_SEGMENT = {
       advanceSegment: curAdvanceSegment,
       advanceOwner: this.router.getId(),
-      tag: this.curSegment.getShard()
+      tag: "s" + this.curSegment.getShard()
     }
     this.sysApi.publish(Event.BEGIN_ADVANCE_SEGMENT, body)
     return this.curSegment
@@ -192,9 +192,9 @@ export class NetEngineMill {
   }
 
   // @return promise
-  saveHistory (actor: any, realmName: string) {
+  saveHistory (actor: ActorPush, realmName: string) {
     let segment = this.getSegment()
-    let advanceId = segment.addActor(actor)
+    let advanceId = segment.addActorPush(actor)
 
     const event: BODY_KEEP_ADVANCE_HISTORY = {
       advanceId: advanceId,

@@ -1,7 +1,7 @@
 import * as sqlite from 'sqlite'
 
 import { BaseRealm } from '../realm'
-import { ComplexId, makeEmpty, keyId, keyComplexId } from './makeid'
+import { ComplexId, makeEmpty, keyId } from './makeid'
 import { HyperClient } from '../hyper/client'
 import * as History from '../sqlite/history'
 import { DbFactory } from '../sqlite/dbfactory'
@@ -9,6 +9,15 @@ import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN
 
 export class HistoryBuffer {
   private content: Array<BODY_KEEP_ADVANCE_HISTORY> = []
+  private shard: number
+
+  constructor (shard: number) {
+    this.shard = shard
+  }
+
+  getShard (): number {
+    return this.shard
+  }
 
   addEvent (event: BODY_KEEP_ADVANCE_HISTORY) {
     this.content.push(event)
@@ -110,7 +119,7 @@ export class StorageTask {
   getHystoryBuffer(segment: string, shard: number): HistoryBuffer {
     let buffer = this.bufferToWrite.get(segment)
     if (!buffer) {
-      buffer = new HistoryBuffer()
+      buffer = new HistoryBuffer(shard)
       this.bufferToWrite.set(segment, buffer)
     }
     return buffer
@@ -133,7 +142,7 @@ export class StorageTask {
     if (buffer) {
       let effectId = this.dbSaveSegment(buffer, segment)
       this.bufferToWrite.delete(advanceSegment)
-//      this.pubResult(advanceSegment, buffer, effectId)
+      //      this.pubResult(advanceSegment, buffer, effectId)
     } else {
       console.error("advanceSegment not found in segments [", advanceSegment, "]")
     }

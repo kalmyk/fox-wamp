@@ -9,7 +9,8 @@ export async function forEachRealm (db: sqlite.Database, callback: (realmName: s
     []
   )
   for (const row of tableNames) {
-    await callback(row.name.substr(14))  // length of 'event_history_' is 14
+    const realmName = row.name.substr(14) // length of 'event_history_' str is 14
+    await callback(realmName)
   }
 }
 
