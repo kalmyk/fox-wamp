@@ -1,0 +1,1 @@
+docker build -t fox-wamp . --file=./docker/Dockerfile

@@ -5,33 +5,29 @@ import { keyDate, ProduceId, keyComplexId } from './makeid'
 import { ComplexId } from './makeid'
 import { Event, BODY_PICK_CHALLENGER, BODY_GENERATE_DRAFT, BODY_ELECT_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED } from './hyper.h'
 
-type AdvanceStage = {
-  advanceOwner: string
-  advanceSegment: string
-  draftOwner: string
-  draftId: ComplexId
-  vouters: Set<string>
+type OwnerStateNode = {
+  recentDraftSegment: string
 }
 
 export class StageOneTask {
   private realm: BaseRealm
   private syncQuorum: number
   private myId: string
-  private advanceMap: Map<string, AdvanceStage> = new Map()
+  private ownerState: Map<string, OwnerStateNode> = new Map()
   private makeId: ProduceId
   private recentValue: string = ''
   private advanceIdHeap: Map<string, Set<string>> = new Map()
   private doneHeap: Map<string, Set<string>> = new Map()
   private draftHeap: Map<string, string[]> = new Map() // draftOwner -> set of draftId
   private api: HyperClient
-  private clusterNodes: string[]
+  private syncNodeIds: string[]
 
-  constructor(sysRealm: BaseRealm, myId: string, syncQuorum: number, clusterNodes: string[]) {
+  constructor(sysRealm: BaseRealm, myId: string, syncQuorum: number, syncNodeIds: string[]) {
     this.realm = sysRealm
     this.syncQuorum = syncQuorum
     this.myId = myId
-    this.clusterNodes = clusterNodes.filter((nodeId) => nodeId !== myId)
-    console.log('StageOneTask: clusterNodes:', this.clusterNodes);
+    this.syncNodeIds = syncNodeIds.filter((nodeId) => nodeId !== myId)
+    console.log('StageOneTask: syncNodeIds:', this.syncNodeIds);
     
     this.makeId = new ProduceId((date: any) => keyDate(date))
 
@@ -45,46 +41,45 @@ export class StageOneTask {
     this.api.subscribe(Event.PICK_CHALLENGER + '.' + myId, this.event_pick_challenger.bind(this))
   }
 
+  getOwnerState(owner: string): OwnerStateNode {
+    if (!this.ownerState.has(owner)) {
+      this.ownerState.set(owner, {recentDraftSegment: ''})
+    }
+    return this.ownerState.get(owner)!
+  }
+
   listenEntry(client: HyperClient) {
     // client.pipe(this.api, Event.ADVANCE_SEGMENT_OVER, {exclude_me: false})
   }
 
-  listenPeerStageOne(client: HyperClient) {
-    client.pipe(this.api, Event.PICK_CHALLENGER + '.' + this.myId, {exclude_me: false})
+  async listenPeerStageOne(client: HyperClient) {
+    await client.pipe(this.api, Event.PICK_CHALLENGER + '.' + this.myId, {exclude_me: false})
   }
 
   // generate new segment id for each advanceId
   // if advanceId is duplicated new segment is not generated
   // input headers: advanceOwner, advanceSegment
   event_generate_draft(body: BODY_GENERATE_DRAFT) {
-    console.log('=> Event.GENERATE_DRAFT', body)
-    const advanceId = body.advanceOwner + ':' + body.advanceSegment
-    if (!this.advanceMap.has(advanceId)) {
-      const draftId: ComplexId = this.makeId.generateIdRec()
-      const draftOwner: string = this.myId
-      const vouters = new Set<string>()
-      vouters.add(draftOwner)
-      const stage: AdvanceStage = {
-        advanceOwner: body.advanceOwner,
-        advanceSegment: body.advanceSegment,
-        draftOwner,
-        draftId,
-        vouters
-      }
-      this.advanceMap.set(advanceId, stage)
-      const draftSegment: BODY_PICK_CHALLENGER = {
-        advanceOwner: body.advanceOwner,
-        advanceSegment: body.advanceSegment,
-        draftOwner,
-        draftId
-      }
-      console.log('Event.GENERATE_DRAFT: draftSegment:', draftSegment);      
-      for (const nodeId of this.clusterNodes) {
-        this.api.publish(Event.PICK_CHALLENGER + '.' + nodeId, draftSegment, {exclude_me: false, headers: {owner: this.myId}})
-      }
-      // TODO: make as event
-      this.event_pick_challenger(draftSegment)
+    const ownerState = this.getOwnerState(body.advanceOwner)
+    if (ownerState.recentDraftSegment >= body.advanceSegment) {
+      return
     }
+    ownerState.recentDraftSegment = body.advanceSegment
+    const draftId: ComplexId = this.makeId.generateIdRec()
+    const draftOwner: string = this.myId
+    const draftSegment: BODY_PICK_CHALLENGER = {
+      advanceOwner: body.advanceOwner,
+      advanceSegment: body.advanceSegment,
+      tag: body.tag,
+      draftOwner,
+      draftId
+    }
+    console.log('Event.GENERATE_DRAFT: draftSegment:', draftSegment);
+    for (const syncNodeId of this.syncNodeIds) {
+      this.api.publish(Event.PICK_CHALLENGER + '.' + syncNodeId, draftSegment, {exclude_me: false, headers: {owner: this.myId}})
+    }
+    // TODO: make as event
+    this.event_pick_challenger(draftSegment)
   }
 
   // when another generator made draft shift my generator
@@ -103,6 +98,7 @@ export class StageOneTask {
     const draftStack = this.draftHeap.get(draftOwner)!
     draftStack.push(draftId)
 
+    // ELECT_SEGMENT is already generated, just add vote to existed advanceId
     if (this.doneHeap.has(advanceId)) {
       const vouterSet = this.doneHeap.get(advanceId)!
       vouterSet.add(draftOwner)
@@ -121,6 +117,7 @@ export class StageOneTask {
       const challengerBody: BODY_ELECT_SEGMENT = {
         advanceOwner,
         advanceSegment,
+        tag: body.tag,
         voter: this.myId,
         challenger: this.extractDraft(vouterSet)
       }
@@ -161,7 +158,7 @@ export class StageOneTask {
     if (!minValue) {
       throw Error('No draft found in draftHeap for vouters: ' + Array.from(vouters).join(', '))
     }
-    for ( const curHeap of this.draftHeap.values()) {
+    for (const curHeap of this.draftHeap.values()) {
       // remove all less or equal values
       while (curHeap.length > 0 && curHeap[0] <= minValue) {
         curHeap.shift()

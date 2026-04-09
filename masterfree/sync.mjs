@@ -43,7 +43,8 @@ config.loadConfigFile(conf_config_file).then(async () => {
   const sysRealm = new BaseRealm(router, new BaseEngine())
   await router.initRealm(INTRA_REALM_NAME, sysRealm)
   router.setLogTrace(true)
-  const stageOneTask = new StageOneTask(sysRealm, conf_node_id, config.getSyncQuorum(), Object.keys(syncNodes))
+  const syncNodeIds = Object.keys(syncNodes)
+  const stageOneTask = new StageOneTask(sysRealm, conf_node_id, config.getSyncQuorum(), syncNodeIds)
   stageOneTask.startActualizePrefixTimer()
 
   console.log('SYNC_ID:', conf_node_id, 'Listening FOX port:', nodeConf.port)
@@ -53,7 +54,7 @@ config.loadConfigFile(conf_config_file).then(async () => {
     const syncNodeConf = syncNodes[syncNodeId]
     if (syncNodeId === conf_node_id) {
       // do not listen to self realm
-      // stageOneTask.listenPeerStageOne(sysRealm.api())
+      // await stageOneTask.listenPeerStageOne(sysRealm.api())
       continue
     }
     mkSync(syncNodeConf.host, syncNodeConf.port, syncNodeId, stageOneTask)

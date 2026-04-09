@@ -38,7 +38,7 @@ export type BODY_TRIM_ADVANCE_SEGMENT = {
 }
 
 export type BODY_GENERATE_DRAFT = {
-  advanceOwner: string
+  advanceOwner: string // TODO: origin / relay
   advanceSegment: string
   tag: string
 }
@@ -46,6 +46,7 @@ export type BODY_GENERATE_DRAFT = {
 export type BODY_PICK_CHALLENGER = {
   advanceOwner: string
   advanceSegment: string
+  tag: string
   draftOwner: string
   draftId: ComplexId
 }
@@ -63,6 +64,7 @@ export type BODY_KEEP_ADVANCE_HISTORY = {
 export type BODY_ELECT_SEGMENT = {
   advanceOwner: string
   advanceSegment: string
+  tag: string
   voter: string
   challenger: string
 }

@@ -46,23 +46,23 @@ sync
 
     entry                        ndb                          stage one                         stage two
 
-        BEGIN_ADVANCE_SEGMENT ->
+  --->  BEGIN_ADVANCE_SEGMENT ->
 
-        KEEP_ADVANCE_HISTORY  ->
+  --->  KEEP_ADVANCE_HISTORY  ->
 
         <- TRIM_ADVANCE_SEGMENT * each ndb
         [vote to take network lag for segment]
 
-        ADVANCE_SEGMENT_OVER ->
+  --->  ADVANCE_SEGMENT_OVER ->
 
-                                            GENERATE_DRAFT -> generate mew time+genId for tmp-id
+  -------------------------------------->   GENERATE_DRAFT -> generate mew time+genId for tmp-id
                                                         send to next sync stage
                                                         
                                                     +---- VOTE
                                                     |        take low _in_vouter_ time+genId
                                                     |        for tmp-id send to final
                                                     |        sync stage
-                                                    +->  PICK_CHALLENGER ->
+                                                    +->  PICK_CHALLENGER # ID ->
                                                         challenger id is generated
 
                                                         <-> VOTE <->
