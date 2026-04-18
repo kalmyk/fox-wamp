@@ -1,0 +1,12 @@
+export declare function mqttParse(topic: string): string[];
+export declare function wampUriParse(topic: string): string[];
+export declare function defaultParse(topic: string): string[];
+export declare function restoreUri(topic: string[]): string;
+export declare function restoreMqttUri(topic: string[]): string;
+export declare function mqttMatch(topic: string, filter: string): boolean;
+export declare function wampMatch(topic: string, filter: string): boolean;
+export declare function isPattern(topic: string[]): boolean;
+export declare function match(topic: string[], filter: string[]): boolean;
+export declare function intersect(topic: string, filter: string): boolean;
+export declare function merge(topic: string[], pattern: string): string[];
+export declare function extract(topic: string, pattern: string): string[];

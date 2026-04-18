@@ -1,0 +1,28 @@
+declare const _default: {
+  HELLO: number;
+  WELCOME: number;
+  ABORT: number;
+  CHALLENGE: number;
+  AUTHENTICATE: number;
+  GOODBYE: number;
+  HEARTBEAT: number;
+  ERROR: number;
+  PUBLISH: number;
+  PUBLISHED: number;
+  SUBSCRIBE: number;
+  SUBSCRIBED: number;
+  UNSUBSCRIBE: number;
+  UNSUBSCRIBED: number;
+  EVENT: number;
+  CALL: number;
+  CANCEL: number;
+  RESULT: number;
+  REGISTER: number;
+  REGISTERED: number;
+  UNREGISTER: number;
+  UNREGISTERED: number;
+  INVOCATION: number;
+  INTERRUPT: number;
+  YIELD: number;
+};
+export = _default;
