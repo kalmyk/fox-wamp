@@ -2,6 +2,8 @@ import { EventEmitter } from 'events';
 import Context from './context';
 import Router from './router';
 import Session from './session';
+import WampApi from './wamp/api';
+import HyperApi from './hyper/api';
 
 export declare class Actor {
   ctx: Context;
@@ -73,14 +75,14 @@ export declare class ActorReg extends ActorTrace {
 
 export declare class ActorPush extends Actor {
   clientNotified: boolean;
-  eventId: string | number | null;
+  eventId: string | null;
   constructor(ctx: Context, msg: any);
-  setEventId(eventId: string | number | null): void;
-  getEventId(): string | number | null;
+  setEventId(eventId: string | null): void;
+  getEventId(): string | null;
   confirm(cmd: any): void;
   getHeaders(): any;
   getData(): any;
-  getUri(): string;
+  getUri(): string[];
   needAck(): boolean;
   getEvent(): any;
 }
@@ -97,13 +99,13 @@ export declare class BaseEngine {
   qCall: Map<string, ActorCall[]>;
   qYield: DeferMap;
   wTrace: any;
-  _kvo: { uri: string, kv: any }[];
+  _kvo: { uri: string, kv: KeyValueStorageAbstract }[];
   realmName?: string;
 
   constructor();
   getRealmName(): string;
   launchEngine(realmName: string): Promise<void>;
-  addKv(uri: string, kv: any): void;
+  addKv(uri: string, kv: KeyValueStorageAbstract): void;
   mkDeferId(): string | number;
   createActorEcho(ctx: Context, cmd: any): ActorEcho;
   createActorReg(ctx: Context, cmd: any): ActorReg;
@@ -134,17 +136,17 @@ export declare class BaseEngine {
 }
 
 export declare class BaseRealm extends EventEmitter {
-  _wampApi: any;
-  _hyperApi: any;
+  _wampApi: WampApi;
+  _hyperApi: HyperClient;
   _sessions: Map<string, Session>;
   _router: Router;
-  _dict: any;
+  _dict: TableDictionary;
   engine: BaseEngine;
 
   constructor(router: Router, engine: BaseEngine);
   getRouter(): Router;
   getEngine(): BaseEngine;
-  setDict(dict: any): void;
+  setDict(dict: TableDictionary): void;
   cmdEcho(ctx: Context, cmd: any): void;
   cmdRegRpc(ctx: Context, cmd: any): string | number;
   cmdUnRegRpc(ctx: Context, cmd: any): string;
@@ -161,39 +163,39 @@ export declare class BaseRealm extends EventEmitter {
   getSessionIds(): string[];
   getRealmInfo(): any;
   getSessionInfo(sessionId: string): any;
-  buildApi(): any;
-  api(): any;
-  wampApi(): any;
+  buildApi(): HyperClient;
+  api(): HyperClient;
+  wampApi(): WampApi;
   getKey(uri: string, cbRow: (key: string, data: any, eventId: any) => void): Promise<any[]>;
   runInboundEvent(sessionId: string, uri: string, bodyValue: any): void;
-  registerKeyValueEngine(uri: string, kv: any): void;
+  registerKeyValueEngine(uriPattern: string[], kv: KeyValueStorageAbstract): void;
 }
 
 export declare class ActorPushKv {
   uri: string;
   data: any;
   opt: any;
-  eventId: string | number | null;
+  eventId: string | null;
   constructor(uri: string, data: any, opt: any);
   getOpt(): any;
   getUri(): string;
   getSid(): string;
   getData(): any;
-  setEventId(eventId: string | number | null): void;
-  getEventId(): string | number | null;
+  setEventId(eventId: string | null): void;
+  getEventId(): string | null;
   getEvent(): any;
   confirm(): void;
 }
 
 export declare class KeyValueStorageAbstract {
-  uriPattern: string;
+  uriPattern: string[];
   saveChangeHistory: (actor: ActorPush) => void;
-  runInboundEvent: (sessionId: string, uri: string, bodyValue: any) => void;
+  runInboundEvent: (sessionId: string, uri: string[], bodyValue: any) => void;
   constructor();
-  setUriPattern(uriPattern: string): void;
+  setUriPattern(uriPattern: string[]): void;
   setSaveChangeHistory(saveChangeHistory: (actor: ActorPush) => void): void;
   setRunInboundEvent(runInboundEvent: (sessionId: string, uri: string, bodyValue: any) => void): void;
-  getUriPattern(): string;
+  getUriPattern(): string[];
   getStrUri(actor: Actor): string;
 }
 

@@ -170,16 +170,20 @@ export class SqliteKv extends KeyValueStorageAbstract {
   }
     
   eraseSessionData (sessionId: string) {
-    return this.mod.eraseSessionData (this.realmName, sessionId, this.runInboundEvent.bind(this))
+    return this.mod.eraseSessionData(this.realmName, sessionId, this.runInboundEvent.bind(this))
   }
 
   // @result promise
   setKeyActor (actor: ActorPush) {
     const suri = this.getStrUri(actor)
+    const eventId = actor.getEventId()
+    if (!eventId) {
+      throw new Error("SetKeyActor: No eventId for actor " + actor.getUri().join("/"))
+    }
     return this.mod.setKeyValue(
       this.realmName,
       suri,
-      actor.getEventId(),
+      eventId,
       actor.getData(),
       actor.getOpt(),
       actor.getSid(),

@@ -8,5 +8,5 @@ export declare function wampMatch(topic: string, filter: string): boolean;
 export declare function isPattern(topic: string[]): boolean;
 export declare function match(topic: string[], filter: string[]): boolean;
 export declare function intersect(topic: string, filter: string): boolean;
-export declare function merge(topic: string[], pattern: string): string[];
-export declare function extract(topic: string, pattern: string): string[];
+export declare function merge(topicArray: string[], patternArray: string[]): string[];
+export declare function extract(topicArray: string[], patternArray: string[]): string[];

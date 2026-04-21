@@ -178,7 +178,7 @@ export class NetEngineMill {
       let actor = segment.fetchActor(event.advanceId)
       if (actor) {
         actor.setEventId(event.qid)
-        actor.confirm()
+        actor.confirm({ sid: event.sid })
       } else {
         console.log("actor not found by advanceId", event.advanceId)
       }

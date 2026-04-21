@@ -1,3 +1,5 @@
+import { Context } from '../context';
+
 export type CallbackFn = (...args: any[]) => any
 
 export class HyperApiContext {
@@ -18,14 +20,14 @@ export class HyperApiContext {
 export class HyperSocketFormatter {
   constructor(socketWriter: any)
   sendCommand(id: any, command: any): number
-  cmdEcho(ctx: any, cmd: any): number
-  cmdRegRpc(ctx: any, cmd: any): number
-  cmdUnRegRpc(ctx: any, cmd: any): number
-  cmdCallRpc(ctx: any, cmd: any): number
-  cmdTrace(ctx: any, cmd: any): number
-  cmdUnTrace(ctx: any, cmd: any): number
-  cmdPush(ctx: any, cmd: any): number
-  cmdYield(ctx: any, cmd: any): void
+  cmdEcho(ctx: Context, cmd: any): number
+  cmdRegRpc(ctx: Context, cmd: any): number
+  cmdUnRegRpc(ctx: Context, cmd: any): number
+  cmdCallRpc(ctx: Context, cmd: any): number
+  cmdTrace(ctx: Context, cmd: any): number
+  cmdUnTrace(ctx: Context, cmd: any): number
+  cmdPush(ctx: Context, cmd: any): number
+  cmdYield(ctx: Context, cmd: any): void
   onMessage(msg: any): void
 }
 
