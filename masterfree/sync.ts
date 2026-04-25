@@ -16,7 +16,7 @@ const config = getConfigInstance()
 const router = new Router()
 router.setId(conf_node_id)
 
-function mkGate(host, port, gateId, stageOneTask) {
+function mkGate(host: string, port: number, gateId: string, stageOneTask: StageOneTask) {
   // const client = new HyperNetClient({host, port})
   // client.onopen(async () => {
   //   await client.login({realm: INTRA_REALM_NAME})
@@ -26,8 +26,8 @@ function mkGate(host, port, gateId, stageOneTask) {
   // client.connect()
 }
 
-function mkSync(host, port, nodeId, stageOneTask) {
-  const client = new HyperNetClient({host, port})
+function mkSync(host: string, port: number, nodeId: string, stageOneTask: StageOneTask) {
+  const client: HyperNetClient = new HyperNetClient({host, port})
   client.onopen(async () => {
     await client.login({realm: INTRA_REALM_NAME})
     console.log('login successful', nodeId, host, port)

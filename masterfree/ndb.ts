@@ -14,8 +14,8 @@ import { StageTwoTask } from '../lib/masterfree/synchronizer'
 import { INTRA_REALM_NAME } from '../lib/masterfree/hyper.h'
 import { HyperNetClient } from '../lib/hyper/net_transport'
 
-function mkSync(host, port, nodeId, storageTask, stageTwoTask) {
-  const client = new HyperNetClient({host, port})
+function mkSync(host: string, port: number, nodeId: string, storageTask: StorageTask, stageTwoTask: StageTwoTask) {
+  const client: HyperNetClient = new HyperNetClient({host, port})
   client.onopen(async () => {
     await client.login({realm: INTRA_REALM_NAME})
     console.log('login successful', nodeId, host, port)
@@ -25,7 +25,7 @@ function mkSync(host, port, nodeId, storageTask, stageTwoTask) {
   return client.connect()
 }
 
-function mkGate(host, port, gateId, storageTask) {
+function mkGate(host: string, port: number, gateId: string, storageTask: StorageTask) {
   const client = new HyperNetClient({host, port})
   client.onopen(async () => {
     await client.login({realm: INTRA_REALM_NAME})
@@ -42,14 +42,14 @@ async function main () {
   router.setLogTrace(true)
   const sysRealm = await router.getRealm(INTRA_REALM_NAME)
 
-  const dbFactory = new DbFactory(null)
+  const dbFactory = new DbFactory('')
   const db = await dbFactory.openMainDatabase(conf_db_file)
 
-  const storageTask = new StorageTask(sysRealm, dbFactory)
-  const stageTwoTask = new StageTwoTask(sysRealm, config.getSyncQuorum())
+  const storageTask: StorageTask = new StorageTask(sysRealm, dbFactory)
+  const stageTwoTask: StageTwoTask = new StageTwoTask(sysRealm, config.getSyncQuorum())
 
-  const makeId = new ProduceId(() => keyDate(new Date()))
-  const modKv = new SqliteKvFabric(dbFactory, makeId)
+  const makeId: ProduceId = new ProduceId(() => keyDate(new Date()))
+  const modKv: SqliteKvFabric = new SqliteKvFabric(dbFactory, makeId)
 
   const syncNodes = config.getSyncNodes()
   for (const syncNodeId of Object.keys(syncNodes)) {

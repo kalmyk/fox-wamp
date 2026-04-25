@@ -1,14 +1,14 @@
-import { expect } from 'chai'
+import * as chai from 'chai'; const { expect } = chai;
 
-import TopicPattern from '../lib/topic_pattern.js'
+import * as TopicPattern from '../lib/topic_pattern.js'
 
-function mqttmatch (topic, pattern, result) {
+function mqttmatch (topic: string, pattern: string, result: string[]) {
   expect(TopicPattern.mqttMatch(topic, pattern), "mqttmatch('" + topic + "', '" + pattern + "')").to.equal(true)
   expect(TopicPattern.mqttExtract(topic, pattern), "mqttmatch('" + topic + "', '" + pattern + "')").to.deep.equal(result)
-  expect(TopicPattern.merge(result,TopicPattern.mqttParse(pattern)),'merge(' + JSON.stringify(result) + ", '" + pattern + "')").to.deep.equal(TopicPattern.mqttParse(topic))
+  expect(TopicPattern.merge(result, TopicPattern.mqttParse(pattern)), 'merge(' + JSON.stringify(result) + ", '" + pattern + "')").to.deep.equal(TopicPattern.mqttParse(topic))
 }
 
-function mqttmis (topic, pattern) {
+function mqttmis (topic: string, pattern: string) {
   expect(TopicPattern.mqttMatch(topic, pattern), "mqttmis('" + topic + "', '" + pattern + "')").to.equal(false)
   expect(TopicPattern.mqttExtract(topic, pattern), "mqttmis('" + topic + "', '" + pattern + "')").to.deep.equal(null)
 }

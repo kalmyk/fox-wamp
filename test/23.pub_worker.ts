@@ -1,25 +1,29 @@
-import chai, { expect, assert } from 'chai'
+import * as chai from 'chai';
+const { expect } = chai;
+const assert: Chai.AssertStatic = chai.assert;
 import spies from 'chai-spies'
 import promised from 'chai-as-promised'
 chai.use(spies)
 chai.use(promised)
 
-import { MemServer } from '../lib/hyper/mem_transport'
-import { FoxGate }   from '../lib/hyper/gate'
-import Router        from '../lib/router'
+import { MemServer } from '../lib/hyper/mem_transport.js'
+import { FoxGate }   from '../lib/hyper/gate.js'
+import Router        from '../lib/router.js'
+import { BaseRealm } from '../lib/realm.js'
+import { HyperClient } from '../lib/hyper/client.js'
 
 describe('23.pub-worker', () => {
   let
-    memServer,
-    router,
-    gate,
-    realm,
-    client,
-    worker
+    memServer: MemServer,
+    router: Router,
+    gate: FoxGate,
+    realm: BaseRealm,
+    client: HyperClient & { session: () => any },
+    worker: HyperClient & { session: () => any }
 
   const runs = [
-    {it: 'remote-api', client: () => memServer.createClient(realm), worker: () => realm.api()},
-    {it: 'api-remote', worker: () => memServer.createClient(realm), client: () => realm.api()},
+    {it: 'remote-api', client: () => memServer.createClient(realm), worker: () => (realm as any).api()},
+    {it: 'api-remote', worker: () => memServer.createClient(realm), client: () => (realm as any).api()},
   ]
     
   runs.forEach(function (run) {
@@ -38,11 +42,11 @@ describe('23.pub-worker', () => {
         assert.isFalse(client.session().hasSendError(), client.session().firstSendErrorMessage())
         assert.isFalse(worker.session().hasSendError(), worker.session().firstSendErrorMessage())
 
-        router = null
-        gate = null
-        realm = null
-        client = null
-        worker = null
+        router = undefined as any
+        gate = undefined as any
+        realm = undefined as any
+        client = undefined as any
+        worker = undefined as any
       })
 
       it('echo should return OK with sent data', async () => {
@@ -87,13 +91,13 @@ describe('23.pub-worker', () => {
             return Promise.resolve({ result: 'done', args, headers: opt.headers, procedure: opt.procedure })
           }
         )
-        const resultProgress = []
+        const resultProgress: any[] = []
         await assert.becomes(
           client.callrpc(
             'test.func',
             { attr1: 1 },
             {
-              progress: (info => resultProgress.push(info)),
+              progress: ((info: any) => resultProgress.push(info)),
               headers: {h1:'test'}
             }
           ),
@@ -135,8 +139,8 @@ describe('23.pub-worker', () => {
       })
 
       it('trace-publish-untrace', async () => {
-        const publications = []
-        let traceSpy = chai.spy((data, opt) => {
+        const publications: any[] = []
+        let traceSpy = chai.spy((data: any, opt: any) => {
           publications.push([data, opt.topic, opt.headers])
         })
         let regTrace = await worker.subscribe('customer', traceSpy, { someOpt: 987 })
@@ -146,7 +150,7 @@ describe('23.pub-worker', () => {
           null, // TODO: publication id
           'publish done'
         )
-        expect(traceSpy).to.have.been.called.once()
+        expect(traceSpy).called.exactly(1)
         expect(publications.shift()).to.deep.equal([{ data1: 'value1' }, 'customer', {h1:'test'}])
 
         await assert.becomes(

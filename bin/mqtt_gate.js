@@ -5,15 +5,14 @@
 const http = require('http')
 const url = require('url')
 const program = require('commander')
-const Router = require('../index')
-const MSG = require('../lib/messages')
+const { MSG, FoxRouter } = require('../index')
 
 program
   .option('-p, --http <port>', 'HTTP Server IP port', 9000)
   .option('-q, --mqtt <port>', 'MQTT Server IP port', 1883)
   .parse(process.argv)
 
-const router = new Router()
+const router = new FoxRouter()
 router.setLogTrace(true)
 
 router.on(MSG.REALM_CREATED, function (realm, realmName) {

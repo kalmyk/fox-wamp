@@ -1,15 +1,17 @@
-import chai, { expect } from 'chai'
+import * as chai from 'chai'; const { expect } = chai;
 import spies from 'chai-spies'
 chai.use(spies)
 
-import WAMP         from '../lib/wamp/protocol.js'
-import { WampGate } from '../lib/wamp/gate.js'
-import { MqttGate } from '../lib/mqtt/gate.js'
-import Router       from '../lib/router.js'
-import FoxRouter    from '../lib/fox_router.js'
+import WAMP          from '../lib/wamp/protocol.js'
+import { WampGate, WampSocketWriterContext } from '../lib/wamp/gate.js'
+import { MqttGate, MqttSocketWriterContext } from '../lib/mqtt/gate.js'
+import Router        from '../lib/router.js'
+import FoxRouter     from '../lib/fox_router.js'
+import { BaseRealm } from '../lib/realm.js'
+import Session       from '../lib/session.js'
 
 class TestAuth {
-  authorize (session, funcClass, uniUri) {
+  authorize (session: Session, funcClass: string, uniUri: string[]) {
     // console.log('!authorize', funcClass, uniUri)
     return uniUri[1] !== 'denied'
   }
@@ -23,17 +25,17 @@ const runs = [
 describe('12.authorize-topic', async () => {
   runs.forEach(function (run) {
     describe('authorize:' + run.it, async () => {
-      var
-        router,
-        mqttGate,
-        wampGate,
-        realm,
-        mqttSender,
-        wampSender,
-        wampCtx,
-        mqttCtx,
-        mqttCli,
-        wampCli
+      let
+        router: Router,
+        mqttGate: MqttGate,
+        wampGate: WampGate,
+        realm: BaseRealm,
+        mqttSender: any,
+        wampSender: any,
+        wampCtx: WampSocketWriterContext,
+        mqttCtx: MqttSocketWriterContext,
+        mqttCli: Session,
+        wampCli: Session
 
       beforeEach(async () => {
         let auth = new TestAuth()
@@ -62,16 +64,16 @@ describe('12.authorize-topic', async () => {
 
       it('wamp-subscribe:' + run.it, async () => {
         wampSender.wampPkgWrite = chai.spy(
-          function (msg) {
+          function (msg: any) {
             expect(msg[0]).to.equal(WAMP.SUBSCRIBED)
             expect(msg[1]).to.equal(1234)
           }
         )
         wampGate.handle(wampCtx, wampCli, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.passed'])
-        expect(wampSender.wampPkgWrite, 'subscription confirmed').to.have.been.called.once()
+        expect(wampSender.wampPkgWrite, 'subscription confirmed').called.exactly(1)
 
         wampSender.wampPkgWrite = chai.spy(
-          function (msg) {
+          function (msg: any) {
             expect(msg[0]).to.equal(WAMP.ERROR)
             expect(msg[1]).to.equal(WAMP.SUBSCRIBE)
             expect(msg[2]).to.equal(1234)
@@ -79,11 +81,11 @@ describe('12.authorize-topic', async () => {
           }
         )
         wampGate.handle(wampCtx, wampCli, [WAMP.SUBSCRIBE, 1234, {}, 'topic1.denied'])
-        expect(wampSender.wampPkgWrite, 'subscription confirmed').to.have.been.called.once()
+        expect(wampSender.wampPkgWrite, 'subscription confirmed').called.exactly(1)
       })
 
       it('mqtt-subscribe:' + run.it, async () => {
-        mqttSender.mqttPkgWrite = chai.spy((msg) => {
+        mqttSender.mqttPkgWrite = chai.spy((msg: any) => {
           expect(msg).to.deep.equal({cmd: 'suback', messageId: 321, granted: [ 128, 1 ]})
         })
         mqttGate.handle(mqttCtx, mqttCli, {
@@ -100,7 +102,7 @@ describe('12.authorize-topic', async () => {
           ],
           messageId: 321
         })
-        expect(mqttSender.mqttPkgWrite).to.have.been.called.once()
+        expect(mqttSender.mqttPkgWrite).called.exactly(1)
       })
     })
   })

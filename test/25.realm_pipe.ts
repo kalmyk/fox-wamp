@@ -1,24 +1,28 @@
-import chai, { expect, assert } from 'chai'
+import * as chai from 'chai';
+const { expect } = chai;
+const assert: Chai.AssertStatic = chai.assert;
 import spies from 'chai-spies'
 import promised from 'chai-as-promised'
 chai.use(spies)
 chai.use(promised)
 
-import { MemServer } from '../lib/hyper/mem_transport'
-import { FoxGate }   from '../lib/hyper/gate'
-import Router        from '../lib/router'
+import { MemServer } from '../lib/hyper/mem_transport.js'
+import { FoxGate }   from '../lib/hyper/gate.js'
+import Router        from '../lib/router.js'
+import { BaseRealm } from '../lib/realm.js'
+import { HyperClient } from '../lib/hyper/client.js'
 
 describe('25.realm_pipe', async () => {
   let
-    nextPromise,
-    router,
-    realm1,
-    realm2,
-    api1,
-    api2
+    nextPromise: Array<(value: any) => void>,
+    router: Router,
+    realm1: BaseRealm,
+    realm2: BaseRealm,
+    api1: HyperClient & { session: () => any },
+    api2: HyperClient & { session: () => any }
 
-  function getNextPackage() {
-    return new Promise((resolve, reject) => {
+  function getNextPackage(): Promise<any> {
+    return new Promise((resolve) => {
       nextPromise.push(resolve)
     })
   }
@@ -28,8 +32,8 @@ describe('25.realm_pipe', async () => {
     router = new Router()
     realm1 = await router.getRealm('realm1')
     realm2 = await router.getRealm('realm2')
-    api1 = realm1.api()
-    api2 = realm2.api()
+    api1 = (realm1 as any).api()
+    api2 = (realm2 as any).api()
 
     const memServer = new MemServer(new FoxGate(router))
     const pipeClient = memServer.createClient(realm1)
@@ -38,7 +42,7 @@ describe('25.realm_pipe', async () => {
 
     await api2.subscribe('pubtest', (event, opt) => {
       if (nextPromise.length > 0) {
-        const promiseResolve = nextPromise.shift()
+        const promiseResolve = nextPromise.shift() as (value: any) => void
         promiseResolve([opt.topic, event, opt.headers])
       } else {
         console.log('pubtest event', event, opt)

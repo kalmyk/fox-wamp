@@ -20,6 +20,10 @@ declare class WampApi extends Session {
   subscribe(uri: string, cb: Function, opt?: any): Promise<any>;
   publish(uri: string, args: any[], kwargs?: any, opt?: any): Promise<any>;
   register(uri: string, cb: Function, opt?: any): Promise<any>;
+  unregister(registrationId: string): string;
+  resrpc(id: string, err: string | null, args: any[], kwargs?: any, opt?: any): void;
+  callrpc(uri: string, args: any[], kwargs?: any, cb?: Function, opt?: any): Promise<any>;
+  unsubscribe(topic: string): string;
 }
 
 export = WampApi;

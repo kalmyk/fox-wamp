@@ -1,6 +1,6 @@
 # FOX-WAMP is a The Web Application Message Server
 
-[![Build Status](https://travis-ci.org/kalmyk/fox-wamp.svg?branch=master)](https://travis-ci.org/kalmyk/fox-wamp)
+[![Node.js CI](https://github.com/kalmyk/fox-wamp/actions/workflows/test.yml/badge.svg)](https://github.com/kalmyk/fox-wamp/actions/workflows/test.yml)
 
 The Web Application Message Server goal is to provide durable message source for the actual web applications.
 

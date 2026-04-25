@@ -1,32 +1,37 @@
-import chai, { expect } from 'chai'
+import * as chai from 'chai'; const { expect } = chai;
 import spies from 'chai-spies'
 chai.use(spies)
 
-import { MqttGate } from '../lib/mqtt/gate.js'
+import { MqttGate, MqttSocketWriterContext } from '../lib/mqtt/gate.js'
 import FoxRouter    from '../lib/fox_router.js'
+import { BaseRealm } from '../lib/realm.js'
+import { MemEngine } from '../lib/mono/memengine.js'
+import Session      from '../lib/session.js'
+import { HyperClient } from '../lib/hyper/client.js'
 
 describe('22.mqtt-realm', () => {
   let
-    nextPackagePromise,
-    socketHistory,
-    router,
-    realm,
-    gate,
-    mockSocket,  // inbound socket of mqtt session
-    ctx,
-    cli,
-    api
+    nextPackagePromise: ((value: any) => void) | undefined,
+    socketHistory: any[],
+    router: FoxRouter,
+    realm: BaseRealm,
+    gate: MqttGate,
+    mockSocket: any,  // inbound socket of mqtt session
+    ctx: MqttSocketWriterContext,
+    cli: Session,
+    api: HyperClient
 
-  function getNextPackage() {
-    return new Promise((resolve, reject) => {
+  function getNextPackage(): Promise<any> {
+    return new Promise((resolve) => {
       nextPackagePromise = resolve
     })
   }
 
   beforeEach(async () => {
     socketHistory = []
+    nextPackagePromise = undefined
     mockSocket = {
-      mqttPkgWrite: chai.spy((msg, callback) => {
+      mqttPkgWrite: chai.spy((msg: any) => {
         if (nextPackagePromise) {
           nextPackagePromise(msg)
           nextPackagePromise = undefined
@@ -67,12 +72,12 @@ describe('22.mqtt-realm', () => {
     })
 
     it('SUB-to-remote-mqtt', async () => {
-      let rslt = []
-      var subSpy = chai.spy((body) => {
+      let rslt: any[] = []
+      var subSpy = chai.spy((body: any) => {
         rslt.push(body)
       })
       let subId = await api.subscribe('topic1', subSpy)
-        
+
       gate.handle(ctx, cli, {
         cmd: 'publish',
         retain: false,
@@ -85,7 +90,7 @@ describe('22.mqtt-realm', () => {
       expect(rslt.shift()).to.deep.equal({ the: 'text' })
       expect(mockSocket.mqttPkgWrite, 'no publish confirmation').to.not.have.been.called()
 
-      expect(subSpy, 'publication done').to.have.been.called.once()
+      expect(subSpy, 'publication done').called.exactly(1)
       await api.unsubscribe(subId)
     })
 
@@ -120,7 +125,7 @@ describe('22.mqtt-realm', () => {
       expect(msg.topic).to.equal('topic1')
       expect(msg.payload.toString()).to.equal('{"data":3}')
 
-      expect(mockSocket.mqttPkgWrite, 'published').to.have.been.called.exactly(3)
+      expect(mockSocket.mqttPkgWrite, 'published').called.exactly(3)
     })
 
 
@@ -129,9 +134,9 @@ describe('22.mqtt-realm', () => {
       api.publish('topic1.item2', { data: 2 }, { retain: true })
       api.publish('topic1.item3', { data: 3 }, { retain: true })
 
-      let rslt = []
+      let rslt: any[] = []
 
-      mockSocket.mqttPkgWrite = chai.spy((msg) => {
+      mockSocket.mqttPkgWrite = chai.spy((msg: any) => {
         rslt.push([msg.cmd, msg.topic])
       })
 
@@ -153,7 +158,7 @@ describe('22.mqtt-realm', () => {
         [ 'publish', 'topic1/item2' ],
         [ 'publish', 'topic1/item3' ]
       ])
-      expect(mockSocket.mqttPkgWrite, 'call-subscribed').to.have.been.called.exactly(4)
+      expect(mockSocket.mqttPkgWrite, 'call-subscribed').called.exactly(4)
     })
 
     it('SUBSCRIBE-multi-mqtt', async () => {
@@ -177,7 +182,7 @@ describe('22.mqtt-realm', () => {
       expect(msg.topic).to.deep.equal('topic/one')
       expect(msg.payload.toString()).to.deep.equal('{"data":1}')
 
-      expect(mockSocket.mqttPkgWrite, 'published').to.have.been.called.twice()
+      expect(mockSocket.mqttPkgWrite, 'published').called.exactly(2)
     })
 
     it('puback', async () => {
@@ -213,7 +218,7 @@ describe('22.mqtt-realm', () => {
       })
 
       msg = socketHistory.shift()
-      expect(mockSocket.mqttPkgWrite).to.have.been.called.twice()
+      expect(mockSocket.mqttPkgWrite).called.exactly(2)
     })
 
     it('PUBLISH-to-retain', async () => {
@@ -228,8 +233,8 @@ describe('22.mqtt-realm', () => {
       })
       expect(mockSocket.mqttPkgWrite, 'no publish confirmation').to.not.have.been.called()
 
-      const calls = []
-      let subSpy = chai.spy(body => calls.push(body))
+      const calls: any[] = []
+      let subSpy = chai.spy((body: any) => calls.push(body))
       await api.subscribe('topic1', subSpy, { retained: true })
       expect(calls.shift()).to.deep.equal({ the: 'text' })
     })
@@ -268,15 +273,15 @@ describe('22.mqtt-realm', () => {
       const spyClean = chai.spy(() => {})
       await api.subscribe('topic-to-clean', spyClean, { retained: true })
 
-      const pubs = []
-      const spyRetain = chai.spy(body => pubs.push(body))
+      const pubs: any[] = []
+      const spyRetain = chai.spy((body: any) => pubs.push(body))
       await api.subscribe('topic-to-retain', spyRetain, { retained: true })
 
       expect(spyClean, 'retain value must be cleaned').to.not.have.been.called()
 
       let pub = pubs.shift()
       expect(pub).to.deep.equal({ the: 'text-to-retain' })
-      expect(spyRetain, 'retain value must be cleaned').to.have.been.called.once()
+      expect(spyRetain, 'retain value must be cleaned').called.exactly(1)
     })
 
     it('SUBSCRIBE-retain-batch', async () => {
@@ -312,7 +317,7 @@ describe('22.mqtt-realm', () => {
 
       const spyRetain = chai.spy(() => {})
       await api.subscribe('batch.#', spyRetain, { retained: true })
-      expect(spyRetain).to.have.been.called.exactly(3)
+      expect(spyRetain).called.exactly(3)
     })
   })
 
@@ -340,11 +345,11 @@ describe('22.mqtt-realm', () => {
     expect(msg.cmd).to.equal('connack')
     expect(msg.returnCode).to.equal(0)
 
-    const pubs = []
-    const subSpy = chai.spy(body => pubs.push(body))
+    const pubs: any[] = []
+    const subSpy = chai.spy((body: any) => pubs.push(body))
     await api.subscribe('topic-test-disconnect', subSpy)
     cli.cleanup()
-    expect(subSpy).to.have.been.called.once()
+    expect(subSpy).called.exactly(1)
     expect(pubs.shift()).to.deep.equal({ text: 'some-test-text' })
   })
 
@@ -385,7 +390,7 @@ describe('22.mqtt-realm', () => {
     expect(msg.cmd).to.equal('suback')
 
     await api.publish('topic.1', { data: 1 }, { trace: true })
-    expect(realm.engine.getMemoryMessagesCount(), 'trace message need to be saved').to.equal(1)
+    expect((realm.engine as MemEngine).getMemoryMessagesCount(), 'trace message need to be saved').to.equal(1)
 
     msg = socketHistory.shift()
     expect(msg.cmd).to.equal('publish')
@@ -406,10 +411,10 @@ describe('22.mqtt-realm', () => {
       messageId: pubMsgId
     })
 
-    const offsetRow = []
-    const gotRow = chai.spy((key, value) => { offsetRow.push({key, value}) })
+    const offsetRow: any[] = []
+    const gotRow = chai.spy((key: string[], value: any) => { offsetRow.push({key, value}) })
     await realm.getKey(['$FOX', 'clientOffset', 'worker-state'], gotRow)
-    expect(gotRow).to.have.been.called.once()
+    expect(gotRow).called.exactly(1)
     const row = offsetRow.shift()
     expect(row.key).to.deep.equal(['$FOX', 'clientOffset', 'worker-state'])
     // expect(row.value).to.equal(pubMsgId) -- some non zero value

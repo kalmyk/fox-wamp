@@ -1,18 +1,19 @@
-import chai, { expect } from 'chai'
+import * as chai from 'chai'
+const { expect } = chai
 import spies from 'chai-spies'
 chai.use(spies)
 
 import { keyDate, keyId, ProduceId } from '../lib/masterfree/makeid'
 
 describe('02.make-id', function () {
-  let id
+  let id: ProduceId
 
   beforeEach(() => {
-    id = new ProduceId((a) => a)
+    id = new ProduceId((a: Date) => (a as any as string))
   })
 
   afterEach(() => {
-    id = null
+    id = null as any
   })
 
   it('format-date', () => {

@@ -166,7 +166,7 @@ export declare class BaseRealm extends EventEmitter {
   buildApi(): HyperClient;
   api(): HyperClient;
   wampApi(): WampApi;
-  getKey(uri: string, cbRow: (key: string, data: any, eventId: any) => void): Promise<any[]>;
+  getKey(uri: string[], cbRow: (key: string[], data: any, eventId: any) => void): Promise<any[]>;
   runInboundEvent(sessionId: string, uri: string, bodyValue: any): void;
   registerKeyValueEngine(uriPattern: string[], kv: KeyValueStorageAbstract): void;
 }

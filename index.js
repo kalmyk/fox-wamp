@@ -1,4 +1,5 @@
 module.exports = {
+  MSG: require('./lib/messages'),
   Router: require('./lib/router'),
   FoxRouter: require('./lib/fox_router'),
   BaseRealm: require('./lib/realm').BaseRealm,

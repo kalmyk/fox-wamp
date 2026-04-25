@@ -1,15 +1,14 @@
 //
 // demo how to register custom function inside the router
 //
-const MSG = require('../lib/messages')
-const Router = require('../index')
+const { MSG, FoxRouter } = require('../index')
 const program = require('commander')
 
 program
   .option('-p, --port <port>', 'Server IP port', 9000)
   .parse(process.argv)
 
-const router = new Router()
+const router = new FoxRouter()
 router.setLogTrace(true)
 
 router.on(MSG.REALM_CREATED, function (realm, realmName) {

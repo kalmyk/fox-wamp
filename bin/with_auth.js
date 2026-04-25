@@ -2,7 +2,7 @@
 // This is authenticate router example
 //
 
-const Router = require('../index')
+const { FoxRouter } = require('../index')
 const TopicPattern = require('../lib/topic_pattern')
 const program = require('commander')
 
@@ -10,7 +10,7 @@ program
   .option('-p, --port <port>', 'Server IP port', 9000)
   .parse(process.argv)
 
-const app = new Router()
+const app = new FoxRouter()
 app.setLogTrace(true)
 
 const WampAuth = function () {

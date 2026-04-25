@@ -1,5 +1,7 @@
 // validate that memory storage has the same results as sqlite
-import chai, { expect, assert } from 'chai'
+import * as chai from 'chai';
+const { expect } = chai;
+const assert: Chai.AssertStatic = chai.assert;
 import spies from 'chai-spies'
 import promised from 'chai-as-promised'
 chai.use(spies)
@@ -15,26 +17,29 @@ import { SqliteKvFabric, SqliteKv }    from '../lib/sqlite/sqlitekv.js'
 import { MemEngine }   from '../lib/mono/memengine.js'
 import { DbEngine } from '../lib/sqlite/dbengine.js'
 import { MemKeyValueStorage } from '../lib/mono/memkv.js'
-import { BaseRealm }   from '../lib/realm.js'
+import { BaseRealm, BaseEngine }   from '../lib/realm.js'
 import WampApi         from '../lib/wamp/api.js'
 import { getBodyValue } from '../lib/base_gate.js'
 import { DbFactory } from '../lib/sqlite/dbfactory.js'
 import { keyDate, ProduceId } from '../lib/masterfree/makeid.js'
+import Session from '../lib/session.js'
+import { HyperClient } from '../lib/hyper/client.js'
+import { WampSocketWriterContext } from '../lib/wamp/gate.js'
 
 const TEST_REALM_NAME = 'testrealm'
 
-const makeMemRealm = async (router) => {
+const makeMemRealm = async (router: Router): Promise<BaseRealm> => {
   let realm = new BaseRealm(router, new MemEngine())
   realm.registerKeyValueEngine(['#'], new MemKeyValueStorage())
   return realm
 }
 
-const makeDbRealm = async (router) => {
-  let db = await sqlite.open({
+const makeDbRealm = async (router: Router): Promise<BaseRealm> => {
+  let db: sqlite.Database = await sqlite.open({
     filename: ':memory:',
     driver: sqlite3.Database
   })
-  const dbFactory = new DbFactory()
+  const dbFactory = new DbFactory('/tmp/test-fox-wamp.db')
   dbFactory.setMainDb(db)
 
   let makeId = new ProduceId(() => keyDate(new Date()))
@@ -56,13 +61,13 @@ describe('55.hyper events', () => {
   runs.forEach((run) => {
     describe('storage:' + run.it, function () {
       let
-        router,
-        realm,
-        api,
-        mockSocket,
-        wampGate,
-        cli,
-        ctx
+        router: Router,
+        realm: BaseRealm,
+        api: HyperClient & { session: () => any },
+        mockSocket: any,
+        wampGate: WampGate,
+        cli: Session,
+        ctx: WampSocketWriterContext
 
       beforeEach(async () => {
         router = new Router()
@@ -70,7 +75,7 @@ describe('55.hyper events', () => {
         await router.initRealm(TEST_REALM_NAME, realm)       
         api = realm.api()
 
-        mockSocket = {}
+        mockSocket = { wampPkgWrite: chai.spy(() => {}) }
         wampGate = new WampGate(router)
         cli = router.createSession()
         ctx = wampGate.createContext(cli, mockSocket)
@@ -81,7 +86,7 @@ describe('55.hyper events', () => {
         assert.isFalse(cli.hasSendError(), cli.firstSendErrorMessage())
         assert.isFalse(api.session().hasSendError(), api.session().firstSendErrorMessage())
         cli.cleanup()
-        ctx = null
+        ctx = null as any
       })
   
       it('storage-retain-get:' + run.it, async () => {
@@ -90,16 +95,16 @@ describe('55.hyper events', () => {
         await api.publish('topic1', { data: 'retain-the-value' }, { retain: true, exclude_me:false })
         await api.publish('topic1', { data: 'the-value-does-not-retain' }, { exclude_me:false })
 
-        let done
-        let resultPromise = new Promise((resolve) => done = resolve)
+        let done: (value: unknown) => void
+        let resultPromise = new Promise((resolve) => done = resolve as (value: unknown) => void)
         let counter = 2
-        let rslt = []
-        mockSocket.wampPkgWrite = chai.spy((msg) => {
+        let rslt: any[] = []
+        mockSocket.wampPkgWrite = chai.spy((msg: any) => {
           rslt.push(msg)
           --counter
           if (counter <= 0) {
-            done()
-            done = undefined
+            done(undefined as void)
+            done = undefined as any
           }
         })
         wampGate.handle(ctx, cli, [WAMP.SUBSCRIBE, 1234, { retained: true }, 'topic1'])
@@ -113,13 +118,13 @@ describe('55.hyper events', () => {
         expect(rslt[1][3].retained).equal(true)
         expect(rslt[1][4]).deep.equal([{ data: 'retain-the-value' }])
 
-        expect(subSpy).have.been.called.twice()
+        expect(subSpy).called.exactly(2)
       })
   
       it('storage-retain-weak:' + run.it, async () => {
         await api.publish('topic2', ['arg1', 'arg2'], { retain: true, will: null, acknowledge: true })
 
-        let storedValue = []
+        let storedValue: any[] = []
         await realm.getKey(['topic2'], (uri, value)=>storedValue.push([uri,value]))
         expect(storedValue).deep.equal([[['topic2'], {kv:['arg1', 'arg2']}]])
 
@@ -131,8 +136,8 @@ describe('55.hyper events', () => {
       })
   
       it('wamp-key-remove:' + run.it, async () => {
-        await api.publish(['topic2'], { some: 'value' }, { retain: true, acknowledge: true })
-        let storedValue = []
+        await api.publish('topic2', { some: 'value' }, { retain: true, acknowledge: true })
+        let storedValue: any[] = []
         await realm.getKey(['topic2'], (uri, value)=>storedValue.push([uri,value]))
         expect(storedValue).deep.equal([[['topic2'], {kv:{some:'value'}}]])
 
@@ -147,7 +152,7 @@ describe('55.hyper events', () => {
   
       // realm must PUSH data if client has disconnect WILL registered
       it('push-will:' + run.it, async () => {
-        let events = []
+        let events: any[] = []
         await api.subscribe('will.test', event => events.push(event))
     
         const wampApi = new WampApi(realm, router.makeSessionId())
@@ -172,7 +177,7 @@ describe('55.hyper events', () => {
       })
     
       it('push-watch-for-push:' + run.it, async () => {
-        let events = []
+        let events: any[] = []
         await api.subscribe('watch.test', event => events.push(event))
 
         await api.publish(
@@ -224,8 +229,8 @@ describe('55.hyper events', () => {
       })
 
       it('push-watch-for-will', async () => {
-        let defer = []
-        let events = []
+        let defer: any[] = []
+        let events: any[] = []
         await api.subscribe('watch.test', event => events.push(event))
 
         wampGate.handle(ctx, cli, [

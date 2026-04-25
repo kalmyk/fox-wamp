@@ -2,7 +2,7 @@
 // This is a basic router example with prometheus endpoint exposure
 //
 
-const Router = require('../index')
+const { FoxRouter } = require('../index')
 const program = require('commander')
 const PromStats = require('../ext/promstats')
 
@@ -14,7 +14,7 @@ program
 
 console.log('Listening port:', program.port)
 
-let app = new Router()
+let app = new FoxRouter()
 PromStats.traceRouter(app)
 
 app.listenWAMP({ port: program.port })

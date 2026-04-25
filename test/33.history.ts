@@ -1,4 +1,6 @@
-import chai, { expect, assert } from 'chai'
+import * as chai from 'chai';
+const { expect } = chai;
+const assert: Chai.AssertStatic = chai.assert;
 import spies from 'chai-spies'
 import promised from 'chai-as-promised'
 chai.use(spies)
@@ -7,29 +9,31 @@ chai.use(promised)
 import sqlite3 from 'sqlite3'
 import * as sqlite from 'sqlite'
 
-import { BaseRealm }  from '../lib/realm.js'
+import { BaseRealm, BaseEngine }  from '../lib/realm.js'
 import Router         from '../lib/router.js'
 import { DbEngine }   from '../lib/sqlite/dbengine.js'
 import { MemEngine }  from '../lib/mono/memengine.js'
 import { DbFactory } from '../lib/sqlite/dbfactory.js'
 import { keyDate, ProduceId } from '../lib/masterfree/makeid.js'
 import { SqliteKvFabric }    from '../lib/sqlite/sqlitekv.js'
+import { HyperClient } from '../lib/hyper/client.js'
 
-const mkDbEngine = async () => {
-  let db = await sqlite.open({
+const mkDbEngine = async (): Promise<DbEngine> => {
+  let db: sqlite.Database = await sqlite.open({
     filename: ':memory:',
     driver: sqlite3.Database
   })
-  const dbFactory = new DbFactory()
+  const dbFactory: DbFactory = new DbFactory('/tmp/test-fox-wamp.db')
   dbFactory.setMainDb(db)
+  const makeId = new ProduceId(() => keyDate(new Date()))
   return new DbEngine(
-    new ProduceId(() => keyDate(new Date())),
-    new SqliteKvFabric(dbFactory)
+    makeId,
+    new SqliteKvFabric(dbFactory, makeId)
   )
 }
 
 const runs = [
-  {it: 'mem', mkEngine: async () => new MemEngine()},
+  {it: 'mem', mkEngine: async (): Promise<BaseEngine> => new MemEngine()},
   {it: 'db',  mkEngine: mkDbEngine },
 ]
 
@@ -37,15 +41,15 @@ describe('33.history', function () {
   runs.forEach(function (run) {
     describe('event-history:' + run.it, function () {
       let
-        router,
-        realm,
-        api
+        router: Router,
+        realm: BaseRealm,
+        api: HyperClient & { session: () => any }
 
       beforeEach(async () => {
         router = new Router()
         realm = new BaseRealm(router, await run.mkEngine())
         await router.initRealm('testrealm', realm)
-        api = realm.api()
+        api = (realm as any).api()
       })
     
       afterEach(async () => {
@@ -63,8 +67,8 @@ describe('33.history', function () {
           api.publish('test-topic', {event:'history2'}, {acknowledge: true, trace: true}),
           api.publish('test-topic', {event:'history3'}, {acknowledge: true, trace: true}),
         ])
-        let doneEvents
-        const onEvent = event => {
+        let doneEvents: (events: any[]) => void
+        const onEvent = (event: any) => {
           events.push(event)
           if (events.length >= 3) {
             doneEvents(events)

@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import * as chai from 'chai'; const { expect } = chai;
 import { isDataFit } from '../lib/realm.js'
 
 describe('01.isDataFit', function () {

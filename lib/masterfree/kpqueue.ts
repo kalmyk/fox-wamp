@@ -14,8 +14,10 @@ class Deferred {
 export class KPQueue {
   private keyLock: Map<string, any[]> = new Map() // of uri, queue of defer objects
 
-  // private
-  runDefer (strUri: string, defer: Deferred) {
+  get size (): number { return this.keyLock.size }
+  hasKey (key: string): boolean { return this.keyLock.has(key) }
+
+  private runDefer (strUri: string, defer: Deferred) {
     defer.cb().then(
       (res) => { this.deQueue(strUri); defer.resolve(res) },
       (res) => { this.deQueue(strUri); defer.reject(res) }
@@ -24,7 +26,7 @@ export class KPQueue {
 
   // @return promise
   enQueue (strUri: string, cb: () => Promise<any>): Promise<any> {
-    let queue = this.keyLock.get(strUri)
+    let queue: Deferred[] | undefined = this.keyLock.get(strUri)
     if (!queue) {
       queue = []
       this.keyLock.set(strUri, queue)

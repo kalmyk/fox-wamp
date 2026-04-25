@@ -1,4 +1,4 @@
-import chai, { expect } from 'chai'
+import * as chai from 'chai'; const { expect } = chai;
 import spies from 'chai-spies'
 chai.use(spies)
 
@@ -6,25 +6,27 @@ import sqlite3 from 'sqlite3'
 import * as sqlite from 'sqlite'
 
 import Router from '../lib/router.js'
-import { StorageTask } from '../lib/masterfree/storage'
-import { DbFactory } from '../lib/sqlite/dbfactory'
-import { Event } from '../lib/masterfree/hyper.h'
+import { StorageTask } from '../lib/masterfree/storage.js'
+import { DbFactory } from '../lib/sqlite/dbfactory.js'
+import { Event } from '../lib/masterfree/hyper.h.js'
+import { BaseRealm } from '../lib/realm.js'
+import { HyperClient } from '../lib/hyper/client.js'
 
 describe('63.storage', function () {
   let
-    draftStack,
-    extractStack,
-    api,
-    router,
-    sysRealm,
-    storage
+    draftStack: any[],
+    extractStack: any[],
+    api: HyperClient,
+    router: Router,
+    sysRealm: BaseRealm,
+    storage: StorageTask
 
   beforeEach(async () => {
     const db = await sqlite.open({
       filename: ':memory:',
       driver: sqlite3.Database
     })
-    const dbFactory = new DbFactory()
+    const dbFactory = new DbFactory('/tmp/fox-test-dbs/')
     dbFactory.setMainDb(db)
 
     draftStack = []

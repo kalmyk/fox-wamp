@@ -1,0 +1,6 @@
+{
+  "mochaExplorer.nodeArgv": [
+    "--import=tsx"
+  ],
+  "mochaExplorer.files": "test/*.ts"
+}

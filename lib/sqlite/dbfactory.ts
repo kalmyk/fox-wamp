@@ -9,8 +9,8 @@ export class DbFactory {
   private mainDb: sqlite.Database | null = null
   private pathPrefix: string = ''
 
-  constructor (pathPrefix: string | null) {
-    this.pathPrefix = pathPrefix || ''
+  constructor (pathPrefix: string) {
+    this.pathPrefix = pathPrefix
     this.activeDbs = new Map()  // of database file
     this.mainDb = null
   }

@@ -1,28 +1,31 @@
-import chai, { expect, assert } from 'chai'
+import * as chai from 'chai';
+const { expect } = chai;
+const assert: Chai.AssertStatic = chai.assert;
 import spies from 'chai-spies'
 import promised from 'chai-as-promised'
 chai.use(spies)
 chai.use(promised)
+import 'chai-spies'
 
 import { RESULT_OK, RESULT_ACK, RESULT_EMIT, RESULT_ERR, REQUEST_EVENT, REQUEST_TASK } from '../lib/messages.js'
 import { HyperSocketFormatter, HyperApiContext, HyperClient, RemoteHyperClient } from '../lib/hyper/client.js'
 
 describe('10.clent', function () {
   let
-    realmAdapterMock,
-    clientFormater,
-    client,
-    remoteClient,
-    result,
-    ctx
+    realmAdapterMock: any,
+    clientFormater: HyperSocketFormatter,
+    client: HyperClient,
+    remoteClient: RemoteHyperClient,
+    result: any[],
+    ctx: HyperApiContext
 
   beforeEach(() => {
     result = []
     realmAdapterMock = { hyperPkgWrite: chai.spy(
-      (command) => result.push(command)
+      (command: any) => result.push(command)
     )}
     clientFormater = new HyperSocketFormatter(realmAdapterMock)
-    ctx = new HyperApiContext()
+    ctx = new HyperApiContext(undefined, undefined, undefined)
     client = new HyperClient(
       clientFormater,
       ctx
@@ -31,13 +34,13 @@ describe('10.clent', function () {
   })
 
   afterEach(() => {
-    clientFormater = null
-    client = null
+    clientFormater = null as any
+    client = null as any
   })
 
   it('create ECHO command', async () => {
     const responsePromise = client.echo(1234)
-    expect(realmAdapterMock.hyperPkgWrite).called.once()
+    expect(realmAdapterMock.hyperPkgWrite).called.exactly(1)
     expect(result.shift()).to.deep.equal({
       ft: 'ECHO',
       id: 1,
@@ -54,10 +57,10 @@ describe('10.clent', function () {
   })
 
   it('create SUBSCRIBE command', async () => {
-    const onEvent = chai.spy((msg, opt) => result.push([msg, opt]))
+    const onEvent = chai.spy((msg: any, opt: any) => result.push([msg, opt]))
 
     const responsePromise = client.subscribe('function.name', onEvent, {some: 'option'})
-    expect(realmAdapterMock.hyperPkgWrite).called.once()
+    expect(realmAdapterMock.hyperPkgWrite).called.exactly(1)
     expect(result.shift()).to.deep.equal({
       ft: 'TRACE',
       uri: ['function','name'],
@@ -91,7 +94,7 @@ describe('10.clent', function () {
 
   it('create UNSUBSCRIBE command', async () => {
     client.unsubscribe('sub-id')
-    expect(realmAdapterMock.hyperPkgWrite).called.once()
+    expect(realmAdapterMock.hyperPkgWrite).called.exactly(1)
     expect(result.shift()).to.deep.equal({
       ft: 'UNTRACE',
       id: 1,
@@ -105,7 +108,7 @@ describe('10.clent', function () {
       { attr1: 1, attr2: 'value' },
       { some: 'option', acknowledge: true, headers: {h1:'ut1'} }
     )
-    expect(realmAdapterMock.hyperPkgWrite).called.once()
+    expect(realmAdapterMock.hyperPkgWrite).called.exactly(1)
     expect(result.shift()).to.deep.equal({
       ft: 'PUSH',
       uri: ['queue', 'name'],
@@ -131,7 +134,7 @@ describe('10.clent', function () {
       { attr1: 1, attr2: 'value' },
       { some: 'option' }
     )
-    expect(realmAdapterMock.hyperPkgWrite).called.once()
+    expect(realmAdapterMock.hyperPkgWrite).called.exactly(1)
     expect(result.shift()).to.deep.equal({
       ft: 'PUSH',
       uri: ['queue', 'name'],
@@ -147,7 +150,7 @@ describe('10.clent', function () {
 
   it('create-PUSH-no-opt', function () {
     client.publish('function.queue.name', { key: 'val' })
-    expect(realmAdapterMock.hyperPkgWrite).called.once()
+    expect(realmAdapterMock.hyperPkgWrite).called.exactly(1)
     expect(result.shift()).to.deep.equal({
       ft: 'PUSH',
       uri: ['function', 'queue', 'name'],
@@ -160,7 +163,7 @@ describe('10.clent', function () {
   })
 
   it('create REGISTER command', async () => {
-    const onTask = chai.spy((task, opt) => {
+    const onTask = chai.spy((task: any, opt: any) => {
       if (task == 'task-fail-on-error') {
         throw new Error(task)
       }
@@ -169,7 +172,7 @@ describe('10.clent', function () {
     })
 
     const registrationPromise = client.register('function.name', onTask, {some: 'option'})
-    expect(realmAdapterMock.hyperPkgWrite).called.once()
+    expect(realmAdapterMock.hyperPkgWrite).called.exactly(1)
     expect(result.shift()).to.deep.equal({
       ft: 'REG',
       uri: ['function','name'],
@@ -224,7 +227,7 @@ describe('10.clent', function () {
 
   it('create UNREGISTER command', async () => {
     client.unregister('reg-id')
-    expect(realmAdapterMock.hyperPkgWrite).called.once()
+    expect(realmAdapterMock.hyperPkgWrite).called.exactly(1)
     expect(result.shift()).to.deep.equal({
       ft: 'UNREG',
       id: 1,
@@ -233,14 +236,14 @@ describe('10.clent', function () {
   })
 
   it('create CALL done', async () => {
-    const progressInfo = []
-    const progressFunc = chai.spy((attr, opt) => {progressInfo.push([attr, opt])})
+    const progressInfo: any[] = []
+    const progressFunc = chai.spy((attr: any, opt: any) => {progressInfo.push([attr, opt])})
     const responsePromise = client.callrpc(
       'function.name',
       { attr1: 1, attr2: 'value' },
       {some: 'opt', progress: progressFunc}
     )
-    expect(realmAdapterMock.hyperPkgWrite).called.once()
+    expect(realmAdapterMock.hyperPkgWrite).called.exactly(1)
     expect(result.shift()).to.deep.equal({
       ft: 'CALL',
       uri: ['function','name'],
@@ -254,7 +257,7 @@ describe('10.clent', function () {
       data: { kv: 'progress-package' },
       id: 1
     })
-    expect(progressFunc).called.once()
+    expect(progressFunc).called.exactly(1)
     expect(progressInfo.shift()).to.deep.equal([
       'progress-package',
       undefined // TODO: get opt
@@ -274,7 +277,7 @@ describe('10.clent', function () {
       'function.name',
       { attr1: 'value' }
     )
-    expect(realmAdapterMock.hyperPkgWrite).called.once()
+    expect(realmAdapterMock.hyperPkgWrite).called.exactly(1)
     expect(result.shift()).to.deep.equal({
       ft: 'CALL',
       uri: ['function','name'],
@@ -298,8 +301,8 @@ describe('10.clent', function () {
     remoteClient.onopen(cb1)
     remoteClient.onopen(cb2)
     await remoteClient.applyOnOpen()
-    expect(cb1).called.once()
-    expect(cb2).called.once()
+    expect(cb1).called.exactly(1)
+    expect(cb2).called.exactly(1)
   })
 
   // it('should call sendCommand on login', async function () {

@@ -1,4 +1,4 @@
-import chai, { expect } from 'chai'
+import * as chai from 'chai'; const { expect } = chai;
 import spies from 'chai-spies'
 import promised from 'chai-as-promised'
 chai.use(spies)
@@ -6,10 +6,11 @@ chai.use(promised)
 
 import { RESULT_OK, RESULT_ACK, RESULT_ERR } from '../lib/messages.js'
 import { errorCodes } from '../lib/realm_error.js'
-import { FoxGate }    from '../lib/hyper/gate.js'
+import { FoxGate, FoxSocketWriterContext } from '../lib/hyper/gate.js'
 import Router         from '../lib/router.js'
 import { BaseRealm, BaseEngine } from '../lib/realm.js'
 import { MemEngine }  from '../lib/mono/memengine.js'
+import Session from '../lib/session.js'
 
 const runs = [
   {it: 'zero', mkEngine: () => new BaseEngine()},
@@ -20,17 +21,17 @@ describe('21.hyper-broker', () => {
   runs.forEach(function (run) {
     describe('binder:' + run.it, function () {
       let
-        socketHistory,
-        router,
-        gate,
-        socketMock,
-        realm,
-        ctx,
-        session
+        socketHistory: any[],
+        router: Router,
+        gate: FoxGate,
+        socketMock: any,
+        realm: BaseRealm,
+        ctx: FoxSocketWriterContext,
+        session: Session
   
       beforeEach(() => {
         socketHistory = []
-        socketMock = { hyperPkgWrite: chai.spy((msg) => socketHistory.push(msg)) }
+        socketMock = { hyperPkgWrite: chai.spy((msg: any) => socketHistory.push(msg)) }
         router = new Router()
         realm = new BaseRealm(router, run.mkEngine())
         router.initRealm('test-realm', realm)
@@ -42,11 +43,8 @@ describe('21.hyper-broker', () => {
       })
     
       afterEach(() => {
-        if (session) {
-          session.cleanup()
-          session = null
-        }
-        socketHistory = null
+        session.cleanup()
+        socketHistory = []
       })
   
       it('echo should return OK with sent data', () => {
@@ -57,7 +55,7 @@ describe('21.hyper-broker', () => {
           id: id,
           data: { body: 'data package' }
         })
-        expect(socketMock.hyperPkgWrite).to.have.been.called.once()
+        expect(socketMock.hyperPkgWrite).called.exactly(1)
 
         expect(socketHistory.shift()).to.deep.equal({
           rsp: RESULT_OK,
@@ -73,7 +71,7 @@ describe('21.hyper-broker', () => {
           qid: 1234,
           data: { body: 'data package' }
         })
-        expect(socketMock.hyperPkgWrite).to.have.been.called.once()
+        expect(socketMock.hyperPkgWrite).called.exactly(1)
 
         expect(socketHistory.shift()).to.deep.equal({
           rsp: RESULT_ERR,
@@ -93,7 +91,7 @@ describe('21.hyper-broker', () => {
           uri: ['testQ'],
           id: id
         })
-        expect(socketMock.hyperPkgWrite).to.have.been.called.once()
+        expect(socketMock.hyperPkgWrite).called.exactly(1)
 
         expect(socketHistory.shift()).to.deep.equal({
           rsp: RESULT_ERR,
@@ -110,7 +108,7 @@ describe('21.hyper-broker', () => {
         const idUnSub = 12
         let regSub = {}
     
-        socketMock.hyperPkgWrite = chai.spy((msg) => {
+        socketMock.hyperPkgWrite = chai.spy((msg: any) => {
           if (msg.id === idSub) {
             expect(msg.id).to.equal(idSub)
             expect(msg.rsp).to.equal(RESULT_ACK)
@@ -135,7 +133,7 @@ describe('21.hyper-broker', () => {
           id: idUnSub
         })
 
-        expect(socketMock.hyperPkgWrite).to.have.been.called.twice()
+        expect(socketMock.hyperPkgWrite).called.exactly(2)
       })
 
       it('should-unTrace', function () {
@@ -167,7 +165,7 @@ describe('21.hyper-broker', () => {
           rsp: RESULT_OK,
           id: idUnTrace
         })
-        expect(socketMock.hyperPkgWrite).to.have.been.called.exactly(3)
+        expect(socketMock.hyperPkgWrite).called.exactly(3)
       })
 
       it('no-storage-error:' + run.it, async function () {
@@ -178,7 +176,7 @@ describe('21.hyper-broker', () => {
           id: 123
         })
 
-        expect(socketMock.hyperPkgWrite).to.have.been.called.once()
+        expect(socketMock.hyperPkgWrite).called.exactly(1)
 
         expect(socketHistory.shift()).to.deep.equal({
           id: 123,

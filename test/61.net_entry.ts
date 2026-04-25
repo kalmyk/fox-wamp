@@ -1,32 +1,33 @@
-import chai, { expect } from 'chai'
+import * as chai from 'chai'; const { expect } = chai;
 import spies from 'chai-spies'
 chai.use(spies)
 
-import Router from '../lib/router'
-import { NetEngine, NetEngineMill } from '../lib/masterfree/netengine'
-import { BaseRealm } from '../lib/realm'
-import { Config, setConfigInstance } from '../lib/masterfree/config'
-import { Event } from '../lib/masterfree/hyper.h'
+import Router from '../lib/router.js'
+import { NetEngine, NetEngineMill } from '../lib/masterfree/netengine.js'
+import { BaseRealm } from '../lib/realm.js'
+import { Config, setConfigInstance } from '../lib/masterfree/config.js'
+import { Event } from '../lib/masterfree/hyper.h.js'
+import { HyperClient } from '../lib/hyper/client.js'
 
 describe('61.net-entry', function () {
   let
-    nextSysPromise,
-    sysRealm,
-    netRealm,
-    router,
-    netEngineMill,
-    sysApi,
-    sysStack,
-    netApi
+    nextSysPromise: Array<(value: any) => void>,
+    sysRealm: BaseRealm,
+    netRealm: BaseRealm,
+    router: Router,
+    netEngineMill: NetEngineMill,
+    sysApi: HyperClient,
+    sysStack: any[],
+    netApi: HyperClient
 
-  function getSysPackage() {
-    return new Promise((resolve, reject) => {
+  function getSysPackage(): Promise<any> {
+    return new Promise((resolve) => {
       nextSysPromise.push(resolve)
     })
   }
 
   beforeEach(async () => {
-    setConfigInstance(new Config({}))
+    setConfigInstance(new Config())
 
     nextSysPromise = []
     router = new Router()
@@ -42,7 +43,7 @@ describe('61.net-entry', function () {
     sysApi = sysRealm.api()
     sysApi.subscribe('*', (event, opt) => {
       if (nextSysPromise.length > 0) {
-        const promiseResolve = nextSysPromise.shift()
+        const promiseResolve = nextSysPromise.shift() as (value: any) => void
         promiseResolve([opt.topic, event])
       } else {
         sysStack.push([opt.topic, event])

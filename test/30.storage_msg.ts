@@ -1,4 +1,6 @@
-import chai, { expect, assert } from 'chai'
+import * as chai from 'chai';
+const { expect } = chai;
+const assert: Chai.AssertStatic = chai.assert;
 import spies from 'chai-spies'
 import promised from 'chai-as-promised'
 chai.use(spies)
@@ -6,10 +8,10 @@ chai.use(promised)
 
 import sqlite3 from 'sqlite3'
 import * as sqlite from 'sqlite'
-import History from '../lib/sqlite/history.js'
+import * as History from '../lib/sqlite/history.js'
 
 describe('30.message-storage', async () => {
-  let db
+  let db: sqlite.Database
 
   before(async () => {
     db = await sqlite.open({
@@ -52,13 +54,13 @@ describe('30.message-storage', async () => {
   })
 
   it('should get message from db', async () => {
-    let result = []
+    let result: any[] = []
     await assert.becomes(
       History.getEventHistory(
         db,
         'testrealm',
         {uri:['msg', 'test', 'com'],fromId:'12345678b10'},
-        (row) => {result.push(row)}
+        (row: any) => {result.push(row)}
       ),
       1
     )

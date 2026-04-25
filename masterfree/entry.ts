@@ -20,11 +20,11 @@ import listenMqttServer from '../lib/mqtt/transport'
 import { NetEngine, NetEngineMill } from '../lib/masterfree/netengine'
 import { MqttGate } from '../lib/mqtt/gate'
 
-const router = new Router()
-const netEngineMill = new NetEngineMill(router)
+const router: Router = new Router()
+const netEngineMill: NetEngineMill = new NetEngineMill(router)
 
 router.setId(conf_node_id)
-router.createRealm = () => new BaseRealm(router, new NetEngine(netEngineMill))
+router.createRealm = (): BaseRealm => new BaseRealm(router, new NetEngine(netEngineMill))
 router.setLogTrace(true)
 
 new WampServer(new WampGate(router), { port: conf_wamp_port })

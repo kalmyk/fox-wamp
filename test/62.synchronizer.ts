@@ -1,21 +1,23 @@
-import chai, { expect } from 'chai'
+import * as chai from 'chai'; const { expect } = chai;
 import spies from 'chai-spies'
 chai.use(spies)
 
-import Router       from '../lib/router'
-import { StageOneTask, StageTwoTask } from '../lib/masterfree/synchronizer'
-import { Event } from '../lib/masterfree/hyper.h'
+import Router       from '../lib/router.js'
+import { StageOneTask, StageTwoTask } from '../lib/masterfree/synchronizer.js'
+import { Event } from '../lib/masterfree/hyper.h.js'
+import { BaseRealm } from '../lib/realm.js'
+import { HyperClient } from '../lib/hyper/client.js'
 
 describe('62.synchronizer', function () {
   let
-    draftStack,
-    extractStack,
-    resolvedStack,
-    api,
-    router,
-    sysRealm,
-    stageOne,
-    stageTwo
+    draftStack: any[],
+    extractStack: any[],
+    resolvedStack: any[],
+    api: HyperClient,
+    router: Router,
+    sysRealm: BaseRealm,
+    stageOne: StageOneTask,
+    stageTwo: StageTwoTask
 
   beforeEach(async () => {
     draftStack = []
@@ -28,7 +30,7 @@ describe('62.synchronizer', function () {
 
     const MAJOR_LIMIT = 2
     stageOne = new StageOneTask(sysRealm, 'SYNC1', MAJOR_LIMIT, ['SYNC2', 'SYNC3'])
-    stageOne.reconcilePos('PREFIX1:')
+    stageOne.reconcilePos('PREFIX1:', 0)
 
     stageTwo = new StageTwoTask(sysRealm, MAJOR_LIMIT)
 

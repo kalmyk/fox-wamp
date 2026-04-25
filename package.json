@@ -35,7 +35,10 @@
   },
   "devDependencies": {
     "@types/chai": "^5.2.2",
+    "@types/chai-as-promised": "^8.0.2",
     "@types/chai-spies": "^1.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^22.7.5",
     "autobahn": "^22.11.1",
     "chai": "^4.5.0",
@@ -54,7 +57,7 @@
   "scripts": {
     "mocha-node-test": "mocha",
     "lint": "eslint --ignore-path .gitignore .",
-    "test": "npm run-script lint && npm run-script mocha-node-test",
-    "compile": "tsc"
+    "test": "npm run-script lint && npm run-script build && npm run-script mocha-node-test",
+    "build": "rm -rf ./out && tsc -p ./tsconfig.json"
   }
 }
