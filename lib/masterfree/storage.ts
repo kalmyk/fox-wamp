@@ -6,6 +6,9 @@ import { HyperClient } from '../hyper/client'
 import * as History from '../sqlite/history'
 import { DbFactory } from '../sqlite/dbfactory'
 import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER, BODY_GENERATE_DRAFT } from './hyper.h'
+import { EventEmitter } from 'stream'
+
+export const COMMIT_COMPLETED = 'commit-completed'  // emit BODY_ADVANCE_SEGMENT_RESOLVED
 
 export class HistoryBuffer {
   private content: Array<BODY_KEEP_ADVANCE_HISTORY> = []
@@ -32,7 +35,7 @@ export class HistoryBuffer {
   }
 }
 
-export class StorageTask {
+export class StorageTask extends EventEmitter {
   private sysRealm: BaseRealm
   private dbFactory: DbFactory
   private maxId: ComplexId
@@ -41,6 +44,7 @@ export class StorageTask {
   private realms: Map<string, string> = new Map()
 
   constructor (sysRealm: BaseRealm, dbFactory: DbFactory) {
+    super()
     this.sysRealm = sysRealm
     this.dbFactory = dbFactory
     this.maxId = makeEmpty(new Date())
@@ -68,8 +72,11 @@ export class StorageTask {
     })
 
     this.api.subscribe(Event.ADVANCE_SEGMENT_RESOLVED, (body: BODY_ADVANCE_SEGMENT_RESOLVED) => {
-      console.log("Event.ADVANCE_SEGMENT_RESOLVED", body)
-      this.commit_segment(body.advanceSegment, body.segment)
+      this.commit_segment(body.advanceSegment, body.segment).then((result) => {
+        this.emit(COMMIT_COMPLETED, body)
+      }).catch((err) => {
+        console.error("Error in commit_segment:", err)
+      })
     })
 
     // this.api.subscribe(
@@ -131,16 +138,20 @@ export class StorageTask {
     if (buffer.count() !== event.advanceId.offset) {
       console.error('serment position is not equal', buffer.count(), event.advanceId.offset)
     }
-    if (this.realms.get(event.realm) === undefined) {
-      this.realms.set(event.realm, event.realm)
-      await History.createHistoryTables(this.dbFactory.getMainDb(), event.realm)
+    await this.ensureRealm(event.realm)
+  }
+
+  async ensureRealm (realm: string) {
+    if (!this.realms.has(realm)) {
+      await History.createHistoryTables(this.dbFactory.getMainDb(), realm)
+      this.realms.set(realm, "ok")
     }
   }
 
-  commit_segment (advanceSegment: string, segment: string) {
+  async commit_segment (advanceSegment: string, segment: string) {
     let buffer = this.bufferToWrite.get(advanceSegment)
     if (buffer) {
-      let effectId = this.dbSaveSegment(buffer, segment)
+      let effectId = await this.dbSaveSegment(buffer, segment)
       this.bufferToWrite.delete(advanceSegment)
       //      this.pubResult(advanceSegment, buffer, effectId)
     } else {
@@ -170,15 +181,15 @@ export class StorageTask {
   //       })
   // }
 
-  // todo: wait for promise in saveEventHistory
-  dbSaveSegment (historyBuffer: HistoryBuffer, segment: string): string[] {
+  async dbSaveSegment (historyBuffer: HistoryBuffer, segment: string): Promise<string[]> {
     const db: sqlite.Database = this.dbFactory.getMainDb()
-    let result = []
+    let result: string[] = []
     let offset: number = 0
 
     for (let row of historyBuffer.getContent()) {
+      await this.ensureRealm(row.realm)
       let eventId: string = segment + keyId(++offset)
-      History.saveEventHistory(db, row.realm, eventId, historyBuffer.getShard(), row.uri, row.data, row.opt)
+      await History.saveEventHistory(db, row.realm, eventId, historyBuffer.getShard(), row.uri, row.data, row.opt)
       result.push(eventId) // keep event position in result array
     }
     return result
