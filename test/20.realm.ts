@@ -12,7 +12,7 @@ import { WampGate, WampSocketWriterContext } from '../lib/wamp/gate.js'
 import FoxRouter from '../lib/fox_router.js'
 import { MemKeyValueStorage } from '../lib/mono/memkv.js'
 import { Session } from '../lib/session.js'
-import WampApi from '../lib/wamp/api.js'
+import { WampApi } from '../lib/wamp/api.js'
 
 describe('20.wamp-realm', async () => {
   let

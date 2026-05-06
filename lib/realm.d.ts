@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
-import Context from './context';
+import { Context } from './context';
 import Router from './router';
 import { Session } from './session';
-import WampApi from './wamp/api';
+import { WampApi } from './wamp/api';
 import HyperApi from './hyper/api';
 
 export declare class Actor {

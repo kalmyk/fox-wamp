@@ -1,5 +1,5 @@
 import { BaseRealm, BaseEngine } from './realm';
-import Context from './context';
+import { Context } from './context';
 
 export class Session {
   public realmName?: string = undefined;

@@ -1,5 +1,5 @@
 import { BaseGate } from '../base_gate';
-import Context from '../context';
+import { Context } from '../context';
 import Router from '../router';
 import { Session } from '../session';
 
