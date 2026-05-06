@@ -1,7 +1,7 @@
 import { BaseGate } from '../base_gate';
 import Context from '../context';
 import Router from '../router';
-import Session from '../session';
+import { Session } from '../session';
 
 export declare class FoxSocketWriterContext extends Context {
   socketWriter: any;

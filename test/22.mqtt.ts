@@ -6,7 +6,7 @@ import { MqttGate, MqttSocketWriterContext } from '../lib/mqtt/gate.js'
 import FoxRouter    from '../lib/fox_router.js'
 import { BaseRealm } from '../lib/realm.js'
 import { MemEngine } from '../lib/mono/memengine.js'
-import Session      from '../lib/session.js'
+import { Session }      from '../lib/session.js'
 import { HyperClient } from '../lib/hyper/client.js'
 
 describe('22.mqtt-realm', () => {

@@ -8,7 +8,7 @@ import { MqttGate, MqttSocketWriterContext } from '../lib/mqtt/gate.js'
 import Router        from '../lib/router.js'
 import FoxRouter     from '../lib/fox_router.js'
 import { BaseRealm } from '../lib/realm.js'
-import Session       from '../lib/session.js'
+import { Session }   from '../lib/session.js'
 
 class TestAuth {
   authorize (session: Session, funcClass: string, uniUri: string[]) {

@@ -1,5 +1,5 @@
 import Router from './router';
-import Session from './session';
+import { Session } from './session';
 
 declare class Context {
   router: Router;

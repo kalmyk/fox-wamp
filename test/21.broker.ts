@@ -10,7 +10,7 @@ import { FoxGate, FoxSocketWriterContext } from '../lib/hyper/gate.js'
 import Router         from '../lib/router.js'
 import { BaseRealm, BaseEngine } from '../lib/realm.js'
 import { MemEngine }  from '../lib/mono/memengine.js'
-import Session from '../lib/session.js'
+import { Session } from '../lib/session.js'
 
 const runs = [
   {it: 'zero', mkEngine: () => new BaseEngine()},

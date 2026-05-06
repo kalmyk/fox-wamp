@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import Session from './session';
+import { Session } from './session';
 import { BaseRealm } from './realm';
 
 declare class Router extends EventEmitter {

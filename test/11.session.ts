@@ -5,7 +5,7 @@ chai.use(spies)
 import WAMP         from '../lib/wamp/protocol.js'
 import { WampGate, WampSocketWriterContext } from '../lib/wamp/gate.js'
 import FoxRouter    from '../lib/fox_router.js'
-import Session      from '../lib/session.js'
+import { Session }      from '../lib/session.js'
 
 class Auth {
   testonly_auth (realmName: string, secureDetails: any, secret: string, extra: any, callback: any) {

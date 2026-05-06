@@ -22,7 +22,7 @@ import WampApi         from '../lib/wamp/api.js'
 import { getBodyValue } from '../lib/base_gate.js'
 import { DbFactory } from '../lib/sqlite/dbfactory.js'
 import { keyDate, ProduceId } from '../lib/masterfree/makeid.js'
-import Session from '../lib/session.js'
+import { Session } from '../lib/session.js'
 import { HyperClient } from '../lib/hyper/client.js'
 import { WampSocketWriterContext } from '../lib/wamp/gate.js'
 
