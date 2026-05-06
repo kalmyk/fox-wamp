@@ -1,11 +1,11 @@
-import { RESULT_EMIT } from '../messages';
-import { wampErrorCode } from './msg';
-import { errorCodes } from '../realm_error';
-import { wampUriParse, restoreUri } from '../topic_pattern';
-import { Session } from '../session';
-import { Context } from '../context';
-import { parseWampArgs, toWampArgs, buildInvokeOpt, buildEventOpt } from './gate';
-import { BaseRealm } from '../realm';
+import { wampErrorCode } from './msg'
+import { errorCodes } from '../realm_error'
+import { RESULT_EMIT } from '../messages'
+import { wampUriParse, restoreUri } from '../topic_pattern'
+import { Session } from '../session'
+import { Context } from '../context'
+import { parseWampArgs, toWampArgs, buildInvokeOpt, buildEventOpt } from './gate'
+import { BaseRealm } from '../realm'
 
 export class WampApiContext extends Context {
   public sendInvoke(cmd: any): void {

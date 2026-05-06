@@ -1,9 +1,9 @@
-import MSG from '../messages'
 import { BaseRealm } from '../realm'
 import { HyperClient } from '../hyper/client'
 import { keyDate, ProduceId, keyComplexId } from './makeid'
 import { ComplexId } from './makeid'
 import { Event, BODY_PICK_CHALLENGER, BODY_GENERATE_DRAFT, BODY_ELECT_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED } from './hyper.h'
+import { SESSION_JOIN, SESSION_LEAVE } from '../messages'
 
 type OwnerStateNode = {
   recentDraftSegment: string
@@ -34,8 +34,8 @@ export class StageOneTask {
     // build api before new session handler to not to be caught
     this.api = sysRealm.buildApi()
 
-    sysRealm.on(MSG.SESSION_JOIN, (session: any) => {})
-    sysRealm.on(MSG.SESSION_LEAVE, (session: any) => {})
+    sysRealm.on(SESSION_JOIN, (session: any) => {})
+    sysRealm.on(SESSION_LEAVE, (session: any) => {})
 
     this.api.subscribe(Event.GENERATE_DRAFT, this.event_generate_draft.bind(this))
     this.api.subscribe(Event.PICK_CHALLENGER + '.' + myId, this.event_pick_challenger.bind(this))

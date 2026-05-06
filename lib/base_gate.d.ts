@@ -10,4 +10,8 @@ export declare class BaseGate {
   constructor(router: Router);
   setAuthHandler(authHandler: any): void;
   getAcceptedAuthMethod(methods: string[]): string | undefined;
+  isAuthRequired(session: any): boolean;
+  isAuthorizeRequired(): boolean;
+  checkAuthorize(ctx: any, cmd: any, funcClass: string): boolean;
+  getRouter(): Router;
 }

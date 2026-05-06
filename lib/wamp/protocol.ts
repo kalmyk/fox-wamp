@@ -1,4 +1,4 @@
-module.exports = {
+const WAMP = {
   HELLO: 1,
   WELCOME: 2,
   ABORT: 3,
@@ -25,3 +25,5 @@ module.exports = {
   INTERRUPT: 69,
   YIELD: 70
 }
+
+export default WAMP
