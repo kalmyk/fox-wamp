@@ -1,13 +1,13 @@
 import { SESSION_TX, SESSION_RX, RESULT_OK, RESULT_ACK, RESULT_ERR,
-  REQUEST_EVENT, REQUEST_TASK } from '../messages';
-import { BaseGate } from '../base_gate';
-import { errorCodes, RealmError } from '../realm_error';
-import { Context } from '../context';
-import Router from '../router';
-import { Session } from '../session';
+  REQUEST_EVENT, REQUEST_TASK } from '../messages'
+import { BaseGate } from '../base_gate'
+import { errorCodes, RealmError } from '../realm_error'
+import { Context } from '../context'
+import { Router } from '../router'
+import { Session } from '../session'
 
 export function parseHyperBody(kv: any): any {
-  return kv === null ? null : { kv: kv };
+  return kv === null ? null : { kv: kv }
 }
 
 type Handler = (this: FoxGate, ctx: FoxSocketWriterContext, session: Session, message: any) => void;

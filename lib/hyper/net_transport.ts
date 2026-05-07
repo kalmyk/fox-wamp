@@ -4,7 +4,7 @@ import * as msgpack from 'msgpack-lite';
 import { SESSION_DEBUG } from '../messages';
 import { HyperSocketFormatter, RemoteHyperClient } from './client';
 import { FoxGate } from './gate';
-import Router from '../router';
+import { Router } from '../router';
 import { Session } from '../session';
 
 export class HyperNetWriter {

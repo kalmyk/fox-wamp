@@ -3,7 +3,7 @@ import * as net from 'net';
 import { generate, parser as ParserBuild } from 'mqtt-packet';
 import { SESSION_TX } from '../messages';
 import { MqttGate, MqttSocketWriterContext } from './gate';
-import Router from '../router';
+import { Router } from '../router';
 import { Session } from '../session';
 
 export class MqttWebSocketWriter {

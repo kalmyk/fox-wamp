@@ -4,7 +4,7 @@ const conf_config_file = process.env.CONFIG
 const conf_node_id = process.env.NODE_ID
   || console.log('NODE_ID must be defined') || process.exit(1)
 
-import Router from '../lib/router'
+import { Router } from '../lib/router'
 import {BaseRealm, BaseEngine} from '../lib/realm'
 import { StageOneTask } from '../lib/masterfree/synchronizer'
 import { getConfigInstance } from '../lib/masterfree/config'

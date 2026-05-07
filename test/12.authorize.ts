@@ -2,13 +2,13 @@ import * as chai from 'chai'; const { expect } = chai;
 import spies from 'chai-spies'
 chai.use(spies)
 
-import WAMP          from '../lib/wamp/protocol.js'
-import { WampGate, WampSocketWriterContext } from '../lib/wamp/gate.js'
-import { MqttGate, MqttSocketWriterContext } from '../lib/mqtt/gate.js'
-import Router        from '../lib/router.js'
-import FoxRouter     from '../lib/fox_router.js'
-import { BaseRealm } from '../lib/realm.js'
-import { Session }   from '../lib/session.js'
+import WAMP              from '../lib/wamp/protocol'
+import { WampGate, WampSocketWriterContext } from '../lib/wamp/gate'
+import { MqttGate, MqttSocketWriterContext } from '../lib/mqtt/gate'
+import { Router }        from '../lib/router'
+import FoxRouter         from '../lib/fox_router'
+import { BaseRealm }     from '../lib/realm'
+import { Session }       from '../lib/session'
 
 class TestAuth {
   authorize (session: Session, funcClass: string, uniUri: string[]) {

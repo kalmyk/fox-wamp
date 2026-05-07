@@ -6,11 +6,11 @@ import promised from 'chai-as-promised'
 chai.use(spies)
 chai.use(promised)
 
-import { MemServer } from '../lib/hyper/mem_transport.js'
-import { FoxGate }   from '../lib/hyper/gate.js'
-import Router        from '../lib/router.js'
-import { BaseRealm } from '../lib/realm.js'
-import { HyperClient } from '../lib/hyper/client.js'
+import { MemServer }   from '../lib/hyper/mem_transport'
+import { FoxGate }     from '../lib/hyper/gate'
+import { Router }      from '../lib/router'
+import { BaseRealm }   from '../lib/realm'
+import { HyperClient } from '../lib/hyper/client'
 
 describe('25.realm_pipe', async () => {
   let
@@ -58,9 +58,9 @@ describe('25.realm_pipe', async () => {
   it('pipe-publist', async () => {
     const realm2Event = getNextPackage()
 
-    await api1.publish('pubtest', {info:'pkg'}, { headers: { test: 'value' } })
-   
-    assert.deepEqual(await realm2Event, ['pubtest', {info:'pkg'}, { test: 'value' }])
+    await api1.publish('pubtest', { info: 'pkg' }, { headers: { test: 'value' } })
+
+    assert.deepEqual(await realm2Event, ['pubtest', { info: 'pkg' }, { test: 'value' }])
   })
 
 })

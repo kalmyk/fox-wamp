@@ -6,7 +6,7 @@ const conf_config_file = process.env.CONFIG
 
 import { keyDate, ProduceId } from '../lib/masterfree/makeid'
 import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
-import Router from '../lib/router'
+import { Router } from '../lib/router'
 import { getConfigInstance } from '../lib/masterfree/config'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { StorageTask } from '../lib/masterfree/storage'

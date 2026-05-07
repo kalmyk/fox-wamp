@@ -1,40 +1,30 @@
-'use strict'
+// @ts-ignore
+import { Qlobber } from 'qlobber'
+import { EventEmitter } from 'events'
 
-const { Qlobber } = require('qlobber')
-const { EventEmitter } = require('events')
+import { SESSION_JOIN, SESSION_LEAVE, RESULT_EMIT, ON_SUBSCRIBED, ON_UNSUBSCRIBED,
+  ON_REGISTERED, ON_UNREGISTERED } from './messages'
 
-const { SESSION_JOIN, SESSION_LEAVE, RESULT_EMIT, ON_SUBSCRIBED, ON_UNSUBSCRIBED,
-  ON_REGISTERED, ON_UNREGISTERED } = require('./messages')
+import { match, intersect, merge, extract, restoreUri } from './topic_pattern'
+import { getBodyValue } from './base_gate'
+import { errorCodes, RealmError } from './realm_error'
+import { HyperApiContext, HyperClient } from './hyper/client'
+import { WampApi } from './wamp/api'
+import * as tools from './tools'
+import { Context } from './context'
+import { Router } from './router'
+import { Session } from './session'
 
-const { match, intersect, merge, extract, restoreUri } = require('./topic_pattern')
-const { getBodyValue } = require('./base_gate')
-const { errorCodes, RealmError } = require('./realm_error')
-const { HyperApiContext, HyperClient } = require('./hyper/client')
-const { WampApi } = require('./wamp/api')
-const tools = require('./tools')
+export class Actor {
+  ctx: Context
+  msg: any
 
-/*
-  message fields description
-
-  id     user defined ID
-  uri
-  qid    server generated id for PUSH/CALL/REG/TRACE
-  ack    return acknowledge message for PUSH
-  rsp    task response to client (OK, ERR, ACK, EMIT)
-  rqt    request to broker
-  unr    unregister ID, used in UNREG + UNTRACE
-  data
-  hdr    headers
-  opt    options
-*/
-
-class Actor {
-  constructor (ctx, msg) {
+  constructor(ctx: Context, msg: any) {
     this.ctx = ctx
     this.msg = msg
   }
 
-  getOpt () {
+  getOpt(): any {
     if (this.msg.opt !== undefined) {
       return Object.assign({}, this.msg.opt)
     } else {
@@ -42,94 +32,100 @@ class Actor {
     }
   }
 
-  rejectCmd (errorCode, text) {
+  rejectCmd(errorCode: string, text?: string): void {
     try {
-      this.ctx.sendError(this.msg, errorCode, text)
+      this.ctx.sendError!(this.msg, errorCode, text)
     } catch (e) {
-      this.ctx.setSendFailed(e)
+      this.ctx.setSendFailed(e as Error)
       throw e
     }
   }
 
-  getSid () {
+  getSid(): string {
     return this.ctx.session.sessionId
   }
 
-  getCustomId () {
+  getCustomId(): any {
     return this.msg.id
   }
 
-  getSessionRealm () {
-    // realm is not available when client already disconnected
-    return this.ctx.session.realm
+  getSessionRealm(): BaseRealm | null {
+    return this.ctx.session.realm || null;
   }
 
-  getEngine () {
-    let realm = this.ctx.session.realm
+  getEngine(): BaseEngine {
+    let realm = this.ctx.session.realm;
     if (!realm) {
       throw new RealmError(this.msg.id,
         'no_realm_found',
         'no_realm_found'
-      )
+      );
     }
-    return realm.engine
+    return realm.engine;
   }
 
-  isActive () {
-    return this.ctx.isActive()
+  isActive(): boolean {
+    return this.ctx.isActive();
   }
 }
 
-class ActorEcho extends Actor {
-  okey () {
+export class ActorEcho extends Actor {
+  okey(): void {
     try {
-      this.ctx.sendOkey(this.msg)
+      this.ctx.sendOkey!(this.msg)
     } catch (e) {
-      this.ctx.setSendFailed(e)
+      this.ctx.setSendFailed(e as Error)
       throw e
     }
   }
 }
 
-class ActorCall extends Actor {
-  constructor (ctx, msg) {
+export class ActorCall extends Actor {
+  engine: BaseEngine
+  destSID: Record<string, boolean>
+  registration!: ActorReg
+  taskId: string | number
+
+  constructor(ctx: Context, msg: any) {
     super(ctx, msg)
-    this.engine = ctx.session.realm.engine
+    this.engine = ctx.session.realm!.engine
+    this.destSID = {}
+    this.taskId = ''
   }
 
-  getHeaders () {
+  getHeaders(): any {
     return this.msg.hdr
   }
 
-  getData () {
+  getData(): any {
     return this.msg.data
   }
 
-  getUri () {
+  getUri(): string {
     return this.msg.uri
   }
 
-  isActual () {
+  isActual(): boolean {
     return Boolean(this.ctx.session.realm)
   }
 
-  setRegistration (registration) {
+  setRegistration(registration: ActorReg): void {
     this.destSID = {}
     this.destSID[registration.getSid()] = true
     this.registration = registration
   }
 
-  getRegistration () {
+  getRegistration(): ActorReg {
     return this.registration
   }
 
-  responseArrived (actor) {
+  responseArrived(actor: ActorYield): void {
     if (actor.msg.rqt !== RESULT_EMIT) {
       this.engine.qYield.doneDefer(actor.getSid(), this.taskId)
     }
 
     try {
-      this.ctx.sendResult({
+      this.ctx.sendResult!({
         id: this.msg.id,
         err: actor.msg.err,
         hdr: actor.getHeaders(),
@@ -137,7 +133,7 @@ class ActorCall extends Actor {
         rsp: actor.msg.rqt
       })
     } catch (e) {
-      this.ctx.setSendFailed(e)
+      this.ctx.setSendFailed(e as Error)
       throw e
     }
 
@@ -149,18 +145,23 @@ class ActorCall extends Actor {
   }
 }
 
-class ActorYield extends Actor {
-  getHeaders () {
+export class ActorYield extends Actor {
+  getHeaders(): any {
     return this.msg.hdr
   }
 
-  getData () {
+  getData(): any {
     return this.msg.data
   }
 }
 
-class ActorTrace extends Actor {
-  constructor (ctx, msg) {
+export class ActorTrace extends Actor {
+  traceStarted: boolean
+  delayStack: any[]
+  retained: boolean
+  retainedState: boolean
+
+  constructor(ctx: Context, msg: any) {
     super(ctx, msg)
     this.traceStarted = false
     this.delayStack = []
@@ -168,7 +169,7 @@ class ActorTrace extends Actor {
     this.retainedState = !!msg.opt.retainedState || this.retained
   }
 
-  filter (event) {
+  filter(event: any): boolean {
     if (this.retained && !event.opt.retained && !event.opt.delta) {
       return false
     }
@@ -181,75 +182,79 @@ class ActorTrace extends Actor {
     return true
   }
 
-  sendEvent (cmd) {
+  sendEvent(cmd: any): void {
     cmd.id = this.msg.id
     cmd.traceId = this.msg.qid
     if (!this.msg.opt.keepTraceFlag) {
       delete cmd.opt.trace
     }
     try {
-      this.ctx.sendEvent(cmd)
+      this.ctx.sendEvent!(cmd)
     } catch (e) {
-      this.ctx.setSendFailed(e)
+      this.ctx.setSendFailed(e as Error)
       throw e
     }
   }
 
-  filterSendEvent (event) {
+  filterSendEvent(event: any): void {
     if (this.filter(event)) {
       this.sendEvent(event)
     }
   }
 
-  delayEvent (cmd) {
+  delayEvent(cmd: any): void {
     this.delayStack.push(cmd)
   }
 
-  flushDelayStack () {
+  flushDelayStack(): void {
     for (let i = 0; i < this.delayStack.length; i++) {
       this.sendEvent(this.delayStack[i])
     }
     this.delayStack = []
   }
 
-  getUri () {
+  getUri(): string {
     return this.msg.uri
   }
 
-  atSubscribe () {
+  atSubscribe(): void {
     try {
-      this.ctx.sendSubscribed(this.msg)
+      this.ctx.sendSubscribed!(this.msg)
     } catch (e) {
-      this.ctx.setSendFailed(e)
+      this.ctx.setSendFailed(e as Error)
       throw e
     }
   }
 
-  atEndSubscribe () {
+  atEndSubscribe(): void {
     try {
-      this.ctx.sendEndSubscribe(this.msg)
+      this.ctx.sendEndSubscribe!(this.msg)
     } catch (e) {
-      this.ctx.setSendFailed(e)
+      this.ctx.setSendFailed(e as Error)
       throw e
     }
   }
 }
 
-class ActorReg extends ActorTrace {
-  constructor (ctx, msg) {
+export class ActorReg extends ActorTrace {
+  simultaneousTaskLimit: number
+  tasksRequested: number
+  subId: string | number
+
+  constructor(ctx: Context, msg: any) {
     super(ctx, msg)
-    // tasks per worker unlimited if the value below zero
     this.simultaneousTaskLimit = 1
     this.tasksRequested = 0
+    this.subId = ''
   }
 
-  callWorker (taskD) {
-    this.taskRequested() // mark worker busy
+  callWorker(taskD: ActorCall): void {
+    this.taskRequested()
     taskD.setRegistration(this)
-    this.getSessionRealm().engine.qYield.addDefer(taskD, taskD.taskId)
+    this.getSessionRealm()!.engine.qYield.addDefer(taskD, taskD.taskId)
 
     try {
-      this.ctx.sendInvoke({
+      (this.ctx as any).sendInvoke({
         id: this.msg.id,
         qid: taskD.taskId,
         uri: taskD.getUri(),
@@ -259,91 +264,93 @@ class ActorReg extends ActorTrace {
         opt: taskD.getOpt()
       })
     } catch (e) {
-      this.ctx.setSendFailed(e)
+      this.ctx.setSendFailed(e as Error)
       throw e
     }
   }
 
-  isAble () {
+  isAble(): boolean {
     return (this.simultaneousTaskLimit < 0) || (this.simultaneousTaskLimit - this.tasksRequested) > 0
   }
 
-  setSimultaneousTaskLimit (aLimit) {
+  setSimultaneousTaskLimit(aLimit: number): void {
     this.simultaneousTaskLimit = aLimit
   }
 
-  taskResolved () {
+  taskResolved(): void {
     this.tasksRequested--
   }
 
-  taskRequested () {
+  taskRequested(): void {
     this.tasksRequested++
   }
 
-  getTasksRequestedCount () {
+  getTasksRequestedCount(): number {
     return this.tasksRequested
   }
 
-  atRegister () {
+  atRegister(): void {
     try {
-      this.ctx.sendRegistered(this.msg)
+      this.ctx.sendRegistered!(this.msg)
     } catch (e) {
-      this.ctx.setSendFailed(e)
+      this.ctx.setSendFailed(e as Error)
       throw e
     }
   }
 
-  atUnregister () {
-
+  atUnregister(): void {
   }
 }
 
-class ActorPush extends Actor {
-  constructor (ctx, msg) {
+export class ActorPush extends Actor {
+  clientNotified: boolean
+  eventId: string | null
+
+  constructor(ctx: Context, msg: any) {
     super(ctx, msg)
     this.clientNotified = false
     this.eventId = null
   }
 
-  setEventId (eventId) {
+  setEventId(eventId: string | null): void {
     this.eventId = eventId
   }
 
-  getEventId () {
+  getEventId(): string | null {
     return this.eventId
   }
 
-  confirm (cmd) {
+  confirm(cmd: any): void {
     if (!this.clientNotified) {
       this.clientNotified = true
       if (this.needAck()) {
         try {
-          this.ctx.sendPublished({id: this.msg.id, qid: this.eventId})
+          this.ctx.sendPublished!({id: this.msg.id, qid: this.eventId})
         } catch (e) {
-          this.ctx.setSendFailed(e)
+          this.ctx.setSendFailed(e as Error)
           throw e
         }
       }
     }
   }
 
-  getHeaders () {
+  getHeaders(): any {
     return this.msg.hdr
   }
 
-  getData () {
+  getData(): any {
     return this.msg.data
   }
 
-  getUri () {
+  getUri(): string[] {
     return this.msg.uri
   }
 
-  needAck () {
+  needAck(): boolean {
     return this.msg.ack
   }
 
-  getEvent () {
+  getEvent(): any {
     return {
       qid: this.eventId,
       uri: this.getUri(),
@@ -355,7 +362,7 @@ class ActorPush extends Actor {
   }
 }
 
-function compareData (when, value) {
+function compareData(when: any, value: any): boolean {
   if (when === null && value === null) {
     return true
   }
@@ -374,38 +381,38 @@ function compareData (when, value) {
   return false
 }
 
-function isBodyValueEmpty (bodyValue) {
+export function isBodyValueEmpty(bodyValue: any): boolean {
   return !bodyValue
 }
 
-function isDataEmpty (data) {
+export function isDataEmpty(data: any): boolean {
   return isBodyValueEmpty(getBodyValue(data))
 }
 
-function isDataFit (when, data) {
+export function isDataFit(when: any, data: any): boolean {
   return compareData(when, getBodyValue(data))
 }
 
-function deepMerge (to, from) {
+export function deepMerge(to: any, from: any): any {
   const result = Object.assign({}, to)
   for (let n in from) {
-    if (typeof result[n] != 'object') {
+    if (typeof result[n] !== 'object') {
       result[n] = from[n]
-    } else if (typeof from[n] == 'object') {
+    } else if (typeof from[n] === 'object') {
       result[n] = deepMerge(result[n], from[n])
     }
   }
   return result
 }
 
-function deepDataMerge (oldData, newData) {
-  let ov
+export function deepDataMerge(oldData: any, newData: any): any {
+  let ov: any;
   try {
     ov = getBodyValue(oldData)
   } catch (e) {
     return newData
   }
-  let nv
+  let nv: any;
   try {
     nv = getBodyValue(newData)
   } catch (e) {
@@ -414,33 +421,30 @@ function deepDataMerge (oldData, newData) {
   if (isBodyValueEmpty(ov) || isBodyValueEmpty(nv)) {
     return newData
   }
-  return { kv: deepMerge(ov,nv)}
+  return { kv: deepMerge(ov, nv) }
 }
 
-function makeDataSerializable (body) {
+export function makeDataSerializable(body: any): any {
   return (body && ('payload' in body) ? { p64: body.payload.toString('base64') } : body)
 }
 
-function unSerializeData (body) {
+export function unSerializeData(body: any): any {
   return ('p64' in body ? { payload: Buffer.from(body.p64, 'base64') } : body)
 }
 
-class DeferMap {
-  constructor () {
-    /**
-      reqest has been sent to worker/writer, the session is waiting for the YIELD
-      CALL
-        [deferId] = deferred
-    */
+export class DeferMap {
+  defers: Map<string | number, ActorCall>
+
+  constructor() {
     this.defers = new Map()
   }
 
-  addDefer (actor, markId) {
+  addDefer(actor: ActorCall, markId: string | number): string | number {
     this.defers.set(markId, actor)
     return markId
   }
 
-  getDefer (sid, markId) {
+  getDefer(sid: string, markId: string | number): ActorCall | undefined {
     const result = this.defers.get(markId)
     if (result && result.destSID.hasOwnProperty(sid)) {
       return result
@@ -449,7 +453,7 @@ class DeferMap {
     }
   }
 
-  doneDefer (sid, markId) {
+  doneDefer(sid: string, markId: string | number): void {
     const found = this.defers.get(markId)
     if (found && found.destSID.hasOwnProperty(sid)) {
       this.defers.delete(markId)
@@ -457,50 +461,46 @@ class DeferMap {
   }
 }
 
-// event history not implemented
-class BaseEngine {
-  constructor () {
-    /**
-      Subscribed Workewrs for queues
-        [uri][sessionId] => actor
-    */
-    this.wSub = {}
+export class BaseEngine {
+  wSub: Record<string, Record<string | number, ActorReg>>
+  qCall: Map<string, ActorCall[]>
+  qYield: DeferMap
+  wTrace: any
+  _kvo: { uri: string | string[], kv: KeyValueStorageAbstract }[]
+  realmName?: string
 
-    /**
-      waiting for the apropriate worker (CALL)
-        [uri][] = actor
-    */
+  constructor() {
+    this.wSub = {}
     this.qCall = new Map()
     this.qYield = new DeferMap()
-
-    this.wTrace = new Qlobber() // [uri][subscription]
-    this._kvo = [] // key value order
+    this.wTrace = new Qlobber()
+    this._kvo = []
   }
 
-  getRealmName() {
-    return this.realmName
+  getRealmName(): string {
+    return this.realmName!
   }
 
-  async launchEngine (realmName) {
-    this.realmName = realmName    
+  async launchEngine(realmName: string): Promise<void> {
+    this.realmName = realmName
   }
 
-  addKv (uri, kv) {
+  addKv(uri: string | string[], kv: KeyValueStorageAbstract): void {
     this._kvo.push({ uri, kv })
   }
 
-  mkDeferId () {
+  mkDeferId(): string | number {
     return tools.randomId()
   }
 
-  createActorEcho  (ctx, cmd) { return new ActorEcho  (ctx, cmd) }
-  createActorReg   (ctx, cmd) { return new ActorReg   (ctx, cmd) }
-  createActorCall  (ctx, cmd) { return new ActorCall  (ctx, cmd) }
-  createActorYield (ctx, cmd) { return new ActorYield (ctx, cmd) }
-  createActorTrace (ctx, cmd) { return new ActorTrace (ctx, cmd) }
-  createActorPush  (ctx, cmd) { return new ActorPush  (ctx, cmd) }
+  createActorEcho(ctx: Context, cmd: any): ActorEcho { return new ActorEcho(ctx, cmd) }
+  createActorReg(ctx: Context, cmd: any): ActorReg { return new ActorReg(ctx, cmd) }
+  createActorCall(ctx: Context, cmd: any): ActorCall { return new ActorCall(ctx, cmd) }
+  createActorYield(ctx: Context, cmd: any): ActorYield { return new ActorYield(ctx, cmd) }
+  createActorTrace(ctx: Context, cmd: any): ActorTrace { return new ActorTrace(ctx, cmd) }
+  createActorPush(ctx: Context, cmd: any): ActorPush { return new ActorPush(ctx, cmd) }
 
-  getSubStack (uri) {
+  getSubStack(uri: string): Record<string | number, ActorReg> {
     return (
       this.wSub.hasOwnProperty(uri)
         ? this.wSub[uri]
@@ -508,35 +508,36 @@ class BaseEngine {
     )
   }
 
-  waitForResolver (uri, taskD) {
+  waitForResolver(uri: string, taskD: ActorCall): void {
     if (!this.qCall.has(uri)) {
       this.qCall.set(uri, [])
     }
-    this.qCall.get(uri).push(taskD)
+    this.qCall.get(uri)!.push(taskD)
   }
 
-  addSub (uri, subD) {
-    const strUri = restoreUri(uri)
+  addSub(uri: string, subD: ActorReg): void {
+    const strUri = restoreUri(uri as any)
     if (!this.wSub.hasOwnProperty(strUri)) {
       this.wSub[strUri] = {}
     }
     this.wSub[strUri][subD.subId] = subD
   }
 
-  removeSub (uri, id) {
-    const strUri = restoreUri(uri)
-    delete this.wSub[strUri][id]
-
-    if (Object.keys(this.wSub[strUri]).length === 0) {
-      delete this.wSub[strUri]
+  removeSub(uri: string, id: string | number): void {
+    const strUri = restoreUri(uri as any)
+    if (this.wSub[strUri]) {
+      delete this.wSub[strUri][id]
+      if (Object.keys(this.wSub[strUri]).length === 0) {
+        delete this.wSub[strUri]
+      }
     }
   }
 
-  checkTasks (subD) {
-    const strUri = restoreUri(subD.getUri())
+  checkTasks(subD: ActorReg): boolean {
+    const strUri = restoreUri(subD.getUri() as any)
     if (this.qCall.has(strUri)) {
-      let taskD
-      const taskList = this.qCall.get(strUri)
+      let taskD: ActorCall | undefined
+      const taskList = this.qCall.get(strUri)!
 
       do {
         taskD = taskList.shift()
@@ -554,12 +555,12 @@ class BaseEngine {
     return false
   }
 
-  getPendingTaskCount () {
+  getPendingTaskCount(): number {
     return this.qCall.size
   }
 
-  doCall (taskD) {
-    const strUri = restoreUri(taskD.getUri())
+  doCall(taskD: ActorCall): null | undefined {
+    const strUri = restoreUri(taskD.getUri() as any)
     const queue = this.getSubStack(strUri)
     let subExists = false
     for (let index in queue) {
@@ -572,41 +573,42 @@ class BaseEngine {
     }
 
     if (!subExists) {
-      throw new RealmError(taskD.msg.id,
+      throw new RealmError(
+        taskD.msg.id,
         errorCodes.ERROR_NO_SUCH_PROCEDURE,
         'no callee registered for procedure <' + strUri + '>'
       )
     }
 
-    // all workers are bisy, keep the message till to the one of them free
     this.waitForResolver(strUri, taskD)
+    return undefined
   }
 
-  makeTraceId () {
+  makeTraceId(): string | number {
     return tools.randomId()
   }
 
-  matchTrace (uri) {
-    return this.wTrace.match(restoreUri(uri))
+  matchTrace(uri: string): ActorTrace[] {
+    return this.wTrace.match(restoreUri(uri as any))
   }
 
-  addTrace (subD) {
-    this.wTrace.add(restoreUri(subD.getUri()), subD)
+  addTrace(subD: ActorTrace): void {
+    this.wTrace.add(restoreUri(subD.getUri() as any), subD)
   }
 
-  removeTrace (uri, subscription) {
-    this.wTrace.remove(restoreUri(uri), subscription)
+  removeTrace(uri: string, subscription: ActorTrace): void {
+    this.wTrace.remove(restoreUri(uri as any), subscription)
   }
 
-  doTrace (actor) {
+  doTrace(actor: ActorTrace): void {
     this.addTrace(actor)
-    actor.atSubscribe() // WAMP require to have TRACE ACK before first event
+    actor.atSubscribe()
 
     if (actor.getOpt().after) {
       this.getHistoryAfter(
         actor.getOpt().after,
-        actor.getUri(),
-        (cmd) => {
+        actor.getUri() as any,
+        (cmd: any) => {
           actor.filterSendEvent({
             data: cmd.data,
             uri: cmd.uri,
@@ -623,11 +625,10 @@ class BaseEngine {
       actor.flushDelayStack()
     }
 
-    // fetch table content
     if (actor.retainedState) {
       this.getKey(
-        actor.getUri(),
-        (key, data, eventId) => {
+        actor.getUri() as any,
+        (key: any, data: any, eventId: any) => {
           actor.filterSendEvent({
             qid: eventId,
             uri: key,
@@ -639,18 +640,7 @@ class BaseEngine {
     }
   }
 
-  // By default, a Publisher of an event will not itself receive an event published,
-  // even when subscribed to the topic the Publisher is publishing to.
-  // If supported by the Broker, this behavior can be overridden via the option exclude_me set to false.
-
-  // event 
-  //   qid: this.eventId,
-  //   sid:
-  //   uri:
-  //   data:
-  //   opt: {exclude_me}
-
-  disperseToSubs (event) {
+  disperseToSubs(event: any): void {
     for (const subD of this.matchTrace(event.uri)) {
       if (!(event.opt.exclude_me && event.sid == subD.getSid())
         && subD.filter(event)
@@ -664,14 +654,14 @@ class BaseEngine {
     }
   }
 
-  saveInboundHistory (actor) {
+  saveInboundHistory(actor: ActorPush): void {
   }
 
-  saveChangeHistory (actor) {
+  saveChangeHistory(actor: ActorPush): void {
     this.disperseToSubs(actor.getEvent())
   }
 
-  doPush (actor) {
+  doPush(actor: ActorPush): void {
     this.saveInboundHistory(actor)
     this.disperseToSubs(actor.getEvent())
     if (actor.getOpt().retain) {
@@ -681,13 +671,12 @@ class BaseEngine {
     }
   }
 
-  // @return promise
-  updateKvFromActor (actor) {
+  updateKvFromActor(actor: ActorPush): Promise<any> {
     const uri = actor.getUri()
     for (let i = this._kvo.length - 1; i >= 0; i--) {
       const kvr = this._kvo[i]
-      if (match(uri, kvr.uri)) {
-        return kvr.kv.setKeyActor(actor)
+      if (match(uri as any, kvr.uri as any)) {
+        return (kvr.kv as any).setKeyActor(actor)
       }
     }
     throw new RealmError(actor.msg.id,
@@ -696,17 +685,15 @@ class BaseEngine {
     )
   }
 
-  // cbRow(key, data)
-  getKey (uri, cbRow) {
-    const done = []
+  getKey(uri: string[], cbRow: (key: string[], data: any, eventId: any) => void): Promise<any[]> {
+    const done: Promise<any>[] = []
     for (let i = this._kvo.length - 1; i >= 0; i--) {
       const kvr = this._kvo[i]
-      // console.log('MATCH++', uri, kvr.uri, extract(uri, kvr.uri))
-      if (intersect(uri, kvr.uri)) {
-        done.push(kvr.kv.getKey(
-          extract(uri, kvr.uri),
-          (aKey, data, eventId) => {
-            cbRow(merge(aKey, kvr.uri), data, eventId)
+      if (intersect(uri as any, kvr.uri as any)) {
+        done.push((kvr.kv as any).getKey(
+          extract(uri as any, kvr.uri as any),
+          (aKey: any, data: any, eventId: any) => {
+            cbRow(merge(aKey, kvr.uri as any), data, eventId)
           }
         ))
       }
@@ -714,54 +701,55 @@ class BaseEngine {
     return Promise.all(done)
   }
 
-  cleanupSession(sessionId) {
-    let allKv = []
+  cleanupSession(sessionId: string): Promise<any[]> {
+    let allKv: Promise<any>[] = []
     for (let i = this._kvo.length - 1; i >= 0; i--) {
-      allKv.push(this._kvo[i].kv.eraseSessionData(sessionId))
+      allKv.push((this._kvo[i].kv as any).eraseSessionData(sessionId))
     }
     return Promise.all(allKv)
   }
 
-  getHistoryAfter (after, uri, cbRow) { return new Promise(() => {}) }
+  getHistoryAfter(after: any, uri: string[], cbRow: (cmd: any) => void): Promise<void> {
+    return new Promise((resolve) => { resolve(); })
+  }
 }
 
-class BaseRealm extends EventEmitter {
-  constructor (router, engine) {
-    super()
-    this._wampApi = null
-    this._hyperApi = null
+export class BaseRealm extends EventEmitter {
+  _wampApi!: WampApi
+  _hyperApi!: HyperClient
+  _sessions: Map<string, Session>
+  _router: Router
+  _dict!: TableDictionary
+  engine: BaseEngine
 
-    this._sessions = new Map() // session by sessionId
+  constructor(router: Router, engine: BaseEngine) {
+    super()
+    this._sessions = new Map()
     this._router = router
-    this._dict = null
     this.engine = engine
   }
 
-  getRouter () {
+  getRouter(): Router {
     return this._router
   }
 
-  getEngine () {
+  getEngine(): BaseEngine {
     return this.engine
   }
 
-  setDict (dict) {
+  setDict(dict: TableDictionary): void {
     this._dict = dict
   }
 
-  cmdEcho (ctx, cmd) {
+  cmdEcho(ctx: Context, cmd: any): void {
     const a = this.engine.createActorEcho(ctx, cmd)
     a.okey()
   }
 
-  // RPC Management
-  cmdRegRpc (ctx, cmd) {
+  cmdRegRpc(ctx: Context, cmd: any): string | number {
     const session = ctx.getSession()
-    // if (_rpcs.hasOwnProperty(cmd.uri)) {
-    //     throw new RealmError(cmd.id, "wamp.error.procedure_already_exists");
-    // }
     const actor = this.engine.createActorReg(ctx, cmd)
-    actor.subId = tools.randomId()
+    actor.subId = tools.randomId().toString()
     if (cmd.opt.hasOwnProperty('simultaneousTaskLimit')) {
       actor.setSimultaneousTaskLimit(cmd.opt.simultaneousTaskLimit)
     }
@@ -771,7 +759,7 @@ class BaseRealm extends EventEmitter {
     session.addSub(actor.subId, actor)
     this.emit(ON_REGISTERED, actor)
 
-    if (actor.getOpt().reducer /* || actor.getOpt().transformTo */) {
+    if (actor.getOpt().reducer) {
       session.addTrace(cmd.qid, actor)
       this.engine.doTrace(actor)
       this.emit(ON_SUBSCRIBED, actor)
@@ -782,7 +770,7 @@ class BaseRealm extends EventEmitter {
     return actor.subId
   }
 
-  cmdUnRegRpc (ctx, cmd) {
+  cmdUnRegRpc(ctx: Context, cmd: any): string {
     const session = ctx.getSession()
     const registration = session.removeSub(this.engine, cmd.unr)
     if (registration) {
@@ -790,9 +778,9 @@ class BaseRealm extends EventEmitter {
       delete cmd.data
       registration.atUnregister()
       try {
-        ctx.sendUnregistered(cmd)
+        ctx.sendUnregistered!(cmd)
       } catch (e) {
-        ctx.setSendFailed(e)
+        ctx.setSendFailed(e as Error)
         throw e
       }
       return registration.getUri()
@@ -801,7 +789,7 @@ class BaseRealm extends EventEmitter {
     }
   }
 
-  cmdCallRpc (ctx, cmd) {
+  cmdCallRpc(ctx: Context, cmd: any): string | number {
     if (this._dict) {
       this._dict.validateStruct(cmd.uri, cmd.data)
     }
@@ -811,7 +799,7 @@ class BaseRealm extends EventEmitter {
     return actor.taskId
   }
 
-  cmdYield (ctx, cmd) {
+  cmdYield(ctx: Context, cmd: any): void {
     const session = ctx.getSession()
     const invocation = this.engine.qYield.getDefer(session.sessionId, cmd.qid)
     if (invocation) {
@@ -824,19 +812,9 @@ class BaseRealm extends EventEmitter {
     }
   }
 
-  cmdConfirm (ctx, cmd) {}
+  cmdConfirm(ctx: Context, cmd: any): void {}
 
-  // declare wamp.topic.history.after (uri, arg)
-  // last    limit|integer
-  // since   timestamp|string  ISO-8601 "2013-12-21T13:43:11:000Z"
-  // after   publication|id
-
-  // { match: "exact" }
-  // { match: "prefix" }    session.subscribe('com.myapp',
-  // { match: "wildcard" }  session.subscribe('com.myapp..update',
-
-  // Topic Management
-  cmdTrace (ctx, cmd) {
+  cmdTrace(ctx: Context, cmd: any): string | number {
     const session = ctx.getSession()
     const subscription = this.engine.createActorTrace(ctx, cmd)
     cmd.qid = this.engine.makeTraceId()
@@ -848,7 +826,7 @@ class BaseRealm extends EventEmitter {
     return cmd.qid
   }
 
-  cmdUnTrace (ctx, cmd) {
+  cmdUnTrace(ctx: Context, cmd: any): string {
     const session = ctx.getSession()
     const subscription = session.removeTrace(this.engine, cmd.unr)
     if (subscription) {
@@ -856,10 +834,10 @@ class BaseRealm extends EventEmitter {
       delete cmd.data
       try {
         subscription.atEndSubscribe()
-        ctx.sendUnsubscribed(cmd)
+        ctx.sendUnsubscribed!(cmd)
       } catch (e) {
-        ctx.setSendFailed(e)
-        throw e
+        ctx.setSendFailed(e as Error)
+        throw e;
       }
       return subscription.getUri()
     } else {
@@ -867,7 +845,7 @@ class BaseRealm extends EventEmitter {
     }
   }
 
-  cmdPush (ctx, cmd) {
+  cmdPush(ctx: Context, cmd: any): void {
     if (this._dict) {
       this._dict.validateStruct(cmd.uri, cmd.data)
     }
@@ -875,11 +853,11 @@ class BaseRealm extends EventEmitter {
     this.engine.doPush(actor)
   }
 
-  getSession (sessionId) {
+  getSession(sessionId: string): Session | undefined {
     return this._sessions.get(sessionId)
   }
 
-  joinSession (session) {
+  joinSession(session: Session): void {
     if (this._sessions.has(session.sessionId)) {
       throw new Error('Session already joined')
     }
@@ -888,114 +866,118 @@ class BaseRealm extends EventEmitter {
     this.emit(SESSION_JOIN, session)
   }
 
-  // return: promise
-  leaveSession (session) {
+  leaveSession(session: Session): Promise<any[]> {
     this.emit(SESSION_LEAVE, session)
     session.cleanupTrace(this.engine)
     session.cleanupReg(this.engine)
     this._sessions.delete(session.sessionId)
-    session.setRealm(null)
+    session.setRealm(null as any)
     return this.engine.cleanupSession(session.sessionId)
   }
 
-  getSessionCount () {
+  getSessionCount(): number {
     return this._sessions.size
   }
 
-  getSessionIds () {
-    let result = []
-    for (let [/* sId */, session] of this._sessions) {
+  getSessionIds(): string[] {
+    let result: string[] = []
+    for (let [sId, session] of this._sessions) {
       result.push(session.sessionId)
     }
     return result
   }
 
-  getRealmInfo () {
+  getRealmInfo(): any {
     return {}
   }
 
-  getSessionInfo (sessionId) {
+  getSessionInfo(sessionId: string): any {
     return { session: sessionId }
   }
 
-  buildApi () {
+  buildApi(): HyperClient {
     const session = this.getRouter().createSession()
     this.joinSession(session)
     session.setGateProtocol('internal.hyper.api')
     
-    const api = new HyperClient(this, new HyperApiContext(this.getRouter(), session, this))
-    api.session = () => session
+    const api = new HyperClient(this, new HyperApiContext(this.getRouter(), session, this));
+    (api as any).session = () => session;
     return api
   }
 
-  api () {
+  api(): HyperClient {
     if (!this._hyperApi) {
       this._hyperApi = this.buildApi()
     }
     return this._hyperApi
   }
 
-  wampApi () {
+  wampApi(): WampApi {
     if (!this._wampApi) {
       this._wampApi = new WampApi(this, this.getRouter().makeSessionId())
-      this.joinSession(this._wampApi)
+      this.joinSession(this._wampApi as any)
     }
     return this._wampApi
   }
 
-  getKey (uri, cbRow) {
-    return this.engine.getKey(uri, cbRow)
+  getKey(uri: string[], cbRow: (key: string[], data: any, eventId: any) => void): Promise<any[]> {
+    return this.engine.getKey(uri, cbRow);
   }
 
-  runInboundEvent (sessionId, uri, bodyValue) {
+  runInboundEvent(sessionId: string, uri: string[], bodyValue: any): void {
     return this.engine.doPush(new ActorPushKv(
-      uri,
+      uri as any,
       { kv: bodyValue },
       { sid: sessionId, retain: true, trace: true }
-    ))
+    ) as any)
   }
 
-  registerKeyValueEngine (uriPattern, kv) {
+  registerKeyValueEngine(uriPattern: string[], kv: KeyValueStorageAbstract): void {
     kv.setUriPattern(uriPattern)
     kv.setSaveChangeHistory(this.engine.saveChangeHistory.bind(this.engine))
-    kv.setRunInboundEvent(this.runInboundEvent.bind(this))
+    kv.setRunInboundEvent(this.runInboundEvent.bind(this) as any)
     this.engine.addKv(uriPattern, kv)
   }
 }
 
-class ActorPushKv {
-  constructor (uri, data, opt) {
+export class ActorPushKv {
+  uri: string
+  data: any
+  opt: any
+  eventId: string | null
+
+  constructor(uri: string, data: any, opt: any) {
     this.uri = uri
     this.data = data
     this.opt = opt
     this.eventId = null
   }
 
-  getOpt () {
+  getOpt(): any {
     return Object.assign({}, this.opt)
   }
 
-  getUri () {
+  getUri(): string {
     return this.uri
   }
 
-  getSid() {
+  getSid(): string {
     return this.opt.sid
   }
 
-  getData () {
+  getData(): any {
     return this.data
   }
 
-  setEventId (eventId) {
+  setEventId(eventId: string | null): void {
     this.eventId = eventId
   }
 
-  getEventId () {
+  getEventId(): string | null {
     return this.eventId
   }
 
-  getEvent () {
+  getEvent(): any {
     return {
       qid: this.eventId,
       uri: this.getUri(),
@@ -1005,73 +987,54 @@ class ActorPushKv {
     }
   }
 
-  confirm () {}
+  confirm(): void {}
 }
 
-class KeyValueStorageAbstract {
-  constructor () {
+export class KeyValueStorageAbstract {
+  uriPattern: string[]
+  saveChangeHistory!: (actor: ActorPush) => void
+  runInboundEvent!: (sessionId: string, uri: string[], bodyValue: any) => void
+
+  constructor() {
     this.uriPattern = ['#']
   }
 
-  setUriPattern (uriPattern) {
+  setUriPattern(uriPattern: string[]): void {
     this.uriPattern = uriPattern
   }
 
-  setSaveChangeHistory (saveChangeHistory) {
+  setSaveChangeHistory(saveChangeHistory: (actor: ActorPush) => void): void {
     this.saveChangeHistory = saveChangeHistory
   }
 
-  setRunInboundEvent (runInboundEvent) {
+  setRunInboundEvent(runInboundEvent: (sessionId: string, uri: string[], bodyValue: any) => void): void {
     this.runInboundEvent = runInboundEvent
   }
 
-  getUriPattern () {
+  getUriPattern(): string[] {
     return this.uriPattern
   }
 
-  getStrUri (actor) {
-    return restoreUri(extract(actor.getUri(), this.getUriPattern()))
+  getStrUri(actor: Actor): string {
+    return restoreUri(extract((actor as any).getUri() as any, this.getUriPattern()) as any)
   }
-
-  // ----- methods that must be defined in descendants
-  // Promise:getKey (uri, cbRow) ::cbRow:: aKey, data, eventId
-  // eraseSessionData (sessionId)
 }
 
-class TableDictionary {
+export class TableDictionary {
+  _tables: Map<string, any>
+
   constructor() {
     this._tables = new Map()
   }
     
-  getTableDef(tableName) {
+  getTableDef(tableName: string): any {
     return this._tables.get(tableName)
   }
 
-  validateStruct (uri, data) {
-    const tableName = restoreUri(uri)
+  validateStruct(uri: string, data: any): void {
+    const tableName = restoreUri(uri as any)
     if (this._tables.has(tableName)) {
       this.getTableDef(tableName).validateStruct(getBodyValue(data))
     }
   }
 }
-
-exports.Actor = Actor
-exports.ActorReg = ActorReg
-exports.ActorCall = ActorCall
-exports.ActorTrace = ActorTrace
-exports.ActorPush = ActorPush
-
-exports.isBodyValueEmpty = isBodyValueEmpty
-exports.isDataEmpty = isDataEmpty
-exports.isDataFit = isDataFit
-exports.deepMerge = deepMerge
-exports.deepDataMerge = deepDataMerge
-exports.makeDataSerializable = makeDataSerializable
-exports.unSerializeData = unSerializeData
-
-exports.DeferMap = DeferMap
-exports.BaseEngine = BaseEngine
-exports.BaseRealm = BaseRealm
-exports.ActorPushKv = ActorPushKv
-exports.KeyValueStorageAbstract = KeyValueStorageAbstract
-exports.TableDictionary = TableDictionary

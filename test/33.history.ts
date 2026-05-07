@@ -9,14 +9,14 @@ chai.use(promised)
 import sqlite3 from 'sqlite3'
 import * as sqlite from 'sqlite'
 
-import { BaseRealm, BaseEngine }  from '../lib/realm.js'
-import Router         from '../lib/router.js'
-import { DbEngine }   from '../lib/sqlite/dbengine.js'
-import { MemEngine }  from '../lib/mono/memengine.js'
-import { DbFactory } from '../lib/sqlite/dbfactory.js'
-import { keyDate, ProduceId } from '../lib/masterfree/makeid.js'
-import { SqliteKvFabric }    from '../lib/sqlite/sqlitekv.js'
-import { HyperClient } from '../lib/hyper/client.js'
+import { BaseRealm, BaseEngine } from '../lib/realm'
+import { Router } from '../lib/router'
+import { DbEngine } from '../lib/sqlite/dbengine'
+import { MemEngine } from '../lib/mono/memengine'
+import { DbFactory } from '../lib/sqlite/dbfactory'
+import { keyDate, ProduceId } from '../lib/masterfree/makeid'
+import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
+import { HyperClient } from '../lib/hyper/client'
 
 const mkDbEngine = async (): Promise<DbEngine> => {
   let db: sqlite.Database = await sqlite.open({
@@ -33,8 +33,8 @@ const mkDbEngine = async (): Promise<DbEngine> => {
 }
 
 const runs = [
-  {it: 'mem', mkEngine: async (): Promise<BaseEngine> => new MemEngine()},
-  {it: 'db',  mkEngine: mkDbEngine },
+  { it: 'mem', mkEngine: async (): Promise<BaseEngine> => new MemEngine() },
+  { it: 'db', mkEngine: mkDbEngine },
 ]
 
 describe('33.history', function () {
@@ -51,21 +51,21 @@ describe('33.history', function () {
         await router.initRealm('testrealm', realm)
         api = (realm as any).api()
       })
-    
+
       afterEach(async () => {
         assert.isFalse(api.session().hasSendError(), api.session().firstSendErrorMessage())
       })
-  
+
       it('receive-event-history:' + run.it, async () => {
         let events = []
 
-        let startPos = await api.publish('test-topic', {event:'data'}, {acknowledge: true, trace: true})
+        let startPos = await api.publish('test-topic', { event: 'data' }, { acknowledge: true, trace: true })
         expect(startPos, "startPos").to.exist
 
         await Promise.all([
-          api.publish('test-topic', {event:'history1'}, {acknowledge: true, trace: true}),
-          api.publish('test-topic', {event:'history2'}, {acknowledge: true, trace: true}),
-          api.publish('test-topic', {event:'history3'}, {acknowledge: true, trace: true}),
+          api.publish('test-topic', { event: 'history1' }, { acknowledge: true, trace: true }),
+          api.publish('test-topic', { event: 'history2' }, { acknowledge: true, trace: true }),
+          api.publish('test-topic', { event: 'history3' }, { acknowledge: true, trace: true }),
         ])
         let doneEvents: (events: any[]) => void
         const onEvent = (event: any) => {
@@ -74,16 +74,16 @@ describe('33.history', function () {
             doneEvents(events)
           }
         }
-        const donePromise =  new Promise((resolve) => doneEvents = resolve)
+        const donePromise = new Promise((resolve) => doneEvents = resolve)
         let subId = await api.subscribe(
           'test-topic',
           onEvent,
-          {after: startPos}
+          { after: startPos }
         )
         expect(await donePromise).to.deep.equal([
-          {event:'history1'},
-          {event:'history2'},
-          {event:'history3'},
+          { event: 'history1' },
+          { event: 'history2' },
+          { event: 'history3' },
         ])
 
         await api.unsubscribe(subId)

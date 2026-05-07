@@ -2,11 +2,11 @@ import * as chai from 'chai'; const { expect } = chai;
 import spies from 'chai-spies'
 chai.use(spies)
 
-import Router       from '../lib/router.js'
-import { StageOneTask, StageTwoTask } from '../lib/masterfree/synchronizer.js'
-import { Event } from '../lib/masterfree/hyper.h.js'
-import { BaseRealm } from '../lib/realm.js'
-import { HyperClient } from '../lib/hyper/client.js'
+import { Router } from '../lib/router'
+import { StageOneTask, StageTwoTask } from '../lib/masterfree/synchronizer'
+import { Event } from '../lib/masterfree/hyper.h'
+import { BaseRealm } from '../lib/realm'
+import { HyperClient } from '../lib/hyper/client'
 
 describe('62.synchronizer', function () {
   let
@@ -34,7 +34,7 @@ describe('62.synchronizer', function () {
 
     stageTwo = new StageTwoTask(sysRealm, MAJOR_LIMIT)
 
-    await api.subscribe(Event.PICK_CHALLENGER + '.SYNC2', (event, opt) => { 
+    await api.subscribe(Event.PICK_CHALLENGER + '.SYNC2', (event, opt) => {
       // console.log('PICK_CHALLENGER', event, opt.headers)
       draftStack.push(event)
     })
@@ -47,13 +47,13 @@ describe('62.synchronizer', function () {
     })
   })
 
-  afterEach(async () => {})
-  
+  afterEach(async () => { })
+
   it('init-seed generateOnce', async () => {
-    await api.publish(Event.GENERATE_DRAFT, {advanceOwner:'entry1', advanceSegment:'a0', tag: 'tag0'})
-    await api.publish(Event.GENERATE_DRAFT, {advanceOwner:'entry1', advanceSegment:'a0', tag: 'tag1'})
-    await api.publish(Event.GENERATE_DRAFT, {advanceOwner:'entry1', advanceSegment:'a1', tag: 'tag2'})
-    await api.publish(Event.GENERATE_DRAFT, {advanceOwner:'entry2', advanceSegment:'a0', tag: 'tag3'})
+    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 'a0', tag: 'tag0' })
+    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 'a0', tag: 'tag1' })
+    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 'a1', tag: 'tag2' })
+    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry2', advanceSegment: 'a0', tag: 'tag3' })
 
     expect(draftStack).deep.equal([
       {
@@ -87,11 +87,11 @@ describe('62.synchronizer', function () {
     expect(stageOne.getRecentValue()).deep.equal('')
     stageOne.setRecentValue('P:1')
 
-    await api.publish(Event.GENERATE_DRAFT, {advanceOwner:'entry1', advanceSegment:'a1', tag: 'tag1'})
-    await api.publish(Event.GENERATE_DRAFT, {advanceOwner:'entry1', advanceSegment:'a2', tag: 'tag2'})
+    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 'a1', tag: 'tag1' })
+    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 'a2', tag: 'tag2' })
 
-    await api.publish(Event.PICK_CHALLENGER + '.SYNC1', {advanceOwner: 'entry1', advanceSegment: 'a1', tag: 'tag1', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 2 }})
-    await api.publish(Event.PICK_CHALLENGER + '.SYNC1', {advanceOwner: 'entry1', advanceSegment: 'a2', tag: 'tag2', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 3 }})
+    await api.publish(Event.PICK_CHALLENGER + '.SYNC1', { advanceOwner: 'entry1', advanceSegment: 'a1', tag: 'tag1', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 2 } })
+    await api.publish(Event.PICK_CHALLENGER + '.SYNC1', { advanceOwner: 'entry1', advanceSegment: 'a2', tag: 'tag2', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 3 } })
 
     expect(extractStack).deep.equal([
       {

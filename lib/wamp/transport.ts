@@ -1,7 +1,7 @@
 const WebSocket = require('ws')
 import { SESSION_TX, SESSION_RX, SESSION_ALERT, SESSION_DEBUG } from '../messages'
 import { WampGate, WampSocketWriterContext } from './gate'
-import Router from '../router'
+import { Router } from '../router'
 import { Session } from '../session'
 
 class WampSocketWriter {

@@ -1,5 +1,5 @@
 import { ActorPush, BaseRealm, BaseEngine, makeDataSerializable, unSerializeData } from '../realm'
-import Router from '../router'
+import { Router } from '../router'
 import { HyperClient } from '../hyper/client'
 import { MemKeyValueStorage } from '../mono/memkv'
 import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_OVER } from './hyper.h'

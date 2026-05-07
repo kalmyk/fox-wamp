@@ -3,7 +3,7 @@ import WebSocket from 'ws';
 import { generate, parser } from 'mqtt-packet';
 import { SESSION_TX, SESSION_RX, SESSION_ALERT, SESSION_DEBUG } from '../messages';
 import { MqttGate, MqttSocketWriterContext } from './gate';
-import Router from '../router';
+import { Router } from '../router';
 import { Session } from '../session';
 
 export class MqttSocketWriter {

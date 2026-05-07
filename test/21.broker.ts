@@ -4,13 +4,13 @@ import promised from 'chai-as-promised'
 chai.use(spies)
 chai.use(promised)
 
-import { RESULT_OK, RESULT_ACK, RESULT_ERR } from '../lib/messages.js'
-import { errorCodes } from '../lib/realm_error.js'
-import { FoxGate, FoxSocketWriterContext } from '../lib/hyper/gate.js'
-import Router         from '../lib/router.js'
-import { BaseRealm, BaseEngine } from '../lib/realm.js'
-import { MemEngine }  from '../lib/mono/memengine.js'
-import { Session } from '../lib/session.js'
+import { RESULT_OK, RESULT_ACK, RESULT_ERR } from '../lib/messages'
+import { errorCodes } from '../lib/realm_error'
+import { FoxGate, FoxSocketWriterContext } from '../lib/hyper/gate'
+import { Router }   from '../lib/router'
+import { BaseRealm, BaseEngine } from '../lib/realm'
+import { MemEngine }  from '../lib/mono/memengine'
+import { Session } from '../lib/session'
 
 const runs = [
   {it: 'zero', mkEngine: () => new BaseEngine()},

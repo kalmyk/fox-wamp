@@ -10,21 +10,21 @@ chai.use(promised)
 import sqlite3 from 'sqlite3'
 import * as sqlite from 'sqlite'
 
-import WAMP            from '../lib/wamp/protocol.js'
-import { WampGate }    from '../lib/wamp/gate.js'
-import Router          from '../lib/router.js'
-import { SqliteKvFabric, SqliteKv }    from '../lib/sqlite/sqlitekv.js'
-import { MemEngine }   from '../lib/mono/memengine.js'
-import { DbEngine } from '../lib/sqlite/dbengine.js'
-import { MemKeyValueStorage } from '../lib/mono/memkv.js'
-import { BaseRealm, BaseEngine }   from '../lib/realm.js'
-import { WampApi }     from '../lib/wamp/api.js'
-import { getBodyValue } from '../lib/base_gate.js'
-import { DbFactory } from '../lib/sqlite/dbfactory.js'
-import { keyDate, ProduceId } from '../lib/masterfree/makeid.js'
-import { Session } from '../lib/session.js'
-import { HyperClient } from '../lib/hyper/client.js'
-import { WampSocketWriterContext } from '../lib/wamp/gate.js'
+import WAMP from '../lib/wamp/protocol'
+import { WampGate } from '../lib/wamp/gate'
+import { Router } from '../lib/router'
+import { SqliteKvFabric, SqliteKv } from '../lib/sqlite/sqlitekv'
+import { MemEngine } from '../lib/mono/memengine'
+import { DbEngine } from '../lib/sqlite/dbengine'
+import { MemKeyValueStorage } from '../lib/mono/memkv'
+import { BaseRealm } from '../lib/realm'
+import { WampApi } from '../lib/wamp/api'
+import { getBodyValue } from '../lib/base_gate'
+import { DbFactory } from '../lib/sqlite/dbfactory'
+import { keyDate, ProduceId } from '../lib/masterfree/makeid'
+import { Session } from '../lib/session'
+import { HyperClient } from '../lib/hyper/client'
+import { WampSocketWriterContext } from '../lib/wamp/gate'
 
 const TEST_REALM_NAME = 'testrealm'
 
@@ -53,8 +53,8 @@ const makeDbRealm = async (router: Router): Promise<BaseRealm> => {
 }
 
 const runs = [
-  {it: 'mem', mkRealm: makeMemRealm },
-  {it: 'db',  mkRealm: makeDbRealm  },
+  { it: 'mem', mkRealm: makeMemRealm },
+  { it: 'db', mkRealm: makeDbRealm },
 ]
 
 describe('55.hyper events', () => {
@@ -72,28 +72,28 @@ describe('55.hyper events', () => {
       beforeEach(async () => {
         router = new Router()
         realm = await run.mkRealm(router)
-        await router.initRealm(TEST_REALM_NAME, realm)       
-        api = realm.api()
+        await router.initRealm(TEST_REALM_NAME, realm)
+        api = realm.api() as HyperClient & { session: () => any }
 
-        mockSocket = { wampPkgWrite: chai.spy(() => {}) }
+        mockSocket = { wampPkgWrite: chai.spy(() => { }) }
         wampGate = new WampGate(router)
         cli = router.createSession()
         ctx = wampGate.createContext(cli, mockSocket)
         realm.joinSession(cli)
       })
-    
+
       afterEach(async () => {
         assert.isFalse(cli.hasSendError(), cli.firstSendErrorMessage())
         assert.isFalse(api.session().hasSendError(), api.session().firstSendErrorMessage())
         cli.cleanup()
         ctx = null as any
       })
-  
+
       it('storage-retain-get:' + run.it, async () => {
-        const subSpy = chai.spy(() => {})
+        const subSpy = chai.spy(() => { })
         await api.subscribe('topic1', subSpy)
-        await api.publish('topic1', { data: 'retain-the-value' }, { retain: true, exclude_me:false })
-        await api.publish('topic1', { data: 'the-value-does-not-retain' }, { exclude_me:false })
+        await api.publish('topic1', { data: 'retain-the-value' }, { retain: true, exclude_me: false })
+        await api.publish('topic1', { data: 'the-value-does-not-retain' }, { exclude_me: false })
 
         let done: (value: unknown) => void
         let resultPromise = new Promise((resolve) => done = resolve as (value: unknown) => void)
@@ -120,44 +120,44 @@ describe('55.hyper events', () => {
 
         expect(subSpy).called.exactly(2)
       })
-  
+
       it('storage-retain-weak:' + run.it, async () => {
         await api.publish('topic2', ['arg1', 'arg2'], { retain: true, will: null, acknowledge: true })
 
         let storedValue: any[] = []
-        await realm.getKey(['topic2'], (uri, value)=>storedValue.push([uri,value]))
-        expect(storedValue).deep.equal([[['topic2'], {kv:['arg1', 'arg2']}]])
+        await realm.getKey(['topic2'], (uri, value) => storedValue.push([uri, value]))
+        expect(storedValue).deep.equal([[['topic2'], { kv: ['arg1', 'arg2'] }]])
 
         await api.session().cleanup()
 
-        let spyValueNotExists = chai.spy(()=>{})
+        let spyValueNotExists = chai.spy(() => { })
         await realm.getKey(['topic2'], spyValueNotExists)
         expect(spyValueNotExists).not.have.been.called()
       })
-  
+
       it('wamp-key-remove:' + run.it, async () => {
         await api.publish('topic2', { some: 'value' }, { retain: true, acknowledge: true })
         let storedValue: any[] = []
-        await realm.getKey(['topic2'], (uri, value)=>storedValue.push([uri,value]))
-        expect(storedValue).deep.equal([[['topic2'], {kv:{some:'value'}}]])
+        await realm.getKey(['topic2'], (uri, value) => storedValue.push([uri, value]))
+        expect(storedValue).deep.equal([[['topic2'], { kv: { some: 'value' } }]])
 
         // no kwargs is sent if kwargs passed as null
         await api.publish('topic2', null, { retain: true, acknowledge: true })
 
-        var spyNotExists = chai.spy(()=>{})
+        var spyNotExists = chai.spy(() => { })
         await realm.getKey(['topic2'], spyNotExists)
 
         expect(spyNotExists).not.have.been.called()
       })
-  
+
       // realm must PUSH data if client has disconnect WILL registered
       it('push-will:' + run.it, async () => {
         let events: any[] = []
         await api.subscribe('will.test', event => events.push(event))
-    
+
         const wampApi = new WampApi(realm, router.makeSessionId())
         realm.joinSession(wampApi)
-    
+
         await wampApi.publish(
           'will.test',
           [{ info: 'event-value' }],
@@ -171,11 +171,11 @@ describe('55.hyper events', () => {
         )
         await wampApi.cleanup()
         expect(events.shift()).deep.equal({ info: 'event-value' })
-        expect(events.shift()).deep.equal({ args: { info: 'will-value' }})
+        expect(events.shift()).deep.equal({ args: { info: 'will-value' } })
         assert.equal(0, events.length)
         assert.isFalse(wampApi.hasSendError(), wampApi.firstSendErrorMessage())
       })
-    
+
       it('push-watch-for-push:' + run.it, async () => {
         let events: any[] = []
         await api.subscribe('watch.test', event => events.push(event))
@@ -204,7 +204,7 @@ describe('55.hyper events', () => {
             acknowledge: true
           }
         )
-    
+
         await api.publish(
           'watch.test',
           null,
@@ -212,7 +212,7 @@ describe('55.hyper events', () => {
             trace: true,
             retain: true,
             exclude_me: false,
-            acknowledge: true 
+            acknowledge: true
           }
         )
         expect(events.shift()).deep.equal({ event: 'second value is set when value empty' })
@@ -222,7 +222,7 @@ describe('55.hyper events', () => {
 
         let storage = []
         await realm.getKey(['watch', 'test'], (uri, value) => {
-          storage.push([uri,getBodyValue(value)])
+          storage.push([uri, getBodyValue(value)])
         })
         // TODO: fix-me in db
         // expect(storage).deep.equal([[['watch', 'test'], { event: 'second value is set when value empty' }]])
@@ -277,7 +277,7 @@ describe('55.hyper events', () => {
             }
           )
         ))
-    
+
         await cli.cleanup()
         await Promise.all(defer)
 
@@ -286,7 +286,7 @@ describe('55.hyper events', () => {
         expect(events.shift()).not.exist
         expect(events.length).equal(0)
       })
-    
+
     })
   })
 })

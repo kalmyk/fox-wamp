@@ -1,17 +1,9 @@
-'use strict'
+import { errorCodes } from './realm_error';
+import { Router } from './router';
 
-const { errorCodes } = require('./realm_error')
-
-/*
-  data types
-    - payload: Buffer(): 'base64' comes from MQTT
-    - kv: key/value hyper
-    - args: array, if length is one, take the item, comes from WAMP
-*/
-
-function getBodyValue (body) {
+export function getBodyValue(body: any): any {
   if (body === null || body === undefined) {
-    return null
+    return null;
   }
   if (typeof body === 'object') {
     if ('kv' in body)      return body.kv
@@ -27,22 +19,25 @@ function getBodyValue (body) {
   throw new Error('unknown body `' + JSON.stringify(body) + '`')
 }
 
-class BaseGate {
-  constructor (router) {
+export class BaseGate {
+  _router: Router
+  _authHandler: any
+  _authMethods: string[]
+
+  constructor(router: Router) {
     this._router = router
     this._authHandler = undefined
     this._authMethods = []
   }
 
-  // authHandler.authTicket(realmName, secureDetails, secret, callback)
-  setAuthHandler (authHandler) {
+  setAuthHandler(authHandler: any): void {
     this._authHandler = authHandler
     if (typeof authHandler.getAuthMethods === 'function') {
       this._authMethods = authHandler.getAuthMethods()
     }
   }
 
-  getAcceptedAuthMethod (methods) {
+  getAcceptedAuthMethod(methods: string[]): string | undefined {
     for (let i = 0; i < this._authMethods.length; i++) {
       if (methods.includes(this._authMethods[i])) {
         return this._authMethods[i]
@@ -51,15 +46,15 @@ class BaseGate {
     return undefined
   }
 
-  isAuthRequired (session) {
+  isAuthRequired(session: any): boolean {
     return (typeof this._authHandler !== 'undefined')
   }
 
-  isAuthorizeRequired () {
-    return (typeof this._authHandler !== 'undefined' && typeof this._authHandler.authorize === 'function')
+  isAuthorizeRequired(): boolean {
+    return (typeof this._authHandler !== 'undefined' && typeof this._authHandler.authorize === 'function');
   }
 
-  checkAuthorize (ctx, cmd, funcClass) {
+  checkAuthorize(ctx: any, cmd: any, funcClass: string): boolean {
     if (this.isAuthorizeRequired() &&
       !this._authHandler.authorize(ctx.getSession(), funcClass, cmd.uri))
     {
@@ -69,10 +64,7 @@ class BaseGate {
     return true
   }
 
-  getRouter () {
+  getRouter(): Router {
     return this._router
   }
 }
-
-exports.BaseGate = BaseGate
-exports.getBodyValue = getBodyValue

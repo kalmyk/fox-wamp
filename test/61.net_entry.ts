@@ -2,12 +2,12 @@ import * as chai from 'chai'; const { expect } = chai;
 import spies from 'chai-spies'
 chai.use(spies)
 
-import Router from '../lib/router.js'
-import { NetEngine, NetEngineMill } from '../lib/masterfree/netengine.js'
-import { BaseRealm } from '../lib/realm.js'
-import { Config, setConfigInstance } from '../lib/masterfree/config.js'
-import { Event } from '../lib/masterfree/hyper.h.js'
-import { HyperClient } from '../lib/hyper/client.js'
+import { Router } from '../lib/router'
+import { NetEngine, NetEngineMill } from '../lib/masterfree/netengine'
+import { BaseRealm } from '../lib/realm'
+import { Config, setConfigInstance } from '../lib/masterfree/config'
+import { Event } from '../lib/masterfree/hyper.h'
+import { HyperClient } from '../lib/hyper/client'
 
 describe('61.net-entry', function () {
   let
@@ -51,19 +51,19 @@ describe('61.net-entry', function () {
     })
   })
 
-  afterEach(async () => {})
-  
+  afterEach(async () => { })
+
   it('Event.BEGIN_ADVANCE_SEGMENT', async () => {
     const advanceSegmentStartedPkg = getSysPackage()
     const admanceEventSentPkg = getSysPackage()
 
-    await netApi.publish('any-test-topic', {package:'test'}, {})
+    await netApi.publish('any-test-topic', { package: 'test' }, {})
 
     const advanceSegmentStarted = await advanceSegmentStartedPkg
     expect(advanceSegmentStarted.length).equal(2)
     expect(advanceSegmentStarted[0]).equal(Event.BEGIN_ADVANCE_SEGMENT)
     expect(advanceSegmentStarted[1])
-      .deep.include({advanceOwner: "E1", advanceSegment: 'E1-1'})
+      .deep.include({ advanceOwner: "E1", advanceSegment: 'E1-1' })
 
     const admanceEventSent = await admanceEventSentPkg
     expect(admanceEventSent.length).equal(2)
@@ -93,8 +93,8 @@ describe('61.net-entry', function () {
     await sysApi.publish(Event.TRIM_ADVANCE_SEGMENT + '.E1', {
       advanceOwner: 'E1',
       advanceSegment: 'E1-1'
-      },
-      {exclude_me: true}
+    },
+      { exclude_me: true }
     )
 
   })

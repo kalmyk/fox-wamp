@@ -7,12 +7,12 @@ chai.use(spies)
 import sqlite3 from 'sqlite3'
 import * as sqlite from 'sqlite'
 
-import Router from '../lib/router.js'
-import { StorageTask, COMMIT_COMPLETED } from '../lib/masterfree/storage.js'
-import { DbFactory } from '../lib/sqlite/dbfactory.js'
-import { Event, BODY_ADVANCE_SEGMENT_RESOLVED } from '../lib/masterfree/hyper.h.js'
-import { BaseRealm } from '../lib/realm.js'
-import { HyperClient } from '../lib/hyper/client.js'
+import { Router } from '../lib/router'
+import { StorageTask, COMMIT_COMPLETED } from '../lib/masterfree/storage'
+import { DbFactory } from '../lib/sqlite/dbfactory'
+import { Event, BODY_ADVANCE_SEGMENT_RESOLVED } from '../lib/masterfree/hyper.h'
+import { BaseRealm } from '../lib/realm'
+import { HyperClient } from '../lib/hyper/client'
 
 describe('63.storage', function () {
   let
@@ -49,7 +49,7 @@ describe('63.storage', function () {
     await api.subscribe(Event.ELECT_SEGMENT, (event, opt) => { extractStack.push(opt.headers) })
   })
 
-  afterEach(async () => {})
+  afterEach(async () => { })
 
   it('receive-draft-segment', async () => {
     // await api.publish(Event.PICK_CHALLENGER, null, {
@@ -89,7 +89,7 @@ describe('63.storage', function () {
     }, { exclude_me: false })
 
     const commit_requested: Promise<any[]> = once(storage, COMMIT_COMPLETED)
-    
+
     // 2. Send ADVANCE_SEGMENT_RESOLVED
     await api.publish(Event.ADVANCE_SEGMENT_RESOLVED, {
       advanceOwner: 'sync1',

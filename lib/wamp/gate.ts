@@ -5,7 +5,7 @@ import { wampUriParse, restoreUri } from '../topic_pattern'
 import { RESULT_EMIT, RESULT_OK } from '../messages'
 import { getBodyValue, BaseGate } from '../base_gate'
 import { Context } from '../context'
-import Router from '../router'
+import { Router } from '../router'
 import { Session } from '../session'
 
 const handlers: { [key: number]: Function } = {};

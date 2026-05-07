@@ -10,7 +10,7 @@ const conf_fox_port = process.env.FOX_PORT
 const conf_node_id = process.env.NODE_ID
   || console.log('NODE_ID must be defined') || process.exit(1)
 
-import Router from '../lib/router'
+import { Router } from '../lib/router'
 import { BaseRealm } from '../lib/realm'
 import { WampGate } from '../lib/wamp/gate'
 import { FoxGate } from '../lib/hyper/gate'

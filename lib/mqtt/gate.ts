@@ -5,7 +5,7 @@ import { BaseGate, getBodyValue } from '../base_gate';
 import { RealmError, errorCodes } from '../realm_error';
 import { mqttParse, restoreMqttUri } from '../topic_pattern';
 import { Context } from '../context';
-import Router from '../router';
+import { Router } from '../router';
 import { Session } from '../session';
 
 const CONNACK_RETURN_ACCEPTED = 0;

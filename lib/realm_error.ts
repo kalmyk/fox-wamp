@@ -1,6 +1,4 @@
-'use strict'
-
-let errorCodes = {
+export const errorCodes = {
   ERROR_DEFER_NOT_FOUND         : 103,
   ERROR_NO_SUCH_PROCEDURE       : 104,
   ERROR_NO_SUCH_REGISTRATION    : 105,
@@ -14,15 +12,15 @@ let errorCodes = {
   ERROR_INVALID_URI             : 111,
   ERROR_INVALID_ARGUMENT        : 112,
   ERROR_CALLEE_FAILURE          : 'error.callee_failure'
-}
+};
 
-class RealmError extends Error {
-  constructor (requestId, code, message) {
-    super(message)
-    this.requestId = requestId
-    this.code = code
+export class RealmError extends Error {
+  requestId: string | number;
+  code: string | number;
+
+  constructor(requestId: string | number, code: string | number, message?: string) {
+    super(message);
+    this.requestId = requestId;
+    this.code = code;
   }
 }
-
-exports.errorCodes = errorCodes
-exports.RealmError = RealmError

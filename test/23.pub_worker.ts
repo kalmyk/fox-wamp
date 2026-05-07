@@ -1,16 +1,16 @@
-import * as chai from 'chai';
-const { expect } = chai;
-const assert: Chai.AssertStatic = chai.assert;
+import * as chai from 'chai'
+const { expect } = chai
+const assert: Chai.AssertStatic = chai.assert
 import spies from 'chai-spies'
 import promised from 'chai-as-promised'
 chai.use(spies)
 chai.use(promised)
 
-import { MemServer } from '../lib/hyper/mem_transport.js'
-import { FoxGate }   from '../lib/hyper/gate.js'
-import Router        from '../lib/router.js'
-import { BaseRealm } from '../lib/realm.js'
-import { HyperClient } from '../lib/hyper/client.js'
+import { MemServer }   from '../lib/hyper/mem_transport'
+import { FoxGate }     from '../lib/hyper/gate'
+import { Router }      from '../lib/router'
+import { BaseRealm }   from '../lib/realm'
+import { HyperClient } from '../lib/hyper/client'
 
 describe('23.pub-worker', () => {
   let
@@ -25,7 +25,7 @@ describe('23.pub-worker', () => {
     {it: 'remote-api', client: () => memServer.createClient(realm), worker: () => (realm as any).api()},
     {it: 'api-remote', worker: () => memServer.createClient(realm), client: () => (realm as any).api()},
   ]
-    
+
   runs.forEach(function (run) {
     describe('direction:' + run.it, function () {
 
@@ -134,7 +134,7 @@ describe('23.pub-worker', () => {
           )
         }
         expect(await Promise.all(resultCollector)).to.deep.equal([[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[7,1]])
-        
+
         await worker.unregister(regId)
       })
 
