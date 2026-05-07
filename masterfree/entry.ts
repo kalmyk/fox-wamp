@@ -27,8 +27,8 @@ router.setId(conf_node_id)
 router.createRealm = (): BaseRealm => new BaseRealm(router, new NetEngine(netEngineMill))
 router.setLogTrace(true)
 
-new WampServer(new WampGate(router), { port: conf_wamp_port })
-listenMqttServer(new MqttGate(router), { port: conf_mqtt_port })
-listenHyperNetServer(new FoxGate(router), { port: conf_fox_port })
+new WampServer(new WampGate(router), { port: Number(conf_wamp_port) })
+listenMqttServer(new MqttGate(router), { port: Number(conf_mqtt_port) })
+listenHyperNetServer(new FoxGate(router), { port: Number(conf_fox_port) })
 
 console.log('ENTRY_ID:', conf_node_id, 'listening WAMP:', conf_wamp_port, 'MQTT:', conf_mqtt_port, 'FOX:', conf_fox_port)

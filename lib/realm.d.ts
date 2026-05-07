@@ -130,9 +130,9 @@ export declare class BaseEngine {
   saveChangeHistory(actor: ActorPush): void;
   doPush(actor: ActorPush): void;
   updateKvFromActor(actor: ActorPush): Promise<any>;
-  getKey(uri: string, cbRow: (key: string, data: any, eventId: any) => void): Promise<any[]>;
+  getKey(uri: string[], cbRow: (key: string[], data: any, eventId: any) => void): Promise<any[]>;
   cleanupSession(sessionId: string): Promise<any[]>;
-  getHistoryAfter(after: any, uri: string, cbRow: (cmd: any) => void): Promise<void>;
+  getHistoryAfter(after: any, uri: string[], cbRow: (cmd: any) => void): Promise<void>;
 }
 
 export declare class BaseRealm extends EventEmitter {
@@ -167,7 +167,7 @@ export declare class BaseRealm extends EventEmitter {
   api(): HyperClient;
   wampApi(): WampApi;
   getKey(uri: string[], cbRow: (key: string[], data: any, eventId: any) => void): Promise<any[]>;
-  runInboundEvent(sessionId: string, uri: string, bodyValue: any): void;
+  runInboundEvent(sessionId: string, uri: string[], bodyValue: any): void;
   registerKeyValueEngine(uriPattern: string[], kv: KeyValueStorageAbstract): void;
 }
 

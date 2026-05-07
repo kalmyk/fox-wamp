@@ -66,7 +66,7 @@ export class NetEngine extends BaseEngine {
     return this.netEngineMill.saveHistory(actor, this.getRealmName())
   }
 
-  getHistoryAfter (after: string, uri: string, cbEmitRow: any): Promise<any> {
+  getHistoryAfter (after: string, uri: string[], cbEmitRow: any): Promise<any> {
     return Promise.resolve()
     // return History.getEventHistory(
     //   getMainDb(),
