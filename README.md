@@ -10,6 +10,9 @@ Message router has pluggable interface to the several message protocols. As for 
 
 It means that event could be send through MQTT interface and handled by WAMP client. Topic notation is translated automatically from "app/topic/name" in MQTT to "app.topic.name" in WAMP.
 
+## Project Specifications
+Detailed documentation on architecture, tech stack, conventions, and operational modes can be found in the [OpenSpec Specifications](openspec/project.md).
+
 ## Build Instructions
 
 Install using npm. Depending on what you want to do.

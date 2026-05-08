@@ -10,7 +10,7 @@ import * as sqlite from 'sqlite'
 import { Router } from '../lib/router'
 import { StorageTask, COMMIT_COMPLETED } from '../lib/masterfree/storage'
 import { DbFactory } from '../lib/sqlite/dbfactory'
-import { Event, BODY_ADVANCE_SEGMENT_RESOLVED } from '../lib/masterfree/hyper.h'
+import { Event, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_KEEP_ADVANCE_HISTORY, BODY_PICK_CHALLENGER } from '../lib/masterfree/hyper.h'
 import { BaseRealm } from '../lib/realm'
 import { HyperClient } from '../lib/hyper/client'
 
@@ -49,17 +49,31 @@ describe('63.storage', function () {
     await api.subscribe(Event.ELECT_SEGMENT, (event, opt) => { extractStack.push(opt.headers) })
   })
 
-  afterEach(async () => { })
+  afterEach(async () => {})
 
   it('receive-draft-segment', async () => {
-    // await api.publish(Event.PICK_CHALLENGER, null, {
-    //   headers: {
-    //     advanceOwner: 'entry1',
-    //     advanceSegment: 'a0',
-    //     draftOwner: 'sync2',
-    //     draftId: { dt: 'PREFIX1:', id: 1 }
-    //   }
-    // })
+    const eventPC1: BODY_PICK_CHALLENGER = {
+      tag: '0',
+      advanceOwner: 'entry1',
+      advanceSegment: 'a0',
+      draftOwner: 'sync2',
+      draftId: { dt: 'PREFIX1:', id: 1 }
+    }
+    await api.publish(Event.PICK_CHALLENGER, eventPC1)
+
+    expect(extractStack).deep.equal([])
+
+    const eventPC2: BODY_PICK_CHALLENGER = {
+      tag: '0',
+      advanceOwner: 'entry2',
+      advanceSegment: 'a0',
+      draftOwner: 'sync2',
+      draftId: { dt: 'PREFIX1:', id: 1 }
+    }
+    await api.publish(Event.PICK_CHALLENGER, eventPC2)
+
+    // expect(extractStack).deep.equal([ ELECT_SEGMENT ])
+    // TODO: finalize picking proccess, ELECT_SEGMENT need to be received
 
     // expect(draftStack).deep.equal([{
     //   advanceOwner: 'entry1',
@@ -68,7 +82,6 @@ describe('63.storage', function () {
     //   draftOwner: 'sync2'
     // }])
 
-    // expect(extractStack).deep.equal([])
   })
 
   /*
@@ -78,7 +91,7 @@ describe('63.storage', function () {
   */
   it('listen-commit-checkDb', async () => {
     // 1. Send KEEP_ADVANCE_HISTORY
-    await api.publish(Event.KEEP_ADVANCE_HISTORY, {
+    const eventKAH: BODY_KEEP_ADVANCE_HISTORY = {
       advanceId: { segment: 'seg1', offset: 1 },
       shard: 0,
       realm: 'myrealm',
@@ -86,16 +99,18 @@ describe('63.storage', function () {
       uri: ['my', 'topic'],
       opt: { trace: true },
       sid: 'session1'
-    }, { exclude_me: false })
+    }
+    await api.publish(Event.KEEP_ADVANCE_HISTORY, eventKAH, { exclude_me: false })
 
     const commit_requested: Promise<any[]> = once(storage, COMMIT_COMPLETED)
 
     // 2. Send ADVANCE_SEGMENT_RESOLVED
-    await api.publish(Event.ADVANCE_SEGMENT_RESOLVED, {
+    const eventASR: BODY_ADVANCE_SEGMENT_RESOLVED = {
       advanceOwner: 'sync1',
       advanceSegment: 'seg1',
       segment: 'res_seg1'
-    }, { exclude_me: false })
+    }
+    await api.publish(Event.ADVANCE_SEGMENT_RESOLVED, eventASR, { exclude_me: false })
 
     const commit_resolverd: any[] = await commit_requested
     const commit_result: BODY_ADVANCE_SEGMENT_RESOLVED = commit_resolverd[0]
