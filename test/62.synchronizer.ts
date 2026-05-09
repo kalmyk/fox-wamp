@@ -116,4 +116,29 @@ describe('62.synchronizer', function () {
 
   })
 
+  it('init-db handshake response from sync node', async () => {
+    // arrange
+    const nodeId = 'NODE_X'
+    // create a stage one instance that will respond
+    const stageOneLocal = new StageOneTask(sysRealm, 'SYNC1', 2, ['SYNC2'])
+    stageOneLocal.setRecentValue('PREFIX:999')
+
+    let reply: any = null
+    await api.subscribe(Event.INIT_DB_ACCEPTED + '.' + nodeId, (body, opt) => {
+      reply = body
+    })
+
+    // act: publish init-db as if storage node requested init
+    await api.publish(Event.INIT_DB, { nodeId }, { exclude_me: false })
+
+    // allow event loop
+    await new Promise(r => setTimeout(r, 10))
+
+    // assert: synchronizer should reply with lastSeenAdvanceId equal to recentValue
+    expect(reply).to.be.an('object')
+    expect(reply.nodeId).to.equal(nodeId)
+    expect(reply.status).to.equal('accepted')
+    expect(reply.lastSeenAdvanceId).to.equal(stageOneLocal.getRecentValue())
+  })
+
 })

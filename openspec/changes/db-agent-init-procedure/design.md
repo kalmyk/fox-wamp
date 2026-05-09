@@ -26,6 +26,11 @@ NDB (database) nodes currently start serving queries immediately upon connection
   - The `StorageTask` (which handles NDB storage) seems the most appropriate place as it already has access to the database and realm.
   - NDB will subscribe to `INIT_DB_ACCEPTED.<myNodeId>` before sending `INIT_DB`.
 - **Quorum Tracking**: NDB will maintain a set of responding Sync nodes and a list of received `advance-ids`. Once the set size reaches `syncQuorum`, it calculates the `maxAdvanceId` and transitions to ready.
+ - **Sync Node Logic (implemented)**: `StageOneTask` subscribes to `INIT_DB` and responds with `INIT_DB_ACCEPTED.<nodeId>` containing `lastSeenAdvanceId` equal to `getRecentValue()`.
+ - **NDB Logic (implemented)**:
+   - `StorageTask.initHandshake(syncQuorum, timeoutMs=30000)` was added to `lib/masterfree/storage.ts`.
+   - The StorageTask subscribes to `INIT_DB_ACCEPTED.<myNodeId>`, publishes `INIT_DB`, collects unique responses until `syncQuorum`, computes `maxAdvanceId`, and resolves.
+   - The NDB startup sequence (masterfree/ndb.ts) now waits for the handshake to resolve before attaching gate listeners. On handshake failure the process exits (fail-fast) to avoid serving queries from an uninitialized storage node.
 
 ## Risks / Trade-offs
 

@@ -49,6 +49,22 @@ FOX-WAMP supports several operational modes depending on the storage and distrib
 - **Line Endings:** Unix (LF).
 - **Modules:** ES6 modules for TypeScript source.
 
+### Event Payload Typing (Recommendation)
+
+- Use the exported BODY_* TypeScript types from `lib/masterfree/hyper.h.ts` (or the appropriate header file) for all event publish/subscribe payloads. This keeps payload shapes explicit, documented, and checked by the compiler.
+- When subscribing, prefer typed handlers, for example:
+
+  const handler = (body: BODY_KEEP_ADVANCE_HISTORY) => { /* ... */ }
+  api.subscribe(Event.KEEP_ADVANCE_HISTORY, handler)
+
+- When publishing, construct payloads with the matching type, for example:
+
+  const body: BODY_INIT_DB = { nodeId: myNodeId }
+  api.publish(Event.INIT_DB, body, { exclude_me: false })
+
+- If an event body changes, update the corresponding BODY_* type and add a short unit test verifying the new shape is used by publishers and subscribers.
+
+
 ## Testing
 - **Framework:** Mocha
 - **Assertion Library:** Chai (with `chai-as-promised` and `chai-spies`)

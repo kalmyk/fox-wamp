@@ -18,6 +18,8 @@ export enum Event {
   ELECT_SEGMENT = 'ELECT_SEGMENT',
 
   ADVANCE_SEGMENT_RESOLVED = 'advance-segment-resolved', // sub-topic to dedicated gate to send ACK
+  INIT_DB = 'INIT_DB',
+  INIT_DB_ACCEPTED = 'INIT_DB_ACCEPTED',
 }
 
 export type BODY_BEGIN_ADVANCE_SEGMENT = {
@@ -35,6 +37,16 @@ export type BODY_ADVANCE_SEGMENT_OVER = {
 export type BODY_TRIM_ADVANCE_SEGMENT = {
   advanceOwner: string
   advanceSegment: string
+}
+
+export type BODY_INIT_DB = {
+  nodeId: string
+}
+
+export type BODY_INIT_DB_ACCEPTED = {
+  nodeId: string
+  status: string
+  lastSeenAdvanceId: string
 }
 
 export type BODY_GENERATE_DRAFT = {

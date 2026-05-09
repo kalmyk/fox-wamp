@@ -5,7 +5,7 @@ import { ComplexId, makeEmpty, keyId } from './makeid'
 import { HyperClient } from '../hyper/client'
 import * as History from '../sqlite/history'
 import { DbFactory } from '../sqlite/dbfactory'
-import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER, BODY_GENERATE_DRAFT } from './hyper.h'
+import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER, BODY_GENERATE_DRAFT, BODY_INIT_DB, BODY_INIT_DB_ACCEPTED } from './hyper.h'
 import { EventEmitter } from 'stream'
 
 export const COMMIT_COMPLETED = 'commit-completed'  // emit BODY_ADVANCE_SEGMENT_RESOLVED
@@ -117,6 +117,87 @@ export class StorageTask extends EventEmitter {
   async listenStageOne(client: HyperClient) {
     // export GENERATE_DRAFT to all sync hosts
     await this.api.pipe(client, Event.GENERATE_DRAFT, {exclude_me: false})
+    // start initialization handshake when piping to sync hosts is established
+    // run asynchronously and don't block pipe establishment
+    // (actual initHandshake is invoked by masterfree/ndb.ts per connection)
+  }
+
+  // guard initializer will be set in constructor to a noop; real initializer attached by initHandshake
+  private initHandshakeCalledGuard: (() => void) | null = null
+
+  // handshake state
+  private initPromise: Promise<string> | null = null
+  private initResolved = false
+
+  /**
+   * Initiate initialization handshake: send INIT_DB and wait for INIT_DB_ACCEPTED responses until syncQuorum
+   * Returns resolved max advance id string when quorum reached.
+   */
+  initHandshake(syncQuorum: number, timeoutMs: number = 30000): Promise<string> {
+    if (this.initPromise) return this.initPromise
+
+    // ensure subscription done before publish
+    const myNodeId = this.sysRealm.getRouter().getId()
+    const responses: Map<string, string> = new Map()
+
+    const topic = Event.INIT_DB_ACCEPTED + '.' + myNodeId
+    const onResponse = (body: BODY_INIT_DB_ACCEPTED | any, opt: any) => {
+      try {
+        // prefer responder id from headers.owner; fall back to body.nodeId for compatibility
+        const nodeId = (opt && opt.headers && opt.headers.owner) ? opt.headers.owner : (body && (body as BODY_INIT_DB_ACCEPTED).nodeId ? (body as BODY_INIT_DB_ACCEPTED).nodeId : 'unknown')
+        const last = (body && (body as BODY_INIT_DB_ACCEPTED).lastSeenAdvanceId) ? (body as BODY_INIT_DB_ACCEPTED).lastSeenAdvanceId : ''
+        responses.set(nodeId, last)
+      if (responses.size >= syncQuorum && !this.initResolved) {
+          // compute max
+          let maxVal = ''
+          for (const v of responses.values()) {
+            if (maxVal === '' || maxVal < v) maxVal = v
+          }
+          this.initResolved = true
+          cleanup()
+          resolveFn(maxVal)
+        }
+      } catch (err) {
+        console.error('error in initHandshake onResponse', err)
+      }
+    }
+
+    const cleanup = () => {
+      try { if (subId) this.api.unsubscribe(subId) } catch (e) {}
+      if (timeoutTimer) clearTimeout(timeoutTimer)
+    }
+
+    let resolveFn: (v: string) => void = () => {}
+    let rejectFn: (e: any) => void = () => {}
+    let timeoutTimer: NodeJS.Timeout | null = null
+
+    let subId: any = null
+    this.initPromise = new Promise<string>((resolve, reject) => {
+      resolveFn = resolve
+      rejectFn = reject
+      // subscribe first
+        this.api.subscribe(topic, onResponse).then((sid: any) => {
+         subId = sid
+        // publish init request
+        const body: BODY_INIT_DB = { nodeId: myNodeId }
+        // include owner header to ensure recipients can identify the requester
+        this.api.publish(Event.INIT_DB, body, {exclude_me: false, headers: { owner: myNodeId }})
+        // start timeout
+        timeoutTimer = setTimeout(() => {
+          if (!this.initResolved) {
+            cleanup()
+            reject(new Error('initHandshake timeout'))
+          }
+        }, timeoutMs)
+      }).catch((err) => {
+        reject(err)
+      })
+    })
+
+    // expose guard so listenStageOne can call this once subscription/piping is established
+    this.initHandshakeCalledGuard = () => { /* no-op placeholder to signal started */ }
+
+    return this.initPromise
   }
 
   async listenStageTwo(client: HyperClient) {

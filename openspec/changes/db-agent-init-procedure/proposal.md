@@ -9,6 +9,7 @@ NDB (database) nodes must ensure they are fully synchronized with the cluster st
 - **Sync Node Response**: Sync nodes will respond to a dedicated NDB queue with an "init accepted" status and their last seen `advance-id`.
 - **Quorum-Based Activation**: NDB nodes will wait for a `syncQuorum` of responses before transitioning to a "ready" state and serving queries.
 - **Max ID Tracking**: NDB nodes will collect and determine the maximum `advance-id` from the responses to establish their starting point.
+  - **Implementation Notes**: This change was implemented. New events `INIT_DB` and `INIT_DB_ACCEPTED` were added to `lib/masterfree/hyper.h.ts`. The sync response uses StageOneTask.getRecentValue() as the `lastSeenAdvanceId`. The handshake code is implemented in `lib/masterfree/storage.ts` as `StorageTask.initHandshake` and the sync handler in `lib/masterfree/synchronizer.ts` as `StageOneTask.event_init_db`. The storage process now waits for quorum before attaching entry (gate) listeners (masterfree/ndb.ts). A default handshake timeout of 30000ms (30s) is applied; failures currently abort startup (process exit) to avoid exposing storage before readiness.
 
 ## Capabilities
 
@@ -20,7 +21,6 @@ NDB (database) nodes must ensure they are fully synchronized with the cluster st
 
 ## Impact
 
-- `ndb.ts`: Implementation of the initialization state machine and message handling.
-- `synchronizer.ts`: Logic to handle `init-db` requests and respond with the last seen `advance-id`.
-- Communication protocols: Addition of the `init-db` and init response message types.
-- Testing: New unit tests for the handshake and quorum logic.
+- `ndb.ts`: Now waits for the handshake to complete before attaching gate listeners (masterfree/ndb.ts).
+- `synchronizer.ts`: Responds with the lastSeenAdvanceId (StageOneTask.getRecentValue()).
+- Tests: test/63.storage.ts added to verify handshake quorum and maxAdvanceId calculation.

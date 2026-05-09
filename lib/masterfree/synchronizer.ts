@@ -2,7 +2,7 @@ import { BaseRealm } from '../realm'
 import { HyperClient } from '../hyper/client'
 import { keyDate, ProduceId, keyComplexId } from './makeid'
 import { ComplexId } from './makeid'
-import { Event, BODY_PICK_CHALLENGER, BODY_GENERATE_DRAFT, BODY_ELECT_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED } from './hyper.h'
+import { Event, BODY_PICK_CHALLENGER, BODY_GENERATE_DRAFT, BODY_ELECT_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_INIT_DB, BODY_INIT_DB_ACCEPTED } from './hyper.h'
 import { SESSION_JOIN, SESSION_LEAVE } from '../messages'
 
 type OwnerStateNode = {
@@ -27,8 +27,6 @@ export class StageOneTask {
     this.syncQuorum = syncQuorum
     this.myId = myId
     this.syncNodeIds = syncNodeIds.filter((nodeId) => nodeId !== myId)
-    console.log('StageOneTask: syncNodeIds:', this.syncNodeIds);
-    
     this.makeId = new ProduceId((date: any) => keyDate(date))
 
     // build api before new session handler to not to be caught
@@ -39,6 +37,8 @@ export class StageOneTask {
 
     this.api.subscribe(Event.GENERATE_DRAFT, this.event_generate_draft.bind(this))
     this.api.subscribe(Event.PICK_CHALLENGER + '.' + myId, this.event_pick_challenger.bind(this))
+    // respond to init-db requests from storage nodes
+    this.api.subscribe(Event.INIT_DB, this.event_init_db.bind(this))
   }
 
   getOwnerState(owner: string): OwnerStateNode {
@@ -46,6 +46,25 @@ export class StageOneTask {
       this.ownerState.set(owner, {recentDraftSegment: ''})
     }
     return this.ownerState.get(owner)!
+  }
+
+  // When a storage node initiates init, reply with accepted and last seen advance id
+  event_init_db(body: BODY_INIT_DB | any, opts?: any) {
+    try {
+      const requester = (body && (body as BODY_INIT_DB).nodeId) ? (body as BODY_INIT_DB).nodeId : (opts && opts.headers && opts.headers.owner) ? opts.headers.owner : 'unknown'
+      // responder reports its own id in the reply so storage can identify who replied
+      const reply: BODY_INIT_DB_ACCEPTED = {
+        // keep body.nodeId equal to requester for backwards compatibility with existing tests
+        nodeId: requester,
+        status: 'accepted',
+        lastSeenAdvanceId: this.getRecentValue()
+      }
+      // publish to a node-specific subtopic so only the requester handles it
+      // include responder id in headers so requester can identify who replied
+      this.api.publish(Event.INIT_DB_ACCEPTED + '.' + requester, reply, {exclude_me: false, headers: { owner: this.myId }})
+    } catch (err) {
+      console.error('error in event_init_db', err)
+    }
   }
 
   listenEntry(client: HyperClient) {

@@ -9,6 +9,7 @@ import * as sqlite from 'sqlite'
 
 import { Router } from '../lib/router'
 import { StorageTask, COMMIT_COMPLETED } from '../lib/masterfree/storage'
+import { StageOneTask } from '../lib/masterfree/synchronizer'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { Event, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_KEEP_ADVANCE_HISTORY, BODY_PICK_CHALLENGER } from '../lib/masterfree/hyper.h'
 import { BaseRealm } from '../lib/realm'
@@ -129,6 +130,22 @@ describe('63.storage', function () {
     expect(rows[0].msg_uri).to.equal('my.topic')
     expect(rows[0].msg_body).to.equal('"test-data"')
     expect(JSON.parse(rows[0].msg_opt)).to.deep.equal({ trace: true })
+  })
+
+  it('init-db handshake from storage node', async () => {
+    // create two sync node responders
+    const stageA = new StageOneTask(sysRealm, 'SYNC_A', 2, ['SYNC_B'])
+    stageA.setRecentValue('PREFIX:5')
+    const stageB = new StageOneTask(sysRealm, 'SYNC_B', 2, ['SYNC_A'])
+    stageB.setRecentValue('PREFIX:7')
+
+    // allow stage nodes to finish subscribing
+    await new Promise(r => setTimeout(r, 100))
+    // act: storage initiates handshake with quorum=2
+    const result = await storage.initHandshake(2, 1000)
+
+    // assert: resolved max should be the highest recentValue from responders
+    expect(result).to.equal('PREFIX:7')
   })
 
 })

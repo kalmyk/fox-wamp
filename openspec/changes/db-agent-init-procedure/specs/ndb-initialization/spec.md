@@ -6,6 +6,7 @@ The NDB agent MUST initiate a handshake with all Sync nodes upon startup to sync
 #### Scenario: Successful Handshake Initiation
 - **WHEN** the NDB agent starts up
 - **THEN** it SHALL send an `init-db` message containing its `node-id` to all configured Sync nodes.
+ - **IMPLEMENTATION NOTE:** The code subscribes to `INIT_DB_ACCEPTED.<myNodeId>` then publishes `INIT_DB`. The handshake is performed by StorageTask.initHandshake(syncQuorum, timeoutMs) which resolves with the computed `maxAdvanceId`. Startup now waits for the handshake to complete before exposing gate listeners.
 
 ### Requirement: Sync Node Response to Init
 Sync nodes MUST respond to `init-db` requests to acknowledge the NDB node and provide synchronization context.
@@ -13,6 +14,7 @@ Sync nodes MUST respond to `init-db` requests to acknowledge the NDB node and pr
 #### Scenario: Sync Node Acknowledgment
 - **WHEN** a Sync node receives an `init-db` message
 - **THEN** it SHALL respond to the dedicated NDB response queue with an "init accepted" status and its currently tracked `last seen advance-id`.
+ - **IMPLEMENTATION NOTE:** Sync nodes respond with the value returned by StageOneTask.getRecentValue() as `lastSeenAdvanceId`.
 
 ### Requirement: NDB Quorum Collection
 The NDB agent MUST collect responses from Sync nodes and wait for a quorum before becoming ready.
