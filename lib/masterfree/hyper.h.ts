@@ -18,20 +18,20 @@ export enum Event {
   ELECT_SEGMENT = 'ELECT_SEGMENT',
 
   ADVANCE_SEGMENT_RESOLVED = 'advance-segment-resolved', // sub-topic to dedicated gate to send ACK
-  INIT_DB = 'INIT_DB',
-  INIT_DB_ACCEPTED = 'INIT_DB_ACCEPTED',
+  INIT_ENTRY = 'INIT_ENTRY',
+  INIT_ENTRY_ACCEPTED = 'INIT_ENTRY_ACCEPTED',
 }
 
 export type BODY_BEGIN_ADVANCE_SEGMENT = {
   advanceOwner: string
   advanceSegment: string
-  tag: string
+  shardTag: string
 }
 
 export type BODY_ADVANCE_SEGMENT_OVER = {
   advanceOwner: string
   advanceSegment: string
-  tag: string
+  shardTag: string
 }
 
 export type BODY_TRIM_ADVANCE_SEGMENT = {
@@ -39,12 +39,12 @@ export type BODY_TRIM_ADVANCE_SEGMENT = {
   advanceSegment: string
 }
 
-export type BODY_INIT_DB = {
-  nodeId: string
+export type BODY_INIT_ENTRY = {
+  advanceOwner: string
 }
 
-export type BODY_INIT_DB_ACCEPTED = {
-  nodeId: string
+export type BODY_INIT_ENTRY_ACCEPTED = {
+  advanceOwner: string
   status: string
   lastSeenAdvanceId: string
 }
@@ -52,13 +52,13 @@ export type BODY_INIT_DB_ACCEPTED = {
 export type BODY_GENERATE_DRAFT = {
   advanceOwner: string // TODO: origin / relay
   advanceSegment: string
-  tag: string
+  shardTag: string
 }
 
 export type BODY_PICK_CHALLENGER = {
   advanceOwner: string
   advanceSegment: string
-  tag: string
+  shardTag: string
   draftOwner: string
   draftId: ComplexId
 }
@@ -76,7 +76,7 @@ export type BODY_KEEP_ADVANCE_HISTORY = {
 export type BODY_ELECT_SEGMENT = {
   advanceOwner: string
   advanceSegment: string
-  tag: string
+  shardTag: string
   voter: string
   challenger: string
 }

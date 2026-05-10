@@ -21,17 +21,6 @@ function mkSync(host: string, port: number, nodeId: string, storageTask: Storage
     console.log('login successful', nodeId, host, port)
     await stageTwoTask.listenStageOne(client)
     await storageTask.listenStageOne(client)
-    // initiate initialization handshake for storage when connection to sync peer is established
-    try {
-      // start handshake but do not wait on every individual connection; storageTask will deduplicate
-      storageTask.initHandshake && storageTask.initHandshake(config.getSyncQuorum()).then((maxAdvanceId) => {
-        console.log('Storage init quorum reached, maxAdvanceId=', maxAdvanceId)
-      }).catch((err) => {
-        console.error('Storage initHandshake error:', (err as any) && (err as any).message)
-      })
-    } catch (err) {
-      console.error('error initiating initHandshake:', err)
-    }
   })
   return client.connect()
 }
@@ -42,13 +31,10 @@ function mkGate(host: string, port: number, gateId: string, storageTask: Storage
     await client.login({realm: INTRA_REALM_NAME})
     console.log('login successful', gateId, host, port)
     try {
-      // wait for storage initialization handshake to complete before exposing gate
-      await storageTask.initHandshake && storageTask.initHandshake(config.getSyncQuorum())
-      console.log('storage initialization completed, attaching gate listener', gateId)
+      console.log('attaching gate listener', gateId)
       await storageTask.listenEntry(client, gateId)
     } catch (err) {
-      console.error('Storage initialization failed, aborting gate attach:', (err as any) && (err as any).message)
-      // fail fast: do not expose this gate if storage is not initialized
+      console.error('Failed to attach gate listener:', (err as any) && (err as any).message)
       process.exit(1)
     }
   })

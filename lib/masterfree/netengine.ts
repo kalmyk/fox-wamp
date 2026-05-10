@@ -2,9 +2,9 @@ import { ActorPush, BaseRealm, BaseEngine, makeDataSerializable, unSerializeData
 import { Router } from '../router'
 import { HyperClient } from '../hyper/client'
 import { MemKeyValueStorage } from '../mono/memkv'
-import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_OVER } from './hyper.h'
+import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_OVER, BODY_INIT_ENTRY, BODY_INIT_ENTRY_ACCEPTED } from './hyper.h'
 
-const TOTAL_SHARDS_COUNT = 65535
+const TOTAL_SHARDS_COUNT = 1048576
 
 export class HistorySegment {
 
@@ -92,6 +92,9 @@ export class NetEngineMill {
   private sysRealm: BaseRealm
   private sysApi: HyperClient
   private lastShard: number = 0
+  private initPromise: Promise<void> | null = null
+  private initResolved = false
+  private maxAdvanceId: string = ''
 
   constructor (router: any) {
     this.router = router
@@ -114,6 +117,79 @@ export class NetEngineMill {
     })
   }
 
+  /**
+   * Initiate initialization handshake: send INIT_ENTRY and wait for INIT_ENTRY_ACCEPTED responses until syncQuorum
+   */
+  initHandshake(syncQuorum: number, timeoutMs: number = 30000): Promise<void> {
+    if (this.initPromise) return this.initPromise
+
+    const myNodeId = this.router.getId()
+    const responses: Map<string, string> = new Map()
+
+    const topic = Event.INIT_ENTRY_ACCEPTED + '.' + myNodeId
+    const onResponse = (body: BODY_INIT_ENTRY_ACCEPTED | any, opt: any) => {
+      try {
+        const nodeId = (opt && opt.headers && opt.headers.owner) ? opt.headers.owner : (body && (body as BODY_INIT_ENTRY_ACCEPTED).advanceOwner ? (body as BODY_INIT_ENTRY_ACCEPTED).advanceOwner : 'unknown')
+        const last = (body && (body as BODY_INIT_ENTRY_ACCEPTED).lastSeenAdvanceId) ? (body as BODY_INIT_ENTRY_ACCEPTED).lastSeenAdvanceId : ''
+        responses.set(nodeId, last)
+        if (responses.size >= syncQuorum && !this.initResolved) {
+          // compute max
+          let maxVal = ''
+          for (const v of responses.values()) {
+            if (maxVal === '' || maxVal < v) maxVal = v
+          }
+          this.maxAdvanceId = maxVal
+          this.initResolved = true
+          cleanup()
+          resolveFn()
+        }
+      } catch (err) {
+        console.error('error in initHandshake onResponse', err)
+      }
+    }
+
+    const cleanup = () => {
+      try { if (subId) this.sysApi.unsubscribe(subId) } catch (e) {}
+      if (timeoutTimer) clearTimeout(timeoutTimer)
+    }
+
+    let resolveFn: () => void = () => {}
+    let rejectFn: (e: any) => void = () => {}
+    let timeoutTimer: NodeJS.Timeout | null = null
+
+    let subId: any = null
+    this.initPromise = new Promise<void>((resolve, reject) => {
+      resolveFn = resolve
+      rejectFn = reject
+      this.sysApi.subscribe(topic, onResponse).then((sid: any) => {
+        subId = sid
+        const body: BODY_INIT_ENTRY = { advanceOwner: myNodeId }
+        this.sysApi.publish(Event.INIT_ENTRY, body, {exclude_me: false, headers: { owner: myNodeId }})
+        timeoutTimer = setTimeout(() => {
+          if (!this.initResolved) {
+            cleanup()
+            reject(new Error('initHandshake timeout'))
+          }
+        }, timeoutMs)
+      }).catch((err) => {
+        reject(err)
+      })
+    })
+
+    return this.initPromise
+  }
+
+  async listenSync(client: HyperClient) {
+    await this.sysApi.pipe(client, Event.BEGIN_ADVANCE_SEGMENT, {exclude_me: false})
+    await this.sysApi.pipe(client, Event.ADVANCE_SEGMENT_OVER, {exclude_me: false})
+    await this.sysApi.pipe(client, Event.KEEP_ADVANCE_HISTORY, {exclude_me: false})
+    await this.sysApi.pipe(client, Event.INIT_ENTRY, {exclude_me: false})
+
+    await client.pipe(this.sysApi, Event.TRIM_ADVANCE_SEGMENT + '.*', {exclude_me: false})
+    await client.pipe(this.sysApi, Event.ADVANCE_SEGMENT_RESOLVED + '.' + this.router.getId(), {exclude_me: false})
+    await client.pipe(this.sysApi, Event.INIT_ENTRY_ACCEPTED + '.' + this.router.getId(), {exclude_me: false})
+  }
+
   nextShard(): number {
     this.lastShard = (this.lastShard + 1) % TOTAL_SHARDS_COUNT
     return this.lastShard
@@ -132,7 +208,7 @@ export class NetEngineMill {
         const body: BODY_ADVANCE_SEGMENT_OVER = {
           advanceSegment: data.advanceSegment,
           advanceOwner: this.router.getId(),
-          tag: "s" + this.curSegment.getShard()
+          shardTag: "s" + this.curSegment.getShard()
         }
         this.curSegment = null
         this.sysApi.publish(Event.ADVANCE_SEGMENT_OVER, body, {exclude_me: false})
@@ -154,7 +230,7 @@ export class NetEngineMill {
     const body: BODY_BEGIN_ADVANCE_SEGMENT = {
       advanceSegment: curAdvanceSegment,
       advanceOwner: this.router.getId(),
-      tag: "s" + this.curSegment.getShard()
+      shardTag: "s" + this.curSegment.getShard()
     }
     this.sysApi.publish(Event.BEGIN_ADVANCE_SEGMENT, body)
     return this.curSegment
@@ -223,5 +299,9 @@ export class NetEngineMill {
         sid: eventData.sid
       })
     }
+  }
+
+  getMaxAdvanceId(): string {
+    return this.maxAdvanceId
   }
 }

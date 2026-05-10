@@ -2,7 +2,7 @@ import { BaseRealm } from '../realm'
 import { HyperClient } from '../hyper/client'
 import { keyDate, ProduceId, keyComplexId } from './makeid'
 import { ComplexId } from './makeid'
-import { Event, BODY_PICK_CHALLENGER, BODY_GENERATE_DRAFT, BODY_ELECT_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_INIT_DB, BODY_INIT_DB_ACCEPTED } from './hyper.h'
+import { Event, BODY_PICK_CHALLENGER, BODY_GENERATE_DRAFT, BODY_ELECT_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_INIT_ENTRY, BODY_INIT_ENTRY_ACCEPTED } from './hyper.h'
 import { SESSION_JOIN, SESSION_LEAVE } from '../messages'
 
 type OwnerStateNode = {
@@ -37,8 +37,8 @@ export class StageOneTask {
 
     this.api.subscribe(Event.GENERATE_DRAFT, this.event_generate_draft.bind(this))
     this.api.subscribe(Event.PICK_CHALLENGER + '.' + myId, this.event_pick_challenger.bind(this))
-    // respond to init-db requests from storage nodes
-    this.api.subscribe(Event.INIT_DB, this.event_init_db.bind(this))
+    // respond to init-entry requests from entry nodes
+    this.api.subscribe(Event.INIT_ENTRY, this.event_init_entry.bind(this))
   }
 
   getOwnerState(owner: string): OwnerStateNode {
@@ -48,22 +48,21 @@ export class StageOneTask {
     return this.ownerState.get(owner)!
   }
 
-  // When a storage node initiates init, reply with accepted and last seen advance id
-  event_init_db(body: BODY_INIT_DB | any, opts?: any) {
+  // When an entry node initiates init, reply with accepted and last seen advance id
+  event_init_entry(body: BODY_INIT_ENTRY | any, opts?: any) {
     try {
-      const requester = (body && (body as BODY_INIT_DB).nodeId) ? (body as BODY_INIT_DB).nodeId : (opts && opts.headers && opts.headers.owner) ? opts.headers.owner : 'unknown'
-      // responder reports its own id in the reply so storage can identify who replied
-      const reply: BODY_INIT_DB_ACCEPTED = {
-        // keep body.nodeId equal to requester for backwards compatibility with existing tests
-        nodeId: requester,
+      const requester = (body && (body as BODY_INIT_ENTRY).advanceOwner) ? (body as BODY_INIT_ENTRY).advanceOwner : (opts && opts.headers && opts.headers.owner) ? opts.headers.owner : 'unknown'
+      // responder reports its own id in the reply so entry can identify who replied
+      const reply: BODY_INIT_ENTRY_ACCEPTED = {
+        advanceOwner: requester,
         status: 'accepted',
         lastSeenAdvanceId: this.getRecentValue()
       }
       // publish to a node-specific subtopic so only the requester handles it
       // include responder id in headers so requester can identify who replied
-      this.api.publish(Event.INIT_DB_ACCEPTED + '.' + requester, reply, {exclude_me: false, headers: { owner: this.myId }})
+      this.api.publish(Event.INIT_ENTRY_ACCEPTED + '.' + requester, reply, {exclude_me: false, headers: { owner: this.myId }})
     } catch (err) {
-      console.error('error in event_init_db', err)
+      console.error('error in event_init_entry', err)
     }
   }
 
@@ -89,7 +88,7 @@ export class StageOneTask {
     const draftSegment: BODY_PICK_CHALLENGER = {
       advanceOwner: body.advanceOwner,
       advanceSegment: body.advanceSegment,
-      tag: body.tag,
+      shardTag: body.shardTag,
       draftOwner,
       draftId
     }
@@ -136,7 +135,7 @@ export class StageOneTask {
       const challengerBody: BODY_ELECT_SEGMENT = {
         advanceOwner,
         advanceSegment,
-        tag: body.tag,
+        shardTag: body.shardTag,
         voter: this.myId,
         challenger: this.extractDraft(vouterSet)
       }

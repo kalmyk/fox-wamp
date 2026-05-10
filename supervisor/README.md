@@ -14,8 +14,6 @@ masterfree band queue work
 - to start:
 ```shell
 $ supervisord -c ./masterfree.supervisord.ini
-
-
 ```
 
 # blueprint
