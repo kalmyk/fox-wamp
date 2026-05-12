@@ -16,20 +16,19 @@ Entry nodes currently start serving queries immediately upon startup, without en
 
 ## Decisions
 
+- **Passive Handshake**: Entry nodes wait for `INIT_ENTRY_ACCEPTED` responses from connecting Sync nodes instead of sending an outbound `INIT_ENTRY` request.
 - **New Message Types**:
-  - `Event.INIT_ENTRY`: Sent by entry node to all Sync nodes.
-  - `Event.INIT_ENTRY_ACCEPTED`: Sent by Sync nodes back to the entry node.
+  - `Event.INIT_ENTRY_ACCEPTED`: Sent by Sync nodes back to the entry node upon connection.
 - **Protocol Extension**: Update `lib/masterfree/hyper.h.ts` with these events and their body types.
-- **Sync Node Logic**: Add `event_init_entry` handler to `StageOneTask` in `lib/masterfree/synchronizer.ts`. It will publish `INIT_ENTRY_ACCEPTED` to a node-specific topic (e.g., `INIT_ENTRY_ACCEPTED.<nodeId>`).
+- **Sync Node Logic**: Update `listenEntry` to immediately publish `INIT_ENTRY_ACCEPTED` to the entry node upon connection.
 - **Entry Node Logic**:
-  - Add `initHandshake` and `listenSync` methods to `NetEngineMill` in `lib/masterfree/netengine.ts`.
-  - Entry node will subscribe to `INIT_ENTRY_ACCEPTED.<myNodeId>` before sending `INIT_ENTRY`.
-- **Quorum Tracking**: Entry node will maintain a set of responding Sync nodes and a list of received `advance-ids`. Once the set size reaches `syncQuorum`, it calculates the `maxAdvanceId` and transitions to ready.
- - **Sync Node Logic (implemented)**: `StageOneTask` subscribes to `INIT_ENTRY` and responds with `INIT_ENTRY_ACCEPTED.<nodeId>` containing `lastSeenAdvanceId`.
- - **Entry Node Logic (implemented)**:
-   - `NetEngineMill.initHandshake(syncQuorum, timeoutMs=30000)` was added to `lib/masterfree/netengine.ts`.
-   - The NetEngineMill subscribes to `INIT_ENTRY_ACCEPTED.<myNodeId>`, publishes `INIT_ENTRY`, collects unique responses until `syncQuorum`, computes `maxAdvanceId`, and resolves.
-   - The entry startup sequence (masterfree/entry.ts) now waits for the handshake to resolve before starting servers.
+  - Start the FOX server (passive listener) *before* entering the initialization wait state in `masterfree/entry.ts`.
+  - `NetEngineMill.initHandshake` subscribes to `INIT_ENTRY_ACCEPTED.<myNodeId>` and waits until `syncQuorum` responses are received.
+- **Quorum Tracking**: Entry node maintains a set of responding Sync nodes and a list of received `advance-ids`. Once the set size reaches `syncQuorum`, it calculates the `maxAdvanceId` and transitions to ready.
+ - **Sync/DB Node Logic (updated)**: `listenEntry` immediately responds with `INIT_ENTRY_ACCEPTED.<nodeId>` containing `lastSeenAdvanceId`.
+ - **Entry Node Logic (updated)**:
+   - `NetEngineMill.initHandshake(syncQuorum, timeoutMs=30000)` waits for passive `INIT_ENTRY_ACCEPTED` responses.
+   - The entry startup sequence (masterfree/entry.ts) starts the FOX server first, then waits for the handshake to resolve before starting client-facing (WAMP/MQTT) servers.
 
 ## Risks / Trade-offs
 

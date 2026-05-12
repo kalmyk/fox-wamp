@@ -2,22 +2,22 @@ import { BaseRealm } from '../realm'
 import { HyperClient } from '../hyper/client'
 import { keyDate, ProduceId, keyComplexId } from './makeid'
 import { ComplexId } from './makeid'
-import { Event, BODY_PICK_CHALLENGER, BODY_GENERATE_DRAFT, BODY_ELECT_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_INIT_ENTRY, BODY_INIT_ENTRY_ACCEPTED } from './hyper.h'
+import { Event, BODY_PICK_CHALLENGER, BODY_GENERATE_DRAFT, BODY_ELECT_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_INIT_ENTRY_ACCEPTED } from './hyper.h'
 import { SESSION_JOIN, SESSION_LEAVE } from '../messages'
 
-type OwnerStateNode = {
-  recentDraftSegment: string
+type AdvanceOwnerStateNode = {
+  recentAdvanceSegment: string
 }
 
 export class StageOneTask {
   private realm: BaseRealm
   private syncQuorum: number
   private myId: string
-  private ownerState: Map<string, OwnerStateNode> = new Map()
+  private advanceOwnerState: Map<string, AdvanceOwnerStateNode> = new Map() // advanceOwner -> OwnerStateNode
   private makeId: ProduceId
   private recentValue: string = ''
-  private advanceIdHeap: Map<string, Set<string>> = new Map()
-  private doneHeap: Map<string, Set<string>> = new Map()
+  private advanceIdHeap: Map<string, Set<string>> = new Map() // advanceId ->
+  private doneHeap: Map<string, Set<string>> = new Map() // advanceId ->
   private draftHeap: Map<string, string[]> = new Map() // draftOwner -> set of draftId
   private api: HyperClient
   private syncNodeIds: string[]
@@ -37,37 +37,29 @@ export class StageOneTask {
 
     this.api.subscribe(Event.GENERATE_DRAFT, this.event_generate_draft.bind(this))
     this.api.subscribe(Event.PICK_CHALLENGER + '.' + myId, this.event_pick_challenger.bind(this))
-    // respond to init-entry requests from entry nodes
-    this.api.subscribe(Event.INIT_ENTRY, this.event_init_entry.bind(this))
   }
 
-  getOwnerState(owner: string): OwnerStateNode {
-    if (!this.ownerState.has(owner)) {
-      this.ownerState.set(owner, {recentDraftSegment: ''})
+  getAdvanceOwnerState(owner: string): AdvanceOwnerStateNode {
+    if (!this.advanceOwnerState.has(owner)) {
+      this.advanceOwnerState.set(owner, {recentAdvanceSegment: ''})
     }
-    return this.ownerState.get(owner)!
+    return this.advanceOwnerState.get(owner)!
   }
 
-  // When an entry node initiates init, reply with accepted and last seen advance id
-  event_init_entry(body: BODY_INIT_ENTRY | any, opts?: any) {
-    try {
-      const requester = (body && (body as BODY_INIT_ENTRY).advanceOwner) ? (body as BODY_INIT_ENTRY).advanceOwner : (opts && opts.headers && opts.headers.owner) ? opts.headers.owner : 'unknown'
-      // responder reports its own id in the reply so entry can identify who replied
-      const reply: BODY_INIT_ENTRY_ACCEPTED = {
-        advanceOwner: requester,
-        status: 'accepted',
-        lastSeenAdvanceId: this.getRecentValue()
-      }
-      // publish to a node-specific subtopic so only the requester handles it
-      // include responder id in headers so requester can identify who replied
-      this.api.publish(Event.INIT_ENTRY_ACCEPTED + '.' + requester, reply, {exclude_me: false, headers: { owner: this.myId }})
-    } catch (err) {
-      console.error('error in event_init_entry', err)
+  getRecentDraftSegment(owner: string): string {
+    if (!this.advanceOwnerState.has(owner)) {
+      return ''
     }
+    return this.advanceOwnerState.get(owner)!.recentAdvanceSegment
   }
 
-  listenEntry(client: HyperClient) {
-    // client.pipe(this.api, Event.ADVANCE_SEGMENT_OVER, {exclude_me: false})
+  async listenEntry(entry: HyperClient, entryId: string) {
+    const reply: BODY_INIT_ENTRY_ACCEPTED = {
+      advanceOwner: entryId,
+      status: 'accepted',
+      lastSeenAdvanceId: this.getRecentValue()
+    }
+    await entry.publish(Event.INIT_ENTRY_ACCEPTED + '.' + entryId, reply, { exclude_me: false, headers: { owner: this.myId } })
   }
 
   async listenPeerStageOne(client: HyperClient) {
@@ -78,11 +70,11 @@ export class StageOneTask {
   // if advanceId is duplicated new segment is not generated
   // input headers: advanceOwner, advanceSegment
   event_generate_draft(body: BODY_GENERATE_DRAFT) {
-    const ownerState = this.getOwnerState(body.advanceOwner)
-    if (ownerState.recentDraftSegment >= body.advanceSegment) {
+    const ownerState = this.getAdvanceOwnerState(body.advanceOwner)
+    if (ownerState.recentAdvanceSegment >= body.advanceSegment) {
       return
     }
-    ownerState.recentDraftSegment = body.advanceSegment
+    ownerState.recentAdvanceSegment = body.advanceSegment
     const draftId: ComplexId = this.makeId.generateIdRec()
     const draftOwner: string = this.myId
     const draftSegment: BODY_PICK_CHALLENGER = {

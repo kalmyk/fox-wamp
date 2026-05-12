@@ -17,13 +17,13 @@ const router = new Router()
 router.setId(conf_node_id)
 
 function mkGate(host: string, port: number, gateId: string, stageOneTask: StageOneTask) {
-  // const client = new HyperNetClient({host, port})
-  // client.onopen(async () => {
-  //   await client.login({realm: INTRA_REALM_NAME})
-  //   console.log('login successful', gateId, host, port)
-  //   await stageOneTask.listenEntry(client)
-  // })
-  // client.connect()
+  const client = new HyperNetClient({host, port})
+  client.onopen(async () => {
+    await client.login({realm: INTRA_REALM_NAME})
+    console.log('login successful', gateId, host, port)
+    await stageOneTask.listenEntry(client, gateId)
+  })
+  return client.connect()
 }
 
 function mkSync(host: string, port: number, nodeId: string, stageOneTask: StageOneTask) {

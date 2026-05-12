@@ -124,12 +124,13 @@ describe('62.synchronizer', function () {
     stageOneLocal.setRecentValue('PREFIX:999')
 
     let reply: any = null
-    await api.subscribe(Event.INIT_ENTRY_ACCEPTED + '.' + nodeId, (body, opt) => {
+    const entryClient = sysRealm.buildApi()
+    await entryClient.subscribe(Event.INIT_ENTRY_ACCEPTED + '.' + nodeId, (body, opt) => {
       reply = body
     })
 
-    // act: publish init-entry as if entry node requested init
-    await api.publish(Event.INIT_ENTRY, { advanceOwner: nodeId }, { exclude_me: false })
+    // act: call listenEntry which should immediately publish INIT_ENTRY_ACCEPTED
+    await stageOneLocal.listenEntry(entryClient, nodeId)
 
     // allow event loop
     await new Promise(r => setTimeout(r, 10))
