@@ -72,7 +72,7 @@ export class StorageTask extends EventEmitter {
     })
 
     this.api.subscribe(Event.ADVANCE_SEGMENT_RESOLVED, (body: BODY_ADVANCE_SEGMENT_RESOLVED) => {
-      this.commit_segment(body.advanceSegment, body.segment).then((result) => {
+      this.commit_segment(body.advanceOwner, body.advanceSegment, body.segment).then((result) => {
         this.emit(COMMIT_COMPLETED, body)
       }).catch((err) => {
         console.error("Error in commit_segment:", err)
@@ -132,7 +132,7 @@ export class StorageTask extends EventEmitter {
   }
 
   async event_keep_advance_history (event: BODY_KEEP_ADVANCE_HISTORY) {
-    let buffer = this.getHystoryBuffer(event.advanceId.segment, event.shard)
+    let buffer = this.getHystoryBuffer(event.advanceOwner + ':' + event.advanceId.segment, event.shard)
     buffer.addEvent(event)
     if (buffer.count() !== event.advanceId.offset) {
       console.error('serment position is not equal', buffer.count(), event.advanceId.offset)
@@ -147,13 +147,14 @@ export class StorageTask extends EventEmitter {
     }
   }
 
-  async commit_segment (advanceSegment: string, segment: string) {
-    let buffer = this.bufferToWrite.get(advanceSegment)
+  async commit_segment (advanceOwner: string, advanceSegment: number, segment: string) {
+    const key = advanceOwner + ':' + advanceSegment
+    let buffer = this.bufferToWrite.get(key)
     if (buffer) {
       let effectId = await this.dbSaveSegment(buffer, segment)
-      this.bufferToWrite.delete(advanceSegment)
+      this.bufferToWrite.delete(key)
     } else {
-      console.error("advanceSegment not found in segments [", advanceSegment, "]")
+      console.error("advanceSegment not found in segments [", key, "]")
     }
   }
 

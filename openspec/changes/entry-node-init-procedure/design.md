@@ -25,13 +25,11 @@ Entry nodes currently start serving queries immediately upon startup, without en
   - Start the FOX server (passive listener) *before* entering the initialization wait state in `masterfree/entry.ts`.
   - `NetEngineMill.initHandshake` subscribes to `INIT_ENTRY_ACCEPTED.<myNodeId>` and waits until `syncQuorum` responses are received.
 - **Quorum Tracking**: Entry node maintains a set of responding Sync nodes and a list of received `advance-ids`. Once the set size reaches `syncQuorum`, it calculates the `maxAdvanceId` and transitions to ready.
- - **Sync/DB Node Logic (updated)**: `listenEntry` immediately responds with `INIT_ENTRY_ACCEPTED.<nodeId>` containing `lastSeenAdvanceId`.
- - **Entry Node Logic (updated)**:
-   - `NetEngineMill.initHandshake(syncQuorum, timeoutMs=30000)` waits for passive `INIT_ENTRY_ACCEPTED` responses.
-   - The entry startup sequence (masterfree/entry.ts) starts the FOX server first, then waits for the handshake to resolve before starting client-facing (WAMP/MQTT) servers.
+ - **ID Format**: `advanceSegment` is a numeric string. Uniqueness in shared components (Sync/Storage) is maintained by using a composite key `advanceOwner:advanceSegment`.
+ - **Timeout**: `NetEngineMill` should implement a timeout (default 30s) for the handshake to prevent the entry node from hanging indefinitely if quorum cannot be reached.
 
 ## Risks / Trade-offs
 
 - **[Risk]** Entry node never reaches quorum if too many Sync nodes are down.
-- **[Mitigation]** The system already requires `syncQuorum` for normal operation; initialization failure correctly reflects cluster unavailability.
-- **[Trade-off]** Using a dedicated queue/topic for responses ensures the entry node only sees its own init confirmations.
+- **[Mitigation]** The system already requires `syncQuorum` for normal operation; initialization failure correctly reflects cluster unavailability. A timeout should be added to notify the operator.
+- **[Trade-off]** Using numeric segment IDs simplifies parsing in `computeMaxId` but requires shared components to track `advanceOwner` to avoid collisions.

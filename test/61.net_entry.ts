@@ -3,11 +3,12 @@ import spies from 'chai-spies'
 chai.use(spies)
 
 import { Router } from '../lib/router'
-import { NetEngine, NetEngineMill } from '../lib/masterfree/netengine'
+import { NetEngine, NetEngineMill, INIT_ADVANCE_SEGMENTS_COMPLETED } from '../lib/masterfree/netengine'
 import { BaseRealm } from '../lib/realm'
 import { Config, setConfigInstance } from '../lib/masterfree/config'
 import { Event } from '../lib/masterfree/hyper.h'
 import { HyperClient } from '../lib/hyper/client'
+import { StageOneTask } from '../lib/masterfree/synchronizer'
 
 describe('61.net-entry', function () {
   let
@@ -32,7 +33,7 @@ describe('61.net-entry', function () {
     nextSysPromise = []
     router = new Router()
     router.setId('E1')
-    netEngineMill = new NetEngineMill(router)
+    netEngineMill = new NetEngineMill(router, 2)
 
     netRealm = new BaseRealm(router, new NetEngine(netEngineMill))
     netApi = netRealm.api()
@@ -53,6 +54,31 @@ describe('61.net-entry', function () {
 
   afterEach(async () => { })
 
+  const syncCluster = ['SYNC_A', 'SYNC_B', 'SYNC_C']
+
+  it('init-entry handshake from entry node', async () => {
+    const handshakePromise = new Promise((resolve) => {
+      netEngineMill.once(INIT_ADVANCE_SEGMENTS_COMPLETED, resolve)
+    })
+
+    // create two sync node responders
+    const stageA = new StageOneTask(sysRealm, 'SYNC_A', 2, syncCluster)
+    stageA.getAdvanceOwnerState('E1').recentAdvanceSegment = 5
+    const stageB = new StageOneTask(sysRealm, 'SYNC_B', 2, syncCluster)
+    stageB.getAdvanceOwnerState('E1').recentAdvanceSegment = 7
+
+    // simulate connections
+    const entryApiA = sysRealm.buildApi()
+    await stageA.listenEntry(entryApiA, 'E1')
+    const entryApiB = sysRealm.buildApi()
+    await stageB.listenEntry(entryApiB, 'E1')
+
+    await handshakePromise
+
+    // assert: maxAdvanceId should be the highest recentValue from responders
+    expect(netEngineMill.getAdvanceSegmentGen()).to.equal(7)
+  })
+
   it('Event.BEGIN_ADVANCE_SEGMENT', async () => {
     const advanceSegmentStartedPkg = getSysPackage()
     const admanceEventSentPkg = getSysPackage()
@@ -63,7 +89,7 @@ describe('61.net-entry', function () {
     expect(advanceSegmentStarted.length).equal(2)
     expect(advanceSegmentStarted[0]).equal(Event.BEGIN_ADVANCE_SEGMENT)
     expect(advanceSegmentStarted[1])
-      .deep.include({ advanceOwner: "E1", advanceSegment: 'E1-1' })
+      .deep.include({ advanceOwner: "E1", advanceSegment: 1 })
 
     const admanceEventSent = await admanceEventSentPkg
     expect(admanceEventSent.length).equal(2)
@@ -71,9 +97,10 @@ describe('61.net-entry', function () {
     delete admanceEventSent[1].shard
     delete admanceEventSent[1].sid
     expect(admanceEventSent[1]).deep.equal({
+      advanceOwner: 'E1',
       advanceId: {
         offset: 1,
-        segment: "E1-1"
+        segment: 1
       },
       data: {
         kv: {
@@ -92,7 +119,7 @@ describe('61.net-entry', function () {
 
     await sysApi.publish(Event.TRIM_ADVANCE_SEGMENT + '.E1', {
       advanceOwner: 'E1',
-      advanceSegment: 'E1-1'
+      advanceSegment: 1
     },
       { exclude_me: true }
     )

@@ -56,7 +56,7 @@ describe('63.storage', function () {
     const eventPC1: BODY_PICK_CHALLENGER = {
       shardTag: '0',
       advanceOwner: 'entry1',
-      advanceSegment: 'a0',
+      advanceSegment: 1,
       draftOwner: 'sync2',
       draftId: { dt: 'PREFIX1:', id: 1 }
     }
@@ -67,7 +67,7 @@ describe('63.storage', function () {
     const eventPC2: BODY_PICK_CHALLENGER = {
       shardTag: '0',
       advanceOwner: 'entry2',
-      advanceSegment: 'a0',
+      advanceSegment: 1,
       draftOwner: 'sync2',
       draftId: { dt: 'PREFIX1:', id: 1 }
     }
@@ -78,7 +78,7 @@ describe('63.storage', function () {
 
     // expect(draftStack).deep.equal([{
     //   advanceOwner: 'entry1',
-    //   advanceSegment: 'a0',
+    //   advanceSegment: 1,
     //   draftId: { dt: 'PREFIX1:', id: 1 },
     //   draftOwner: 'sync2'
     // }])
@@ -93,7 +93,8 @@ describe('63.storage', function () {
   it('listen-commit-checkDb', async () => {
     // 1. Send KEEP_ADVANCE_HISTORY
     const eventKAH: BODY_KEEP_ADVANCE_HISTORY = {
-      advanceId: { segment: 'seg1', offset: 1 },
+      advanceOwner: 'entry1',
+      advanceId: { segment: 1, offset: 1 },
       shard: 0,
       realm: 'myrealm',
       data: 'test-data',
@@ -107,8 +108,8 @@ describe('63.storage', function () {
 
     // 2. Send ADVANCE_SEGMENT_RESOLVED
     const eventASR: BODY_ADVANCE_SEGMENT_RESOLVED = {
-      advanceOwner: 'sync1',
-      advanceSegment: 'seg1',
+      advanceOwner: 'entry1',
+      advanceSegment: 1,
       segment: 'res_seg1'
     }
     await api.publish(Event.ADVANCE_SEGMENT_RESOLVED, eventASR, { exclude_me: false })
@@ -117,8 +118,8 @@ describe('63.storage', function () {
     const commit_result: BODY_ADVANCE_SEGMENT_RESOLVED = commit_resolverd[0]
 
     expect(commit_result).to.deep.equal({
-      advanceOwner: 'sync1',
-      advanceSegment: 'seg1',
+      advanceOwner: 'entry1',
+      advanceSegment: 1,
       segment: 'res_seg1'
     })
 

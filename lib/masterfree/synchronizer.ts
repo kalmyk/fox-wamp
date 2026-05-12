@@ -6,7 +6,7 @@ import { Event, BODY_PICK_CHALLENGER, BODY_GENERATE_DRAFT, BODY_ELECT_SEGMENT, B
 import { SESSION_JOIN, SESSION_LEAVE } from '../messages'
 
 type AdvanceOwnerStateNode = {
-  recentAdvanceSegment: string
+  recentAdvanceSegment: number
 }
 
 export class StageOneTask {
@@ -41,25 +41,26 @@ export class StageOneTask {
 
   getAdvanceOwnerState(owner: string): AdvanceOwnerStateNode {
     if (!this.advanceOwnerState.has(owner)) {
-      this.advanceOwnerState.set(owner, {recentAdvanceSegment: ''})
+      this.advanceOwnerState.set(owner, {recentAdvanceSegment: 0})
     }
     return this.advanceOwnerState.get(owner)!
   }
 
-  getRecentDraftSegment(owner: string): string {
+  getRecentAdvanceSegment(owner: string): number {
     if (!this.advanceOwnerState.has(owner)) {
-      return ''
+      return 0
     }
     return this.advanceOwnerState.get(owner)!.recentAdvanceSegment
   }
 
   async listenEntry(entry: HyperClient, entryId: string) {
-    const reply: BODY_INIT_ENTRY_ACCEPTED = {
+    const acceptBody: BODY_INIT_ENTRY_ACCEPTED = {
+      nodeId: this.myId,
       advanceOwner: entryId,
-      status: 'accepted',
-      lastSeenAdvanceId: this.getRecentValue()
+      lastSeenAdvanceId: this.getRecentAdvanceSegment(entryId)
     }
-    await entry.publish(Event.INIT_ENTRY_ACCEPTED + '.' + entryId, reply, { exclude_me: false, headers: { owner: this.myId } })
+    console.log('tx:INIT_ENTRY_ACCEPTED', entryId, acceptBody)
+    await entry.publish(Event.INIT_ENTRY_ACCEPTED + '.' + entryId, acceptBody, { exclude_me: false })
   }
 
   async listenPeerStageOne(client: HyperClient) {
@@ -189,7 +190,7 @@ export class StageTwoTask {
   private realm: BaseRealm
   private syncQuorum: number
   private api: HyperClient
-  private readyQuorum: Map<string, ReadyVouterChallenger> = new Map() // advanceSegment -> {vouter, challenger}
+  private readyQuorum: Map<string, ReadyVouterChallenger> = new Map() // advanceOwner:advanceSegment -> {vouter, challenger}
   private recentValue: string = ''
 
   constructor(sysRealm: BaseRealm, syncQuorum: number) {
@@ -210,17 +211,19 @@ export class StageTwoTask {
       return
     }
     console.log('=> Event.ELECT_SEGMENT', body)
+    const advanceOwner = body.advanceOwner
     const advanceSegment = body.advanceSegment
+    const key = advanceOwner + ':' + advanceSegment
 
-    if (!this.readyQuorum.has(advanceSegment)) {
-      this.readyQuorum.set(advanceSegment, new ReadyVouterChallenger())
+    if (!this.readyQuorum.has(key)) {
+      this.readyQuorum.set(key, new ReadyVouterChallenger())
     }
-    const readySet: ReadyVouterChallenger = this.readyQuorum.get(advanceSegment)!
+    const readySet: ReadyVouterChallenger = this.readyQuorum.get(key)!
     readySet.challengers.add(body.challenger)
     readySet.vouters.add(body.voter)
 
     if (readySet.vouters.size >= this.syncQuorum) {
-      this.readyQuorum.delete(advanceSegment)
+      this.readyQuorum.delete(key)
       let maxValue = '';
       readySet.challengers.forEach((id) => {
         if (maxValue === '' || maxValue < id) {

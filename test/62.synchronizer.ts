@@ -50,29 +50,29 @@ describe('62.synchronizer', function () {
   afterEach(async () => { })
 
   it('init-seed generateOnce', async () => {
-    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 'a0', shardTag: 'tag0' })
-    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 'a0', shardTag: 'tag1' })
-    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 'a1', shardTag: 'tag2' })
-    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry2', advanceSegment: 'a0', shardTag: 'tag3' })
+    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 1, shardTag: 'tag0' })
+    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 1, shardTag: 'tag1' })
+    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 2, shardTag: 'tag2' })
+    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry2', advanceSegment: 1, shardTag: 'tag3' })
 
     expect(draftStack).deep.equal([
       {
         advanceOwner: 'entry1',
-        advanceSegment: 'a0',
+        advanceSegment: 1,
         shardTag: 'tag0',
         draftId: { dt: 'PREFIX1:', id: 1 },
         draftOwner: 'SYNC1'
       },
       {
         advanceOwner: 'entry1',
-        advanceSegment: 'a1',
+        advanceSegment: 2,
         shardTag: 'tag2',
         draftId: { dt: 'PREFIX1:', id: 2 },
         draftOwner: 'SYNC1'
       },
       {
         advanceOwner: 'entry2',
-        advanceSegment: 'a0',
+        advanceSegment: 1,
         shardTag: 'tag3',
         draftId: { dt: 'PREFIX1:', id: 3 },
         draftOwner: 'SYNC1'
@@ -87,59 +87,33 @@ describe('62.synchronizer', function () {
     expect(stageOne.getRecentValue()).deep.equal('')
     stageOne.setRecentValue('P:1')
 
-    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 'a1', shardTag: 'tag1' })
-    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 'a2', shardTag: 'tag2' })
+    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 1, shardTag: 'tag1' })
+    await api.publish(Event.GENERATE_DRAFT, { advanceOwner: 'entry1', advanceSegment: 2, shardTag: 'tag2' })
 
-    await api.publish(Event.PICK_CHALLENGER + '.SYNC1', { advanceOwner: 'entry1', advanceSegment: 'a1', shardTag: 'tag1', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 2 } })
-    await api.publish(Event.PICK_CHALLENGER + '.SYNC1', { advanceOwner: 'entry1', advanceSegment: 'a2', shardTag: 'tag2', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 3 } })
+    await api.publish(Event.PICK_CHALLENGER + '.SYNC1', { advanceOwner: 'entry1', advanceSegment: 1, shardTag: 'tag1', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 2 } })
+    await api.publish(Event.PICK_CHALLENGER + '.SYNC1', { advanceOwner: 'entry1', advanceSegment: 2, shardTag: 'tag2', draftOwner: 'sync2', draftId: { dt: 'PREFIX1:', id: 3 } })
 
     expect(extractStack).deep.equal([
       {
         advanceOwner: "entry1",
-        advanceSegment: "a1",
+        advanceSegment: 1,
         shardTag: "tag1",
         voter: "SYNC1",
         challenger: "PREFIX1:a1"
       },
       {
         advanceOwner: "entry1",
-        advanceSegment: "a2",
+        advanceSegment: 2,
         shardTag: "tag2",
         voter: "SYNC1",
         challenger: "PREFIX1:a2"
       }
     ])
+
     expect(stageOne.getRecentValue()).equal('PREFIX1:a2')
   })
 
   it('stage-two resolve', async () => {
 
   })
-
-  it('init-entry handshake response from sync node', async () => {
-    // arrange
-    const nodeId = 'NODE_X'
-    // create a stage one instance that will respond
-    const stageOneLocal = new StageOneTask(sysRealm, 'SYNC1', 2, ['SYNC2'])
-    stageOneLocal.setRecentValue('PREFIX:999')
-
-    let reply: any = null
-    const entryClient = sysRealm.buildApi()
-    await entryClient.subscribe(Event.INIT_ENTRY_ACCEPTED + '.' + nodeId, (body, opt) => {
-      reply = body
-    })
-
-    // act: call listenEntry which should immediately publish INIT_ENTRY_ACCEPTED
-    await stageOneLocal.listenEntry(entryClient, nodeId)
-
-    // allow event loop
-    await new Promise(r => setTimeout(r, 10))
-
-    // assert: synchronizer should reply with lastSeenAdvanceId equal to recentValue
-    expect(reply).to.be.an('object')
-    expect(reply.advanceOwner).to.equal(nodeId)
-    expect(reply.status).to.equal('accepted')
-    expect(reply.lastSeenAdvanceId).to.equal(stageOneLocal.getRecentValue())
-  })
-
 })

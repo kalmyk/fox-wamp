@@ -20,8 +20,9 @@ Entry nodes must ensure they are fully synchronized with the cluster state befor
 - `distributed-mode`: Update the message lifecycle and synchronization protocol to include the entry initialization phase.
 
 ## Impact
+- Impact:
+  - `entry.ts`: Now waits for the handshake to complete before starting servers.
+  - `synchronizer.ts`: Responds with the lastSeenAdvanceId (StageOneTask.getRecentValue()).
+  - `netengine.ts`: Implements `initHandshake` for entry nodes. `computeMaxId` correctly handles numeric segment IDs.
+  - Tests: `test/61.net_entry.ts` and `test/63.storage.ts` verify the handshake quorum and numeric maxAdvanceId calculation.
 
-- `entry.ts`: Now waits for the handshake to complete before starting servers.
-- `synchronizer.ts`: Responds with the lastSeenAdvanceId (StageOneTask.getRecentValue()).
-- `netengine.ts`: Implements `initHandshake` and `listenSync` for entry nodes.
-- Tests: test/64.net_init.ts added to verify handshake quorum and maxAdvanceId calculation for entry nodes.

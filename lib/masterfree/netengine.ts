@@ -3,22 +3,24 @@ import { Router } from '../router'
 import { HyperClient } from '../hyper/client'
 import { MemKeyValueStorage } from '../mono/memkv'
 import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_OVER, BODY_INIT_ENTRY_ACCEPTED } from './hyper.h'
+import EventEmitter from 'events'
 
-const TOTAL_SHARDS_COUNT = 1048576
+export const TOTAL_SHARDS_COUNT = 1048576
+export const INIT_ADVANCE_SEGMENTS_COMPLETED = 'init-advance-segments-completed'
 
 export class HistorySegment {
 
   private content: Map<number,ActorPush> = new Map()
-  private advanceSegment: string
+  private advanceSegment: number
   private generator: number = 0
   private shard: number = 0
 
-  constructor (advanceSegment: string, shard: number = 0) {
+  constructor (advanceSegment: number, shard: number = 0) {
     this.advanceSegment = advanceSegment
     this.shard = shard
   }
 
-  getShard(): number {
+  getShardTag(): number {
     return this.shard
   }
 
@@ -48,7 +50,7 @@ export class HistorySegment {
     return actor
   }
 
-  getAdvanceSegment(): string {
+  getAdvanceSegment(): number {
     return this.advanceSegment
   }
 }
@@ -83,21 +85,23 @@ export class NetEngine extends BaseEngine {
   }
 }
 
-export class NetEngineMill {
+export class NetEngineMill extends EventEmitter {
 
   private curSegment: HistorySegment | null = null
   private advanceSegmentGen: number = 0
-  private segments = new Map()
+  private localSegments = new Map<number, HistorySegment>()
+  private configQuorum: number
   private router: Router
   private sysRealm: BaseRealm
   private sysApi: HyperClient
   private lastShard: number = 0
-  private initPromise: Promise<void> | null = null
-  private initResolved = false
-  private maxAdvanceId: string = ''
+  private initReceived: Map<string, number> = new Map() // sync node -> lastSeenAdvanceId
+  private initReceivedDone: boolean = false
 
-  constructor (router: any) {
+  constructor (router: Router, configQuorum: number) {
+    super()
     this.router = router
+    this.configQuorum = configQuorum
     this.lastShard = Math.floor(Math.random() * TOTAL_SHARDS_COUNT)
     this.sysRealm = new BaseRealm(router, new BaseEngine())
 
@@ -105,10 +109,11 @@ export class NetEngineMill {
     this.sysRealm.registerKeyValueEngine(['#'], new MemKeyValueStorage())
     this.sysApi = this.sysRealm.buildApi()
 
+    this.sysApi.subscribe(Event.INIT_ENTRY_ACCEPTED + '.' + this.router.getId(), this.event_init_entry_accepted.bind(this))
     this.sysApi.subscribe(Event.TRIM_ADVANCE_SEGMENT + '.*', this.event_trim_advance_segment.bind(this))
 
     this.sysApi.subscribe(Event.ADVANCE_SEGMENT_RESOLVED + '.' + this.router.getId(), (data: any, opt: any) => {
-      this.advance_segment_resolved(opt.headers)
+      this.advance_segment_resolved(data)
     })
 
     this.sysApi.subscribe('dispatchEvent', (data: any, opt: any) => {
@@ -117,79 +122,30 @@ export class NetEngineMill {
     })
   }
 
-  /**
-   * Initiate initialization handshake: send INIT_ENTRY and wait for INIT_ENTRY_ACCEPTED responses until syncQuorum
-   */
-  initHandshake(syncQuorum: number, timeoutMs: number = 30000): Promise<void> {
-    if (this.initPromise) return this.initPromise
-
-    const myNodeId = this.router.getId()
-    const responses: Map<string, string> = new Map()
-
-    const topic = Event.INIT_ENTRY_ACCEPTED + '.' + myNodeId
-    const onResponse = (body: BODY_INIT_ENTRY_ACCEPTED | any, opt: any) => {
-      try {
-        const nodeId = (opt && opt.headers && opt.headers.owner) ? opt.headers.owner : (body && (body as BODY_INIT_ENTRY_ACCEPTED).advanceOwner ? (body as BODY_INIT_ENTRY_ACCEPTED).advanceOwner : 'unknown')
-        const last = (body && (body as BODY_INIT_ENTRY_ACCEPTED).lastSeenAdvanceId) ? (body as BODY_INIT_ENTRY_ACCEPTED).lastSeenAdvanceId : ''
-        responses.set(nodeId, last)
-        if (responses.size >= syncQuorum && !this.initResolved) {
-          // compute max
-          let maxVal = ''
-          for (const v of responses.values()) {
-            if (maxVal === '' || maxVal < v) maxVal = v
-          }
-          this.maxAdvanceId = maxVal
-          this.initResolved = true
-          cleanup()
-          resolveFn()
-        }
-      } catch (err) {
-        console.error('error in initHandshake onResponse', err)
-      }
-    }
-
-    const cleanup = () => {
-      try { if (subId) this.sysApi.unsubscribe(subId) } catch (e) {}
-      if (timeoutTimer) clearTimeout(timeoutTimer)
-    }
-
-    let resolveFn: () => void = () => {}
-    let rejectFn: (e: any) => void = () => {}
-    let timeoutTimer: NodeJS.Timeout | null = null
-
-    let subId: any = null
-    this.initPromise = new Promise<void>((resolve, reject) => {
-      resolveFn = resolve
-      rejectFn = reject
-      this.sysApi.subscribe(topic, onResponse).then((sid: any) => {
-        subId = sid
-        timeoutTimer = setTimeout(() => {
-          if (!this.initResolved) {
-            cleanup()
-            reject(new Error('initHandshake timeout'))
-          }
-        }, timeoutMs)
-      }).catch((err) => {
-        reject(err)
-      })
-    })
-
-    return this.initPromise
-  }
-
-  async listenSync(client: HyperClient) {
-    await this.sysApi.pipe(client, Event.BEGIN_ADVANCE_SEGMENT, {exclude_me: false})
-    await this.sysApi.pipe(client, Event.ADVANCE_SEGMENT_OVER, {exclude_me: false})
-    await this.sysApi.pipe(client, Event.KEEP_ADVANCE_HISTORY, {exclude_me: false})
-
-    await client.pipe(this.sysApi, Event.TRIM_ADVANCE_SEGMENT + '.*', {exclude_me: false})
-    await client.pipe(this.sysApi, Event.ADVANCE_SEGMENT_RESOLVED + '.' + this.router.getId(), {exclude_me: false})
-    await client.pipe(this.sysApi, Event.INIT_ENTRY_ACCEPTED + '.' + this.router.getId(), {exclude_me: false})
-  }
-
   nextShard(): number {
     this.lastShard = (this.lastShard + 1) % TOTAL_SHARDS_COUNT
     return this.lastShard
+  }
+
+  computeMaxId(initReceived: Map<string, number>): number {
+    let maxId = 0
+    for (let [key, value] of initReceived) {
+      if (value > maxId) {
+        maxId = value
+      }
+    }
+    return maxId
+  }
+
+  event_init_entry_accepted(data: BODY_INIT_ENTRY_ACCEPTED, opt: any) {
+    console.log('rx:INIT_ENTRY_ACCEPTED', data)
+    this.initReceived.set(data.nodeId, data.lastSeenAdvanceId)
+    if (!this.initReceivedDone && this.initReceived.size >= this.configQuorum) {
+      this.initReceivedDone = true
+      const maxReceivedId = this.computeMaxId(this.initReceived)
+      this.advanceSegmentGen = Math.max(this.advanceSegmentGen, maxReceivedId)
+      this.emit(INIT_ADVANCE_SEGMENTS_COMPLETED, this.computeMaxId(this.initReceived))
+    }
   }
 
   event_trim_advance_segment(data: BODY_TRIM_ADVANCE_SEGMENT) {
@@ -205,7 +161,7 @@ export class NetEngineMill {
         const body: BODY_ADVANCE_SEGMENT_OVER = {
           advanceSegment: data.advanceSegment,
           advanceOwner: this.router.getId(),
-          shardTag: "s" + this.curSegment.getShard()
+          shardTag: "" + this.curSegment.getShardTag()
         }
         this.curSegment = null
         this.sysApi.publish(Event.ADVANCE_SEGMENT_OVER, body, {exclude_me: false})
@@ -220,25 +176,25 @@ export class NetEngineMill {
       return this.curSegment
     }
     this.advanceSegmentGen++
-    let curAdvanceSegment = '' + this.router.getId() + '-' + this.advanceSegmentGen
+    let curAdvanceSegment = this.advanceSegmentGen
     this.curSegment = new HistorySegment(curAdvanceSegment, this.nextShard())
-    this.segments.set(curAdvanceSegment, this.curSegment)
+    this.localSegments.set(curAdvanceSegment, this.curSegment)
     // todo: sent all open advance segments, in case of sharding that keeps order
     const body: BODY_BEGIN_ADVANCE_SEGMENT = {
       advanceSegment: curAdvanceSegment,
       advanceOwner: this.router.getId(),
-      shardTag: "s" + this.curSegment.getShard()
+      shardTag: "" + this.curSegment.getShardTag()
     }
     this.sysApi.publish(Event.BEGIN_ADVANCE_SEGMENT, body)
     return this.curSegment
   }
 
-  findSegment (advanceSegment: string) : HistorySegment | undefined {
-    return this.segments.get(advanceSegment)
+  findSegment (advanceSegment: number) : HistorySegment | undefined {
+    return this.localSegments.get(advanceSegment)
   }
 
-  deleteSegment (advanceSegment: string) {
-    return this.segments.delete(advanceSegment)
+  deleteSegment (advanceSegment: number) {
+    return this.localSegments.delete(advanceSegment)
   }
 
   advance_segment_resolved (syncMessage: any) {
@@ -270,8 +226,9 @@ export class NetEngineMill {
     let advanceId = segment.addActorPush(actor)
 
     const event: BODY_KEEP_ADVANCE_HISTORY = {
+      advanceOwner: this.router.getId(),
       advanceId: advanceId,
-      shard: segment.getShard(),
+      shard: segment.getShardTag(),
       realm: realmName,
       data: makeDataSerializable(actor.getData()),
       uri: actor.getUri(),
@@ -298,7 +255,7 @@ export class NetEngineMill {
     }
   }
 
-  getMaxAdvanceId(): string {
-    return this.maxAdvanceId
+  getAdvanceSegmentGen(): number {
+    return this.advanceSegmentGen
   }
 }

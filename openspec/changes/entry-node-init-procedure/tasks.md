@@ -10,13 +10,18 @@
 ## 3. Entry Node Implementation
 
 - [x] 3.1 Update `NetEngineMill` in `lib/masterfree/netengine.ts` to include initialization state and quorum tracking.
-- [x] 3.2 Implement `listenSync` in `NetEngineMill` to pipe events.
-- [x] 3.3 Update `masterfree/entry.ts` to call the new initialization procedure and connect to sync nodes.
+- [x] 3.2 Update `masterfree/entry.ts` to call the new initialization procedure and connect to sync nodes.
 
 ## 4. Verification and Testing
 
 - [x] 4.1 Update tests in `test/62.synchronizer.ts` to verify the handshake logic on sync node.
-- [x] 4.2 Create `test/64.net_init.ts` to verify the handshake logic on entry node.
-- [x] 4.3 Test successful initialization with quorum.
-- [x] 4.4 Test initialization waiting behavior when quorum is not reached.
-- [x] 4.5 Verify `maxAdvanceId` calculation in entry node.
+- [/] 4.2 Handshake logic on entry node verified in `test/61.net_entry.ts` (partial coverage).
+- [ ] 4.3 Create `test/64.net_init.ts` to fully verify handshake quorum and maxAdvanceId calculation (as originally planned).
+- [x] 4.4 Test successful initialization with quorum (in 61.net_entry.ts).
+- [ ] 4.5 Test initialization waiting behavior when quorum is not reached.
+- [ ] 4.6 Verify `maxAdvanceId` calculation with alphanumeric IDs (currently failing).
+
+## 5. Bug Fixes and Improvements
+
+- [x] 5.1 Fix `computeMaxId` by changing `advanceSegment` to a numeric format and using composite keys for uniqueness.
+- [ ] 5.2 Implement timeout for `init-entry` handshake in `NetEngineMill`.

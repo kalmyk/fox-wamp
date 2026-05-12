@@ -3,7 +3,7 @@ import { ComplexId } from './makeid'
 export const INTRA_REALM_NAME = 'sys'
 
 export type AdvanceOffsetId = {
-  segment: string
+  segment: number
   offset: number
 }
 
@@ -23,42 +23,43 @@ export enum Event {
 
 export type BODY_BEGIN_ADVANCE_SEGMENT = {
   advanceOwner: string
-  advanceSegment: string
+  advanceSegment: number
   shardTag: string
 }
 
 export type BODY_ADVANCE_SEGMENT_OVER = {
   advanceOwner: string
-  advanceSegment: string
+  advanceSegment: number
   shardTag: string
 }
 
 export type BODY_TRIM_ADVANCE_SEGMENT = {
   advanceOwner: string
-  advanceSegment: string
+  advanceSegment: number
 }
 
 export type BODY_INIT_ENTRY_ACCEPTED = {
+  nodeId: string
   advanceOwner: string
-  status: string
-  lastSeenAdvanceId: string
+  lastSeenAdvanceId: number
 }
 
 export type BODY_GENERATE_DRAFT = {
   advanceOwner: string // TODO: origin / relay
-  advanceSegment: string
+  advanceSegment: number
   shardTag: string
 }
 
 export type BODY_PICK_CHALLENGER = {
   advanceOwner: string
-  advanceSegment: string
+  advanceSegment: number
   shardTag: string
   draftOwner: string
   draftId: ComplexId
 }
 
 export type BODY_KEEP_ADVANCE_HISTORY = {
+  advanceOwner: string
   advanceId: AdvanceOffsetId
   shard: number
   realm: string
@@ -70,7 +71,7 @@ export type BODY_KEEP_ADVANCE_HISTORY = {
 
 export type BODY_ELECT_SEGMENT = {
   advanceOwner: string
-  advanceSegment: string
+  advanceSegment: number
   shardTag: string
   voter: string
   challenger: string
@@ -78,6 +79,6 @@ export type BODY_ELECT_SEGMENT = {
 
 export type BODY_ADVANCE_SEGMENT_RESOLVED = {
   advanceOwner: string
-  advanceSegment: string
+  advanceSegment: number
   segment: string
 }
