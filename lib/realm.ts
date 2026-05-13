@@ -160,6 +160,8 @@ export class ActorTrace extends Actor {
   delayStack: any[]
   retained: boolean
   retainedState: boolean
+  afterEventId: string | null
+  private onUnsubscribeCb?: () => void
 
   constructor(ctx: Context, msg: any) {
     super(ctx, msg)
@@ -167,6 +169,17 @@ export class ActorTrace extends Actor {
     this.delayStack = []
     this.retained = !!msg.opt.retained
     this.retainedState = !!msg.opt.retainedState || this.retained
+    this.afterEventId = (typeof msg.opt.after_event_id === 'string') ? msg.opt.after_event_id : null
+  }
+
+  setOnUnsubscribe(cb: () => void): void {
+    this.onUnsubscribeCb = cb
+  }
+
+  onUnsubscribe(): void {
+    if (this.onUnsubscribeCb) {
+      this.onUnsubscribeCb()
+    }
   }
 
   filter(event: any): boolean {
@@ -468,6 +481,9 @@ export class BaseEngine {
   wTrace: any
   _kvo: { uri: string | string[], kv: KeyValueStorageAbstract }[]
   realmName?: string
+  currentRetainedEventId: string | null
+  retainedWaiters: Map<string, { actor: ActorTrace, resolve: () => void, timeout: NodeJS.Timeout }[]>
+  retainedEventIdCounter: number
 
   constructor() {
     this.wSub = {}
@@ -475,6 +491,9 @@ export class BaseEngine {
     this.qYield = new DeferMap()
     this.wTrace = new Qlobber()
     this._kvo = []
+    this.currentRetainedEventId = null
+    this.retainedWaiters = new Map()
+    this.retainedEventIdCounter = 0
   }
 
   getRealmName(): string {
@@ -491,6 +510,63 @@ export class BaseEngine {
 
   mkDeferId(): string | number {
     return tools.randomId()
+  }
+
+  waitForRetainedEventId(eventId: string, actor: ActorTrace): Promise<void> {
+    if (this.currentRetainedEventId && this.currentRetainedEventId >= eventId) {
+      return Promise.resolve()
+    }
+
+    return new Promise((resolve) => {
+      const waiter = {
+        actor,
+        resolve,
+        timeout: setTimeout(() => {
+          this.removeRetainedWaiter(eventId, actor)
+          resolve()
+        }, 5000)
+      }
+
+      if (!this.retainedWaiters.has(eventId)) {
+        this.retainedWaiters.set(eventId, [])
+      }
+      this.retainedWaiters.get(eventId)!.push(waiter)
+
+      actor.setOnUnsubscribe(() => {
+        this.removeRetainedWaiter(eventId, actor)
+        resolve()
+      })
+    })
+  }
+
+  private removeRetainedWaiter(eventId: string, actor: ActorTrace): void {
+    const waiters = this.retainedWaiters.get(eventId)
+    if (waiters) {
+      const index = waiters.findIndex(w => w.actor === actor)
+      if (index !== -1) {
+        clearTimeout(waiters[index].timeout)
+        waiters.splice(index, 1)
+        if (waiters.length === 0) {
+          this.retainedWaiters.delete(eventId)
+        }
+      }
+    }
+  }
+
+  resolveRetainedEventWaiters(eventId: string): void {
+    if (!this.currentRetainedEventId || eventId > this.currentRetainedEventId) {
+      this.currentRetainedEventId = eventId
+    }
+
+    for (const [targetEventId, waiters] of this.retainedWaiters.entries()) {
+      if (eventId >= targetEventId) {
+        for (const waiter of waiters) {
+          clearTimeout(waiter.timeout)
+          waiter.resolve()
+        }
+        this.retainedWaiters.delete(targetEventId)
+      }
+    }
   }
 
   createActorEcho(ctx: Context, cmd: any): ActorEcho { return new ActorEcho(ctx, cmd) }
@@ -597,6 +673,7 @@ export class BaseEngine {
   }
 
   removeTrace(uri: string, subscription: ActorTrace): void {
+    subscription.onUnsubscribe()
     this.wTrace.remove(restoreUri(uri as any), subscription)
   }
 
@@ -626,17 +703,25 @@ export class BaseEngine {
     }
 
     if (actor.retainedState) {
-      this.getKey(
-        actor.getUri() as any,
-        (key: any, data: any, eventId: any) => {
-          actor.filterSendEvent({
-            qid: eventId,
-            uri: key,
-            data: data,
-            opt: { retained: true }
-          })
-        }
-      )
+      const runRetained = () => {
+        this.getKey(
+          actor.getUri() as any,
+          (key: any, data: any, eventId: any) => {
+            actor.filterSendEvent({
+              qid: eventId,
+              uri: key,
+              data: data,
+              opt: { retained: true }
+            })
+          }
+        )
+      }
+
+      if (actor.afterEventId) {
+        this.waitForRetainedEventId(actor.afterEventId, actor).then(runRetained)
+      } else {
+        runRetained()
+      }
     }
   }
 
@@ -673,10 +758,16 @@ export class BaseEngine {
 
   updateKvFromActor(actor: ActorPush): Promise<any> {
     const uri = actor.getUri()
+    if (!actor.getEventId()) {
+      actor.setEventId('r' + (++this.retainedEventIdCounter))
+    }
     for (let i = this._kvo.length - 1; i >= 0; i--) {
       const kvr = this._kvo[i]
       if (match(uri as any, kvr.uri as any)) {
-        return (kvr.kv as any).setKeyActor(actor)
+        return (kvr.kv as any).setKeyActor(actor).then((res: any) => {
+          this.resolveRetainedEventWaiters(actor.getEventId()!)
+          return res
+        })
       }
     }
     throw new RealmError(actor.msg.id,
