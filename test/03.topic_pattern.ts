@@ -10,7 +10,7 @@ function mqttmatch (topic: string, pattern: string, result: string[]) {
 
 function mqttmis (topic: string, pattern: string) {
   expect(TopicPattern.mqttMatch(topic, pattern), "mqttmis('" + topic + "', '" + pattern + "')").to.equal(false)
-  expect(TopicPattern.mqttExtract(topic, pattern), "mqttmis('" + topic + "', '" + pattern + "')").to.deep.equal(null)
+  expect(TopicPattern.mqttExtract(topic, pattern), "mqttmis('" + topic + "', '" + pattern + "')").to.deep.equal([])
 }
 
 describe('03.topic pattern', function () {

@@ -71,7 +71,7 @@ export function intersect(topicParts: string[], filterParts: string[]): boolean 
   return true;
 }
 
-export function extract(topicParts: string[], patternParts: string[]): string[] | null {
+export function extract(topicParts: string[], patternParts: string[]): string[] {
   let res: string[] = [];
   const length = patternParts.length;
 
@@ -81,20 +81,20 @@ export function extract(topicParts: string[], patternParts: string[]): string[] 
       if (i <= topicParts.length) {
         return res.concat(topicParts.slice(i));
       } else {
-        return null;
+        return [];
       }
     }
     let topic = topicParts[i];
     if (pattern === '*') {
       res.push(topic);
     } else if (pattern !== topic) {
-      return null;
+      return [];
     }
   }
   if (length === topicParts.length) {
     return res;
   } else {
-    return null;
+    return [];
   }
 }
 

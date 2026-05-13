@@ -191,8 +191,7 @@ export class SqliteKv extends KeyValueStorageAbstract {
     )
   }
 
-  // @return promise
-  getKey (uri: [string], cbRow:any) {
+  getKey (uri: string[], cbRow: (aKey: string[], data: any, eventId: any) => void): Promise<any> {
     return this.mod.getKey(this.realmName, uri, cbRow)
   }
 }

@@ -466,7 +466,7 @@ export class BaseEngine {
   qCall: Map<string, ActorCall[]>
   qYield: DeferMap
   wTrace: any
-  _kvo: { uri: string | string[], kv: KeyValueStorageAbstract }[]
+  _kvList: { uri: string[], kv: KeyValueStorageAbstract }[]
   realmName?: string
 
   constructor() {
@@ -474,7 +474,7 @@ export class BaseEngine {
     this.qCall = new Map()
     this.qYield = new DeferMap()
     this.wTrace = new Qlobber()
-    this._kvo = []
+    this._kvList = []
   }
 
   getRealmName(): string {
@@ -485,8 +485,8 @@ export class BaseEngine {
     this.realmName = realmName
   }
 
-  addKv(uri: string | string[], kv: KeyValueStorageAbstract): void {
-    this._kvo.push({ uri, kv })
+  addKv(uri: string[], kv: KeyValueStorageAbstract): void {
+    this._kvList.push({ uri, kv })
   }
 
   mkDeferId(): string | number {
@@ -673,10 +673,10 @@ export class BaseEngine {
 
   updateKvFromActor(actor: ActorPush): Promise<any> {
     const uri = actor.getUri()
-    for (let i = this._kvo.length - 1; i >= 0; i--) {
-      const kvr = this._kvo[i]
-      if (match(uri as any, kvr.uri as any)) {
-        return (kvr.kv as any).setKeyActor(actor)
+    for (let i = this._kvList.length - 1; i >= 0; i--) {
+      const curKv = this._kvList[i]
+      if (match(uri, curKv.uri)) {
+        return curKv.kv.setKeyActor(actor)
       }
     }
     throw new RealmError(actor.msg.id,
@@ -685,15 +685,15 @@ export class BaseEngine {
     )
   }
 
-  getKey(uri: string[], cbRow: (key: string[], data: any, eventId: any) => void): Promise<any[]> {
+  getKey(uri: string[], cbRow: (key: string[], data: any, eventId: any) => void): Promise<any> {
     const done: Promise<any>[] = []
-    for (let i = this._kvo.length - 1; i >= 0; i--) {
-      const kvr = this._kvo[i]
-      if (intersect(uri as any, kvr.uri as any)) {
-        done.push((kvr.kv as any).getKey(
-          extract(uri as any, kvr.uri as any),
-          (aKey: any, data: any, eventId: any) => {
-            cbRow(merge(aKey, kvr.uri as any), data, eventId)
+    for (let i = this._kvList.length - 1; i >= 0; i--) {
+      const curKv = this._kvList[i]
+      if (intersect(uri, curKv.uri)) {
+        done.push(curKv.kv.getKey(
+          extract(uri, curKv.uri),
+          (aKey: string[], data: any, eventId: any) => {
+            cbRow(merge(aKey, curKv.uri), data, eventId)
           }
         ))
       }
@@ -703,8 +703,8 @@ export class BaseEngine {
 
   cleanupSession(sessionId: string): Promise<any[]> {
     let allKv: Promise<any>[] = []
-    for (let i = this._kvo.length - 1; i >= 0; i--) {
-      allKv.push((this._kvo[i].kv as any).eraseSessionData(sessionId))
+    for (let i = this._kvList.length - 1; i >= 0; i--) {
+      allKv.push(this._kvList[i].kv.eraseSessionData(sessionId))
     }
     return Promise.all(allKv)
   }
@@ -920,7 +920,7 @@ export class BaseRealm extends EventEmitter {
     return this._wampApi
   }
 
-  getKey(uri: string[], cbRow: (key: string[], data: any, eventId: any) => void): Promise<any[]> {
+  getKey(uri: string[], cbRow: (key: string[], data: any, eventId: any) => void): Promise<void> {
     return this.engine.getKey(uri, cbRow);
   }
 
@@ -990,7 +990,7 @@ export class ActorPushKv {
   confirm(): void {}
 }
 
-export class KeyValueStorageAbstract {
+export abstract class KeyValueStorageAbstract {
   uriPattern: string[]
   saveChangeHistory!: (actor: ActorPush) => void
   runInboundEvent!: (sessionId: string, uri: string[], bodyValue: any) => void
@@ -1018,6 +1018,10 @@ export class KeyValueStorageAbstract {
   getStrUri(actor: Actor): string {
     return restoreUri(extract((actor as any).getUri() as any, this.getUriPattern()) as any)
   }
+
+  abstract setKeyActor(actor: ActorPush): Promise<any>
+  abstract getKey(uri: string[], cbRow: (aKey: string[], data: any, eventId: any) => void): Promise<void>
+  abstract eraseSessionData(sessionId: string): Promise<void>
 }
 
 export class TableDictionary {
