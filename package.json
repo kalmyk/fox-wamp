@@ -59,6 +59,7 @@
     "mocha-node-test": "mocha",
     "lint": "eslint --ignore-path .gitignore .",
     "test": "npm run-script lint && npm run-script build && npm run-script mocha-node-test",
-    "build": "rm -rf ./out && tsc -p ./tsconfig.json"
+    "compile": "tsc -p ./tsconfig.json",
+    "build": "rm -rf ./out && npm run-script compile"
   }
 }

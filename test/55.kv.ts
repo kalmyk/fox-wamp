@@ -178,11 +178,12 @@ describe('55.hyper events', () => {
 
       it('push-watch-for-push:' + run.it, async () => {
         let events: any[] = []
-        await api.subscribe('watch.test', event => events.push(event))
+        await api.subscribe('watch.test', (body, opt) => events.push({body, opt}))
+        let event, lastEventId
 
         await api.publish(
           'watch.test',
-          { event: 'first event value' },
+          {txt: 'first event value'},
           {
             trace: true,
             retain: true,
@@ -190,11 +191,13 @@ describe('55.hyper events', () => {
             acknowledge: true
           }
         )
-        expect(events.shift()).deep.equal({ event: 'first event value' })
+        event = events.shift()
+        lastEventId = event.opt.publication
+        expect(event.body).deep.equal({txt: 'first event value'})
 
         const promiseWaitForEmpty = api.publish(
           'watch.test',
-          { event: 'second value is set when value empty' },
+          {txt: 'second value is set when value empty'},
           {
             trace: true,
             retain: true,
@@ -205,6 +208,7 @@ describe('55.hyper events', () => {
           }
         )
 
+        // trigger previously wroten value via WATCH when value is null
         await api.publish(
           'watch.test',
           null,
@@ -215,10 +219,18 @@ describe('55.hyper events', () => {
             acknowledge: true
           }
         )
-        expect(events.shift()).deep.equal({ event: 'second value is set when value empty' })
+        console.log('push-watch-for-push==>>', events)
+        event = events.shift()
+        assert.isTrue(event.opt.publication > lastEventId, `publication ${event.opt.publication} <= ${lastEventId}`)
+        lastEventId = event.opt.publication
+        expect(event.body).deep.equal({txt: 'second value is set when value empty'})
 
         await promiseWaitForEmpty
-        expect(events.shift()).deep.equal(null)
+        event = events.shift()
+        assert.isTrue(event.opt.publication > lastEventId, `publication ${event.opt.publication} <= ${lastEventId}`)
+        lastEventId = event.opt.publication
+        expect(event.body).deep.equal(null)
+        assert.equal(events.length, 0, 'events length must be 0')
 
         let storage = []
         await realm.getKey(['watch', 'test'], (uri, value) => {

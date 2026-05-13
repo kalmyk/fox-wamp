@@ -6,6 +6,7 @@ import { ProduceId } from '../masterfree/makeid'
 export class DbEngine extends BaseEngine {
   private idMill: ProduceId
   private modKv: SqliteKvFabric
+  private pushQueue: Promise<void> = Promise.resolve()
 
   constructor (idMill: ProduceId, modKv: SqliteKvFabric) {
     super()
@@ -23,7 +24,7 @@ export class DbEngine extends BaseEngine {
 
   // @return promise
   public override doPush (actor: ActorPush): Promise<void> {
-    return this.saveHistory(actor).then(() => {
+    const runPush = () => this.saveHistory(actor).then(() => {
       this.disperseToSubs(actor.getEvent())
       if (actor.getOpt().retain) {
         return this.updateKvFromActor(actor)
@@ -32,6 +33,10 @@ export class DbEngine extends BaseEngine {
         return Promise.resolve()
       }
     })
+
+    const result = this.pushQueue.then(runPush, runPush)
+    this.pushQueue = result.catch(() => {})
+    return result
   }
 
   public async saveHistory (actor: ActorPush): Promise<any> {
