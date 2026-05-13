@@ -1,31 +1,77 @@
 ## ADDED Requirements
 
 ### Requirement: Support for after_event_id in SUBSCRIBE
-The system SHALL support an optional `after_event_id` attribute in the options of a WAMP `SUBSCRIBE` message.
+The system SHALL support an optional `after_event_id` attribute in the options of a WAMP `SUBSCRIBE` message for the in-memory engine and the SQLite `DbEngine`.
 
 #### Scenario: Subscribe message with after_event_id
 - **WHEN** a WAMP client sends a `SUBSCRIBE` message with `options.after_event_id` set to a valid event ID string
 - **THEN** the router SHALL accept the subscription and store the `after_event_id` with the subscription state
 
+#### Scenario: Subscribe message with invalid after_event_id
+- **WHEN** a WAMP client sends a `SUBSCRIBE` message with `options.after_event_id` set to an invalid event ID value
+- **THEN** the router SHALL reject the subscription with a WAMP error
+
+#### Scenario: after_event_id without retained replay
+- **WHEN** a WAMP client sends a `SUBSCRIBE` message with `options.after_event_id` but without `retained` or `retainedState`
+- **THEN** the router SHALL accept the subscription
+- **AND** the router SHALL NOT delay live event delivery for that subscription
+
 ### Requirement: Delayed retained state fetching
-If a subscription requests `retained` state and provides an `after_event_id`, the system SHALL delay fetching the retained state from storage until the storage has processed the event with the specified ID.
+If a subscription requests `retained` or `retainedState` and provides an `after_event_id`, the system SHALL delay fetching retained state from storage until retained storage has committed an event ID greater than or equal to the specified ID.
 
 #### Scenario: Delayed fetch until event ID is reached
 - **WHEN** a subscription with `retained: true` and `after_event_id: "EVENT_123"` is created
-- **AND** the storage has not yet processed `EVENT_123`
+- **AND** retained storage has not committed `EVENT_123`
 - **THEN** the system SHALL NOT send any retained events immediately
-- **WHEN** the storage subsequently processes `EVENT_123`
+- **WHEN** retained storage subsequently commits `EVENT_123`
 - **THEN** the system SHALL fetch the retained state and send it to the subscriber
 
 #### Scenario: Immediate fetch if event ID is already reached
 - **WHEN** a subscription with `retained: true` and `after_event_id: "EVENT_001"` is created
-- **AND** the storage has already processed `EVENT_001`
+- **AND** retained storage has already committed `EVENT_001` or a later comparable event ID
 - **THEN** the system SHALL immediately fetch and send the retained state
 
+#### Scenario: Subscription remains live while retained replay waits
+- **WHEN** a subscription with `retained: true` and `after_event_id: "EVENT_123"` is created
+- **AND** retained storage has not yet committed `EVENT_123`
+- **THEN** the router SHALL register the subscription and send the normal subscription acknowledgement
+- **AND** matching live events MAY be delivered before delayed retained events
+
+#### Scenario: Wait is cancelled when subscription ends
+- **WHEN** a subscription with delayed retained replay is waiting for `after_event_id`
+- **AND** the client unsubscribes or the session is cleaned up
+- **THEN** the router SHALL remove the pending retained replay waiter
+- **AND** the router SHALL NOT send retained events for the removed subscription
+
+#### Scenario: Wait timeout
+- **WHEN** a subscription with delayed retained replay waits for a valid but unreachable `after_event_id`
+- **AND** the configured wait timeout elapses
+- **THEN** the router SHALL remove the pending retained replay waiter
+- **AND** the subscription SHALL remain active for live events
+- **AND** retained replay SHALL be skipped for that subscription
+
 ### Requirement: Event ID tracking in Engines
-Engines SHALL provide a mechanism to track the last processed event ID and allow components to wait for a specific event ID to be reached.
+Engines that support `after_event_id` SHALL provide a mechanism to track the last committed retained-storage event ID and allow components to wait for a specific retained event ID to be reached.
 
 #### Scenario: Waiting for event ID
 - **WHEN** a component requests to wait for `EVENT_456`
-- **AND** the engine processes an event with ID `EVENT_456` (or greater, if IDs are monotonic)
+- **AND** retained storage commits an event with ID `EVENT_456` or a later comparable ID
 - **THEN** the engine SHALL notify the waiting component
+
+#### Scenario: Non-retained publish does not satisfy retained wait
+- **WHEN** a component waits for retained event ID `EVENT_456`
+- **AND** the engine processes a non-retained publish with ID `EVENT_456`
+- **THEN** the engine SHALL NOT satisfy the retained-state wait from that non-retained publish
+
+#### Scenario: In-memory engine assigns retained event IDs
+- **WHEN** a retained publish is processed by the in-memory engine
+- **THEN** the engine SHALL assign a comparable local retained event ID
+- **AND** retained lookup SHALL return that event ID with the retained row
+
+### Requirement: Shared local engine behavior
+The in-memory engine and SQLite `DbEngine` SHALL pass the same retained-state event synchronization behavior tests.
+
+#### Scenario: Same test cases run against both local engines
+- **WHEN** the retained synchronization test suite runs
+- **THEN** each required retained synchronization scenario SHALL run against the in-memory engine
+- **AND** each required retained synchronization scenario SHALL run against SQLite `DbEngine`
