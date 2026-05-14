@@ -61,6 +61,7 @@ export class NetEngine extends BaseEngine {
   constructor (netEngineMill: NetEngineMill) {
     super()
     this.netEngineMill = netEngineMill
+    this.supportsRetainedEventSync = false
   }
 
   // @return promise

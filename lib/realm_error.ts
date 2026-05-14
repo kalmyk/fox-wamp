@@ -11,6 +11,7 @@ export const errorCodes = {
   ERROR_INVALID_PAYLOAD         : 110,
   ERROR_INVALID_URI             : 111,
   ERROR_INVALID_ARGUMENT        : 112,
+  ERROR_OPTION_NOT_SUPPORTED    : 'wamp.error.option_not_supported',
   ERROR_CALLEE_FAILURE          : 'error.callee_failure'
 };
 

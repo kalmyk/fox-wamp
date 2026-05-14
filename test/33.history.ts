@@ -43,7 +43,7 @@ describe('33.history', function () {
       let
         router: Router,
         realm: BaseRealm,
-        api: HyperClient & { session: () => any }
+        api: HyperClient
 
       beforeEach(async () => {
         router = new Router()

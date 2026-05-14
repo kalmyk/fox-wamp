@@ -79,6 +79,12 @@ FOX-WAMP supports several operational modes depending on the storage and distrib
 - **Event Filtering:** Server-side filtering of messages based on subscription options.
 - **Aggregate Engine:** Materialized views gathered on event streams, defined via JSON schema.
 
+## Protocol API Documentation
+
+The repository provides human-friendly API descriptions for all router-facing protocols under `openspec/apis/`. These documents are the recommended reference for contributors and are referenced by OpenSpec artifacts when appropriate.
+
+See `openspec/apis/README.md` for the available API documents (WAMP, MQTT, Hyper).
+
 ## Build & Run
 - **Build:** `npm run build` (runs `tsc`).
 - **Lint:** `npm run lint` (runs `eslint`).

@@ -160,13 +160,16 @@ export class ActorTrace extends Actor {
   delayStack: any[]
   retained: boolean
   retainedState: boolean
+  subscriptionActive: boolean
 
   constructor(ctx: Context, msg: any) {
     super(ctx, msg)
+    const opt = msg.opt || {}
     this.traceStarted = false
     this.delayStack = []
-    this.retained = !!msg.opt.retained
-    this.retainedState = !!msg.opt.retainedState || this.retained
+    this.retained = !!opt.retained
+    this.retainedState = !!opt.retainedState || this.retained
+    this.subscriptionActive = true
   }
 
   filter(event: any): boolean {
@@ -197,7 +200,7 @@ export class ActorTrace extends Actor {
   }
 
   filterSendEvent(event: any): void {
-    if (this.filter(event)) {
+    if (this.subscriptionActive && this.filter(event)) {
       this.sendEvent(event)
     }
   }
@@ -207,6 +210,10 @@ export class ActorTrace extends Actor {
   }
 
   flushDelayStack(): void {
+    if (!this.subscriptionActive) {
+      this.delayStack = []
+      return
+    }
     for (let i = 0; i < this.delayStack.length; i++) {
       this.sendEvent(this.delayStack[i])
     }
@@ -233,6 +240,11 @@ export class ActorTrace extends Actor {
       this.ctx.setSendFailed(e as Error)
       throw e
     }
+  }
+
+  closeSubscription(): void {
+    this.subscriptionActive = false
+    this.delayStack = []
   }
 }
 
@@ -461,6 +473,17 @@ export class DeferMap {
   }
 }
 
+type RetainedEventWaiter = {
+  eventId: string
+  actor: ActorTrace
+  resolve: (reached: boolean) => void
+  timeout: ReturnType<typeof setTimeout>
+}
+
+export function isValidEventIdMarker(eventId: any): boolean {
+  return typeof eventId === 'string' && eventId.length > 0
+}
+
 export class BaseEngine {
   wSub: Record<string, Record<string | number, ActorReg>>
   qCall: Map<string, ActorCall[]>
@@ -468,6 +491,10 @@ export class BaseEngine {
   wTrace: any
   _kvList: { uri: string[], kv: KeyValueStorageAbstract }[]
   realmName?: string
+  currentRetainedEventId: string | null
+  pendingRetainedEventWaiters: RetainedEventWaiter[]
+  retainedEventWaitTimeoutMs: number
+  supportsRetainedEventSync: boolean
 
   constructor() {
     this.wSub = {}
@@ -475,6 +502,10 @@ export class BaseEngine {
     this.qYield = new DeferMap()
     this.wTrace = new Qlobber()
     this._kvList = []
+    this.currentRetainedEventId = null
+    this.pendingRetainedEventWaiters = []
+    this.retainedEventWaitTimeoutMs = 30000
+    this.supportsRetainedEventSync = true
   }
 
   getRealmName(): string {
@@ -597,16 +628,101 @@ export class BaseEngine {
   }
 
   removeTrace(uri: string, subscription: ActorTrace): void {
+    subscription.closeSubscription()
+    this.cancelRetainedEventWaiters(subscription)
     this.wTrace.remove(restoreUri(uri as any), subscription)
+  }
+
+  isRetainedEventReached(eventId: string): boolean {
+    if (!this.currentRetainedEventId) {
+      return false
+    }
+    return this.compareRetainedEventIds(this.currentRetainedEventId, eventId) >= 0
+  }
+
+  compareRetainedEventIds(left: string, right: string): number {
+    if (/^\d+$/.test(left) && /^\d+$/.test(right)) {
+      const leftNum = BigInt(left)
+      const rightNum = BigInt(right)
+      if (leftNum === rightNum) {
+        return 0
+      }
+      return leftNum > rightNum ? 1 : -1
+    }
+    if (left === right) {
+      return 0
+    }
+    return left > right ? 1 : -1
+  }
+
+  waitForRetainedEventId(eventId: string, actor: ActorTrace): Promise<boolean> {
+    if (this.isRetainedEventReached(eventId)) {
+      return Promise.resolve(true)
+    }
+    return new Promise(resolve => {
+      const waiter: RetainedEventWaiter = {
+        eventId,
+        actor,
+        resolve,
+        timeout: setTimeout(() => {
+          this.removeRetainedEventWaiter(waiter)
+          resolve(false)
+        }, this.retainedEventWaitTimeoutMs)
+      }
+      this.pendingRetainedEventWaiters.push(waiter)
+    })
+  }
+
+  removeRetainedEventWaiter(waiter: RetainedEventWaiter): void {
+    const index = this.pendingRetainedEventWaiters.indexOf(waiter)
+    if (index >= 0) {
+      this.pendingRetainedEventWaiters.splice(index, 1)
+    }
+    clearTimeout(waiter.timeout)
+  }
+
+  cancelRetainedEventWaiters(actor: ActorTrace): void {
+    const waiters = this.pendingRetainedEventWaiters.filter(waiter => waiter.actor === actor)
+    for (let i = 0; i < waiters.length; i++) {
+      this.removeRetainedEventWaiter(waiters[i])
+      waiters[i].resolve(false)
+    }
+  }
+
+  resolveRetainedEventWaiters(eventId: string): void {
+    this.currentRetainedEventId = eventId
+    const waiters = this.pendingRetainedEventWaiters.filter(waiter => {
+      return this.compareRetainedEventIds(eventId, waiter.eventId) >= 0
+    })
+    for (let i = 0; i < waiters.length; i++) {
+      this.removeRetainedEventWaiter(waiters[i])
+      waiters[i].resolve(true)
+    }
+  }
+
+  replayRetainedState(actor: ActorTrace): Promise<any[]> {
+    return this.getKey(
+      actor.getUri() as any,
+      (key: any, data: any, eventId: any) => {
+        actor.filterSendEvent({
+          qid: eventId,
+          uri: key,
+          data: data,
+          opt: { retained: true }
+        })
+      }
+    )
   }
 
   doTrace(actor: ActorTrace): void {
     this.addTrace(actor)
     actor.atSubscribe()
 
-    if (actor.getOpt().after) {
+    const after = actor.getOpt().after
+
+    if (after) {
       this.getHistoryAfter(
-        actor.getOpt().after,
+        after,
         actor.getUri() as any,
         (cmd: any) => {
           actor.filterSendEvent({
@@ -626,17 +742,15 @@ export class BaseEngine {
     }
 
     if (actor.retainedState) {
-      this.getKey(
-        actor.getUri() as any,
-        (key: any, data: any, eventId: any) => {
-          actor.filterSendEvent({
-            qid: eventId,
-            uri: key,
-            data: data,
-            opt: { retained: true }
-          })
-        }
-      )
+      if (after) {
+        this.waitForRetainedEventId(after, actor).then(reached => {
+          if (reached && actor.isActive() && actor.subscriptionActive) {
+            this.replayRetainedState(actor)
+          }
+        })
+      } else {
+        this.replayRetainedState(actor)
+      }
     }
   }
 
@@ -665,7 +779,12 @@ export class BaseEngine {
     this.saveInboundHistory(actor)
     this.disperseToSubs(actor.getEvent())
     if (actor.getOpt().retain) {
-      this.updateKvFromActor(actor)
+      this.updateKvFromActor(actor).then(() => {
+        const eventId = actor.getEventId()
+        if (eventId) {
+          this.resolveRetainedEventWaiters(eventId)
+        }
+      })
     } else {
       actor.confirm(actor.msg)
     }
@@ -702,6 +821,11 @@ export class BaseEngine {
   }
 
   cleanupSession(sessionId: string): Promise<any[]> {
+    const waiters = this.pendingRetainedEventWaiters.filter(waiter => waiter.actor.getSid() === sessionId)
+    for (let i = 0; i < waiters.length; i++) {
+      this.removeRetainedEventWaiter(waiters[i])
+      waiters[i].resolve(false)
+    }
     let allKv: Promise<any>[] = []
     for (let i = this._kvList.length - 1; i >= 0; i--) {
       allKv.push(this._kvList[i].kv.eraseSessionData(sessionId))
@@ -815,6 +939,20 @@ export class BaseRealm extends EventEmitter {
   cmdConfirm(ctx: Context, cmd: any): void {}
 
   cmdTrace(ctx: Context, cmd: any): string | number {
+    cmd.opt = cmd.opt || {}
+    const retainedState = !!cmd.opt.retainedState || !!cmd.opt.retained
+    if ('after' in cmd.opt && !isValidEventIdMarker(cmd.opt.after)) {
+      throw new RealmError(cmd.id,
+        errorCodes.ERROR_INVALID_ARGUMENT,
+        'after must be a non-empty string'
+      )
+    }
+    if (retainedState && 'after' in cmd.opt && !this.engine.supportsRetainedEventSync) {
+      throw new RealmError(cmd.id,
+        errorCodes.ERROR_OPTION_NOT_SUPPORTED,
+        'synchronized retained sync is not supported by this engine'
+      )
+    }
     const session = ctx.getSession()
     const subscription = this.engine.createActorTrace(ctx, cmd)
     cmd.qid = this.engine.makeTraceId()
@@ -901,7 +1039,7 @@ export class BaseRealm extends EventEmitter {
     session.setGateProtocol('internal.hyper.api')
     
     const api = new HyperClient(this, new HyperApiContext(this.getRouter(), session, this));
-    (api as any).session = () => session;
+    api.setSession(session);
     return api
   }
 
