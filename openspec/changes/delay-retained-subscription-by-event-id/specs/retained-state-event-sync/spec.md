@@ -63,10 +63,14 @@ Engines that support `after_event_id` SHALL provide a mechanism to track the las
 - **AND** the engine processes a non-retained publish with ID `EVENT_456`
 - **THEN** the engine SHALL NOT satisfy the retained-state wait from that non-retained publish
 
-#### Scenario: In-memory engine assigns retained event IDs
-- **WHEN** a retained publish is processed by the in-memory engine
-- **THEN** the engine SHALL assign a comparable local retained event ID
+#### Scenario: Stored event has event ID before retained storage write
+- **WHEN** a retained publish is processed by an engine that supports `after_event_id`
+- **THEN** the engine SHALL assign a comparable event ID before writing the event to retained storage
 - **AND** retained lookup SHALL return that event ID with the retained row
+
+#### Scenario: Non-stored event may omit event ID
+- **WHEN** an event is not written to retained key-value storage or event history storage
+- **THEN** the engine MAY process the event without assigning an event ID
 
 ### Requirement: Shared local engine behavior
 The in-memory engine and SQLite `DbEngine` SHALL pass the same retained-state event synchronization behavior tests.

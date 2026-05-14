@@ -9,6 +9,7 @@ errorMessages[errorCodes.ERROR_NOT_AUTHORIZED] = 'wamp.error.not_authorized';
 errorMessages[errorCodes.ERROR_INVALID_PAYLOAD] = 'wamp.error.invalid_payload';
 errorMessages[errorCodes.ERROR_INVALID_URI] = 'wamp.error.invalid_uri';
 errorMessages[errorCodes.ERROR_INVALID_ARGUMENT] = 'wamp.error.invalid_argument';
+errorMessages[errorCodes.ERROR_OPTION_NOT_SUPPORTED] = 'wamp.error.option_not_supported';
 errorMessages[errorCodes.ERROR_CALLEE_FAILURE] = 'wamp.error.callee_failure';
 
 export function wampErrorCode(errorCode: number | string): string {

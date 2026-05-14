@@ -87,6 +87,26 @@ session.subscribe('key.value.#', (args, kwargs, options) => {
     { retained: true }
 )
 ```
+If the client needs retained values to include a recently published retained event, pass the publish event ID as `after_event_id` when subscribing. The subscription is created immediately, but retained storage is not read until key-value storage has committed that event ID.
+
+```javascript
+const eventId = await api.publish(
+  'key.value.1',
+  { status: 'ready' },
+  { acknowledge: true, retain: true }
+)
+
+await api.subscribe(
+  'key.value.1',
+  (body) => console.log('retained value', body),
+  { retained: true, after_event_id: eventId }
+)
+```
+
+`after_event_id` is supported by the in-memory engine and local SQLite `DbEngine`. Distributed/Masterfree mode rejects this option until its storage-to-entry retained commit signal is defined.
+
+The wait is bounded by the engine retained-event timeout. If the event ID is valid but never becomes visible in retained storage, retained replay is skipped and the subscription remains active for live events. When `retainedState` is used, matching live events may arrive before the delayed retained replay.
+
 to store event in the storage publisher should specify `retain` flag
 
 ```javascript
@@ -183,6 +203,8 @@ register('inbound.topic.#', (args, kwargs, options) => {
 
 ### Subscribe Options
 * retained: boolean, corresponding values from key value storage will be returned as immidiate events.
+* retainedState: boolean, corresponding values from key value storage will be returned as initial retained events while normal live events are still accepted by the subscription.
+* after_event_id: string, delays retained key-value lookup until retained storage has committed this event ID or a later comparable event ID. This option only affects retained replay; it does not delay subscription acknowledgement or normal live event delivery.
 * mission:
 * filter: condition to filter messages that accepted by the subscription
 

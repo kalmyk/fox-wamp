@@ -1,0 +1,297 @@
+import * as chai from 'chai'
+const { expect } = chai
+const assert: Chai.AssertStatic = chai.assert
+import promised from 'chai-as-promised'
+chai.use(promised)
+
+import sqlite3 from 'sqlite3'
+import * as sqlite from 'sqlite'
+
+import { BaseEngine, BaseRealm } from '../lib/realm'
+import { Router } from '../lib/router'
+import { HyperClient } from '../lib/hyper/client'
+import { MemEngine } from '../lib/mono/memengine'
+import { MemKeyValueStorage } from '../lib/mono/memkv'
+import { DbEngine } from '../lib/sqlite/dbengine'
+import { DbFactory } from '../lib/sqlite/dbfactory'
+import { ProduceId } from '../lib/masterfree/makeid'
+import { SqliteKv, SqliteKvFabric } from '../lib/sqlite/sqlitekv'
+
+const TEST_REALM_NAME = 'testrealm'
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+type RunConfig = {
+  it: string
+  firstRetainedId: string
+  secondRetainedId: string
+  mkRealm: (router: Router) => Promise<BaseRealm>
+}
+
+const makeMemRealm = async (router: Router): Promise<BaseRealm> => {
+  const realm = new BaseRealm(router, new MemEngine())
+  realm.registerKeyValueEngine(['#'], new MemKeyValueStorage())
+  return realm
+}
+
+const makeDbRealm = async (router: Router): Promise<BaseRealm> => {
+  const db: sqlite.Database = await sqlite.open({
+    filename: ':memory:',
+    driver: sqlite3.Database
+  })
+  const dbFactory = new DbFactory('/tmp/test-fox-wamp.db')
+  dbFactory.setMainDb(db)
+
+  const makeId = new ProduceId(() => 'test-prefix-')
+  makeId.actualizePrefix()
+  const modKv = new SqliteKvFabric(dbFactory, makeId)
+  const realm = new BaseRealm(router, new DbEngine(makeId, modKv))
+  realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, TEST_REALM_NAME))
+  return realm
+}
+
+const runs: RunConfig[] = [
+  { it: 'mem', firstRetainedId: '1', secondRetainedId: '2', mkRealm: makeMemRealm },
+  { it: 'db', firstRetainedId: 'test-prefix-a1', secondRetainedId: 'test-prefix-a2', mkRealm: makeDbRealm },
+]
+
+describe('70.retained-sync', () => {
+  runs.forEach(run => {
+    describe('engine:' + run.it, () => {
+      let router: Router
+      let realm: BaseRealm
+      let api: HyperClient & { session: () => any }
+
+      beforeEach(async () => {
+        router = new Router()
+        realm = await run.mkRealm(router)
+        realm.getEngine().retainedEventWaitTimeoutMs = 30
+        await router.initRealm(TEST_REALM_NAME, realm)
+        api = realm.api() as HyperClient & { session: () => any }
+      })
+
+      afterEach(async () => {
+        assert.isFalse(api.session().hasSendError(), api.session().firstSendErrorMessage())
+        await api.session().cleanup()
+      })
+
+      it('waits to fetch retained state until event id is committed:' + run.it, async () => {
+        const events: any[] = []
+        await api.subscribe('sync.topic', event => events.push(event), {
+          retained: true,
+          after_event_id: run.firstRetainedId
+        })
+
+        await sleep(5)
+        expect(events).deep.equal([])
+
+        await api.publish('sync.topic', { value: 'current' }, {
+          retain: true,
+          acknowledge: true,
+          exclude_me: false
+        })
+
+        await sleep(5)
+        expect(events).deep.equal([{ value: 'current' }])
+      })
+
+      it('fetches retained state immediately if event id is already reached:' + run.it, async () => {
+        const eventId = await api.publish('sync.topic', { value: 'stored' }, {
+          retain: true,
+          acknowledge: true
+        })
+        const events: any[] = []
+
+        await api.subscribe('sync.topic', event => events.push(event), {
+          retained: true,
+          after_event_id: eventId
+        })
+
+        await sleep(5)
+        expect(events).deep.equal([{ value: 'stored' }])
+      })
+
+      it('does not satisfy wait until retained kv commit completes:' + run.it, async () => {
+        const engine = realm.getEngine()
+        let releaseCommit: () => void = () => {}
+        const commitAllowed = new Promise<void>(resolve => {
+          releaseCommit = resolve
+        })
+        const originalUpdate = engine.updateKvFromActor.bind(engine)
+        engine.updateKvFromActor = async actor => {
+          await commitAllowed
+          return originalUpdate(actor)
+        }
+
+        const events: any[] = []
+        await api.subscribe('sync.topic', event => events.push(event), {
+          retained: true,
+          after_event_id: run.firstRetainedId
+        })
+
+        const publishPromise = api.publish('sync.topic', { value: 'blocked' }, {
+          retain: true,
+          acknowledge: true
+        })
+        await sleep(5)
+        expect(events).deep.equal([])
+
+        releaseCommit()
+        await publishPromise
+        await sleep(5)
+        expect(events).deep.equal([{ value: 'blocked' }])
+      })
+
+      it('serves two sessions with different after_event_id waits:' + run.it, async () => {
+        const apiFirst = realm.buildApi() as HyperClient & { session: () => any }
+        const apiSecond = realm.buildApi() as HyperClient & { session: () => any }
+        const firstEvents: any[] = []
+        const secondEvents: any[] = []
+
+        try {
+          await apiSecond.subscribe('sync.second', event => secondEvents.push(event), {
+            retained: true,
+            after_event_id: run.secondRetainedId
+          })
+          await apiFirst.subscribe('sync.first', event => firstEvents.push(event), {
+            retained: true,
+            after_event_id: run.firstRetainedId
+          })
+          expect(realm.getEngine().pendingRetainedEventWaiters).length(2)
+
+          await api.publish('sync.first', { value: 'first' }, {
+            retain: true,
+            acknowledge: true
+          })
+          await sleep(5)
+          expect(firstEvents).deep.equal([{ value: 'first' }])
+          expect(secondEvents).deep.equal([])
+          expect(realm.getEngine().pendingRetainedEventWaiters).length(1)
+
+          await api.publish('sync.second', { value: 'second' }, {
+            retain: true,
+            acknowledge: true
+          })
+          await sleep(5)
+          expect(firstEvents).deep.equal([{ value: 'first' }])
+          expect(secondEvents).deep.equal([{ value: 'second' }])
+          expect(realm.getEngine().pendingRetainedEventWaiters).length(0)
+        } finally {
+          await apiFirst.session().cleanup()
+          await apiSecond.session().cleanup()
+        }
+      })
+
+      it('cleans pending retained waiter on unsubscribe:' + run.it, async () => {
+        const events: any[] = []
+        const subId = await api.subscribe('sync.topic', event => events.push(event), {
+          retained: true,
+          after_event_id: run.firstRetainedId
+        })
+        expect(realm.getEngine().pendingRetainedEventWaiters).length(1)
+
+        await api.unsubscribe(subId)
+        expect(realm.getEngine().pendingRetainedEventWaiters).length(0)
+
+        await api.publish('sync.topic', { value: 'ignored' }, {
+          retain: true,
+          acknowledge: true
+        })
+        await sleep(5)
+        expect(events).deep.equal([])
+      })
+
+      it('times out unreachable retained wait and keeps live subscription active:' + run.it, async () => {
+        const events: any[] = []
+        await api.subscribe('sync.topic', event => events.push(event), {
+          retainedState: true,
+          after_event_id: 'unreachable-id'
+        })
+        expect(realm.getEngine().pendingRetainedEventWaiters).length(1)
+
+        await sleep(40)
+        expect(realm.getEngine().pendingRetainedEventWaiters).length(0)
+
+        await api.publish('sync.topic', { value: 'live' }, {
+          acknowledge: true,
+          exclude_me: false
+        })
+        await sleep(5)
+        expect(events).deep.equal([{ value: 'live' }])
+      })
+
+      it('does not delay live events when after_event_id has no retained replay:' + run.it, async () => {
+        const events: any[] = []
+        await api.subscribe('sync.topic', event => events.push(event), {
+          after_event_id: 'unreachable-id'
+        })
+
+        await api.publish('sync.topic', { value: 'live' }, {
+          acknowledge: true,
+          exclude_me: false
+        })
+        await sleep(5)
+        expect(events).deep.equal([{ value: 'live' }])
+        expect(realm.getEngine().pendingRetainedEventWaiters).length(0)
+      })
+
+      it('keeps history replay independent from retained wait:' + run.it, async () => {
+        const startPos = await api.publish('sync.topic', { value: 'start' }, {
+          acknowledge: true,
+          trace: true
+        })
+        await api.publish('sync.topic', { value: 'history' }, {
+          acknowledge: true,
+          trace: true
+        })
+
+        const events: any[] = []
+        await api.subscribe('sync.topic', event => events.push(event), {
+          after: startPos,
+          retainedState: true,
+          after_event_id: run.firstRetainedId
+        })
+        await sleep(5)
+        expect(events).deep.equal([{ value: 'history' }])
+
+        await api.publish('sync.topic', { value: 'retained' }, {
+          retain: true,
+          acknowledge: true
+        })
+        await sleep(5)
+        expect(events).deep.equal([
+          { value: 'history' },
+          { value: 'retained' },
+        ])
+      })
+    })
+  })
+
+  it('rejects invalid after_event_id values', async () => {
+    const router = new Router()
+    const realm = await makeMemRealm(router)
+    await router.initRealm(TEST_REALM_NAME, realm)
+    const api = realm.api() as HyperClient & { session: () => any }
+
+    await assert.isRejected(
+      api.subscribe('sync.topic', () => {}, { after_event_id: 123 }),
+      'after_event_id must be a non-empty string'
+    )
+    await api.session().cleanup()
+  })
+
+  it('rejects after_event_id when engine does not support retained event sync', async () => {
+    const router = new Router()
+    const engine = new BaseEngine()
+    engine.supportsRetainedEventSync = false
+    const realm = new BaseRealm(router, engine)
+    await router.initRealm(TEST_REALM_NAME, realm)
+    const api = realm.api() as HyperClient & { session: () => any }
+
+    await assert.isRejected(
+      api.subscribe('sync.topic', () => {}, { after_event_id: 'remote-event' }),
+      'after_event_id is not supported by this engine'
+    )
+    await api.session().cleanup()
+  })
+})

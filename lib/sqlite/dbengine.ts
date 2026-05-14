@@ -27,7 +27,12 @@ export class DbEngine extends BaseEngine {
     const runPush = () => this.saveHistory(actor).then(() => {
       this.disperseToSubs(actor.getEvent())
       if (actor.getOpt().retain) {
-        return this.updateKvFromActor(actor)
+        return this.updateKvFromActor(actor).then(() => {
+          const eventId = actor.getEventId()
+          if (eventId) {
+            this.resolveRetainedEventWaiters(eventId)
+          }
+        })
       } else {
         actor.confirm(actor.msg)
         return Promise.resolve()
