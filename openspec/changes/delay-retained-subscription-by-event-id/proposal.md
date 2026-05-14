@@ -4,10 +4,10 @@ When a client publishes an event and immediately subscribes to the same topic wi
 
 ## What Changes
 
-- **SUBSCRIBE options**: A new optional attribute `after_event_id` is added to the `SUBSCRIBE` message options.
-- **Subscription Logic**: The realm engine will detect the `after_event_id` option and, if `retained` or `retainedState` is also requested, delay only the retained-state lookup until the target event ID is known to be committed to retained storage.
+- **SUBSCRIBE options**: A new optional attribute `after` is added to the `SUBSCRIBE` message options.
+- **Subscription Logic**: The realm engine will detect the `after` option and, if `retained` or `retainedState` is also requested, delay only the retained-state lookup until the target event ID is known to be committed to retained storage.
 - **Engine Capabilities**: The base engine will be extended with a bounded mechanism to track committed retained-storage event IDs and wait for specific IDs.
-- **Initial Scope**: The first implementation targets the two completed local engines: the in-memory engine and `DbEngine` with SQLite key-value storage. Both engines will implement the same `after_event_id` behavior and will be covered by the same test cases.
+- **Initial Scope**: The first implementation targets the two completed local engines: the in-memory engine and `DbEngine` with SQLite key-value storage. Both engines will implement the same `after` behavior and will be covered by the same test cases.
 
 ## Capabilities
 
@@ -19,9 +19,9 @@ When a client publishes an event and immediately subscribes to the same topic wi
 
 ## Impact
 
-- **API**: WAMP `SUBSCRIBE` options will accept `after_event_id`.
+- **API**: WAMP `SUBSCRIBE` options will accept `after`.
 - **Core**: `lib/realm.ts` and `lib/wamp/gate.ts` will be updated to handle the new option.
-- **Engines**: The in-memory engine and `DbEngine` will support event ID tracking and waiting after retained storage commits. The unfinished network engine will reject `after_event_id` until its retained-storage commit signal is designed.
+- **Engines**: The in-memory engine and `DbEngine` will support event ID tracking and waiting after retained storage commits. The unfinished network engine will reject `after` until its retained-storage commit signal is designed.
 - **Storage**: Retained state lookup will be delayed when the sync option is present; the subscription itself remains active unless the design is changed later.
 
 ## Open Issues

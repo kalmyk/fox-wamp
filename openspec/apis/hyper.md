@@ -37,11 +37,10 @@ These are the canonical internal command/event options used by the Hyper API and
 - exclude_me (boolean)
   - When true, the publisher will not receive the published event via matched subscriptions on the same session.
 
-- after (any)
-  - History replay marker (used by getHistoryAfter) to fetch ordered history stream since a given point.
-
-- after_event_id (string)
-  - Retained-storage visibility marker; engines supporting retained event synchronization expose `supportsRetainedEventSync` and provide `waitForRetainedEventId` and `resolveRetainedEventWaiters` behavior.
+- after (string)
+  - Specifies a synchronization point for either history replay or retained snapshot synchronization.
+  - History replay: Fetches ordered history stream since the given ID.
+  - Retained sync: Retained-storage visibility marker; engines supporting retained event synchronization expose `supportsRetainedEventSync` and provide `waitForRetainedEventId` and `resolveRetainedEventWaiters` behavior.
 
 - when (object|null)
   - Conditional predicate used by key-value storage to gate a publish (publish only if storage matches the `when` predicate).
@@ -62,7 +61,7 @@ These are the canonical internal command/event options used by the Hyper API and
   - Used by registration commands to indicate reducer behavior and concurrency limits for RPC handlers.
 
 Engine Integration Notes:
-- Engines must expose `supportsRetainedEventSync` to accept `after_event_id` and must implement `waitForRetainedEventId` and `resolveRetainedEventWaiters`. See `lib/realm.ts` and `lib/masterfree/*` for implementations and tasks that update the behavior.
+- Engines must expose `supportsRetainedEventSync` to accept `after` for retained synchronization and must implement `waitForRetainedEventId` and `resolveRetainedEventWaiters`. See `lib/realm.ts` and `lib/masterfree/*` for implementations and tasks that update the behavior.
 - The canonical TypeScript BODY_* types in `lib/masterfree/hyper.h.ts` define the shapes for event payloads and should be used as the source of truth for documentation and type generation.
 
 Examples (HyperClient / internal API)

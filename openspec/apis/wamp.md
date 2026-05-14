@@ -34,13 +34,12 @@ The router supports a common set of publish/subscribe options that gates transla
   - Purpose: When true, the subscription requests retained values as initial events while still accepting live events.
   - Usage: Treated as `retainedState || retained` by the engine when constructing ActorTrace.
 
-- after_event_id (string)
-  - Purpose: Delay retained-state lookup until retained key-value storage has committed an event with ID >= this value. Only affects retained replay, not subscription acknowledgement or live events.
+- after (string)
+  - Purpose: Specifies a synchronization point.
+    - For history replay: Request history records starting after this ID.
+    - For retained sync (when `retained` or `retainedState` is true): Delay retained-state lookup until retained key-value storage has committed an event with ID >= this value. Only affects retained replay, not subscription acknowledgement or live events.
   - Usage: Supported by in-memory and SQLite DbEngine. Rejected in distributed/masterfree mode until supported by storage commit visibility.
-  - Validation: Must be a non-empty string; invalid values are rejected with a protocol error.
-
-- after (any)
-  - Purpose: Request history replay starting after a specified history position (used for ordered history replay, distinct from retained synchronization).
+  - Validation: Must be a non-empty string when used for synchronization; invalid values are rejected with a protocol error.
 
 - filter (object)
   - Purpose: Server-side data filtering for subscriptions. The server will only forward events whose body matches the filter predicate. See `isDataFit` in `lib/realm.ts` for matching semantics.
@@ -102,7 +101,7 @@ Subscribe and wait for retained visibility using after_event_id (example using i
 const eventId = await api.publish('key.value.1', { status: 'ready' }, { acknowledge: true, retain: true })
 
 // subscribe, requesting retained replay only after the stored event with eventId is visible
-await api.subscribe('key.value.1', (body) => console.log('retained value', body), { retained: true, after_event_id: eventId })
+await api.subscribe('key.value.1', (body) => console.log('retained value', body), { retained: true, after: eventId })
 ```
 
 Publish with conditional (when), watch and will options (WAMP client example):

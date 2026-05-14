@@ -160,7 +160,6 @@ export class ActorTrace extends Actor {
   delayStack: any[]
   retained: boolean
   retainedState: boolean
-  after_event_id: string | null
   subscriptionActive: boolean
 
   constructor(ctx: Context, msg: any) {
@@ -170,9 +169,6 @@ export class ActorTrace extends Actor {
     this.delayStack = []
     this.retained = !!opt.retained
     this.retainedState = !!opt.retainedState || this.retained
-    this.after_event_id = typeof opt.after_event_id === 'string'
-      ? opt.after_event_id
-      : null
     this.subscriptionActive = true
   }
 
@@ -484,7 +480,7 @@ type RetainedEventWaiter = {
   timeout: ReturnType<typeof setTimeout>
 }
 
-export function isValidAfterEventId(eventId: any): boolean {
+export function isValidEventIdMarker(eventId: any): boolean {
   return typeof eventId === 'string' && eventId.length > 0
 }
 
@@ -722,9 +718,11 @@ export class BaseEngine {
     this.addTrace(actor)
     actor.atSubscribe()
 
-    if (actor.getOpt().after) {
+    const after = actor.getOpt().after
+
+    if (after) {
       this.getHistoryAfter(
-        actor.getOpt().after,
+        after,
         actor.getUri() as any,
         (cmd: any) => {
           actor.filterSendEvent({
@@ -744,8 +742,8 @@ export class BaseEngine {
     }
 
     if (actor.retainedState) {
-      if (actor.after_event_id) {
-        this.waitForRetainedEventId(actor.after_event_id, actor).then(reached => {
+      if (after) {
+        this.waitForRetainedEventId(after, actor).then(reached => {
           if (reached && actor.isActive() && actor.subscriptionActive) {
             this.replayRetainedState(actor)
           }
@@ -942,16 +940,17 @@ export class BaseRealm extends EventEmitter {
 
   cmdTrace(ctx: Context, cmd: any): string | number {
     cmd.opt = cmd.opt || {}
-    if ('after_event_id' in cmd.opt && !isValidAfterEventId(cmd.opt.after_event_id)) {
+    const retainedState = !!cmd.opt.retainedState || !!cmd.opt.retained
+    if ('after' in cmd.opt && !isValidEventIdMarker(cmd.opt.after)) {
       throw new RealmError(cmd.id,
         errorCodes.ERROR_INVALID_ARGUMENT,
-        'after_event_id must be a non-empty string'
+        'after must be a non-empty string'
       )
     }
-    if ('after_event_id' in cmd.opt && !this.engine.supportsRetainedEventSync) {
+    if (retainedState && 'after' in cmd.opt && !this.engine.supportsRetainedEventSync) {
       throw new RealmError(cmd.id,
         errorCodes.ERROR_OPTION_NOT_SUPPORTED,
-        'after_event_id is not supported by this engine'
+        'synchronized retained sync is not supported by this engine'
       )
     }
     const session = ctx.getSession()

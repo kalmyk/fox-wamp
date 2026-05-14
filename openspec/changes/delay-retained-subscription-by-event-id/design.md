@@ -20,7 +20,7 @@ The system supports retained messages where a subscriber can receive the latest 
 ## Decisions
 
 ### 1. Wait on retained-storage commit, not event assignment
-The wait condition is "the retained key-value storage has committed an event ID greater than or equal to `after_event_id`" for engines where event IDs are monotonic and comparable.
+The wait condition is "the retained key-value storage has committed an event ID greater than or equal to `after`" for engines where event IDs are monotonic and comparable.
 
 **Rationale:**
 The race is between subscription-time retained lookup and retained key-value commit. Resolving a waiter when an event ID is merely assigned or when history is saved is too early for retained publishes because `DbEngine.doPush` assigns/saves the event before `updateKvFromActor` completes.
@@ -74,7 +74,7 @@ The freshness guarantee is specifically about retained state. Resolving only aft
 ### 7. Integration in `doTrace`
 The `BaseEngine.doTrace` method will delay the retained-state lookup when all of the following are true:
 
-- `after_event_id` is present.
+- `after` is present.
 - `retained` or `retainedState` is requested.
 - The target event ID is not already reached by the engine's committed retained event marker.
 
@@ -90,20 +90,20 @@ The retained-sync tests will be organized so each scenario runs against both loc
 Running the same tests against both local engines keeps the feature contract engine-neutral and prevents SQLite-specific behavior from becoming the accidental definition.
 
 ### 9. Interaction with history replay
-If both `after` and `after_event_id` are provided, history replay follows the existing `after` behavior and retained replay waits independently on `after_event_id`. This change does not reorder history replay relative to live events beyond the current `traceStarted` and delay-stack behavior.
+If `after` is provided, it serves as the synchronization point for both history replay and retained state retrieval (if either is requested). History replay follows the existing `after` behavior (records > `after`), while retained replay waits for KV visibility (committed >= `after`). This change does not reorder history replay relative to live events beyond the current `traceStarted` and delay-stack behavior.
 
 **Rationale:**
-`after` and `after_event_id` solve different problems: event history replay and retained key-value freshness. Coupling them would broaden the change and risk changing existing subscription semantics.
+Using a single attribute simplifies the API. While they solve different problems (event history replay and retained key-value freshness), they both represent a logical point in the event stream that the subscriber wants to catch up to.
 
 ### 10. Subscription stage model
 Subscription behavior is defined at the Hyper API level because the Hyper API contains the router's full functionality. WAMP and MQTT gates translate into that API.
 
 The subscription lifecycle has a common creation stage, then separate catch-up variants:
 
-- retained KV catch-up: optionally wait for `after_event_id`, fetch current retained values from key-value storage, then continue with live events
+- retained KV catch-up: optionally wait for `after`, fetch current retained values from key-value storage, then continue with live events
 - history catch-up: fetch event history after `after`, buffer matching live events while history is loading, flush the buffer, then continue with live events
 
-These variants must not be collapsed into one implementation path. Retained KV is a snapshot source and history is an ordered stream source. `after_event_id` describes KV visibility; `after` describes a history stream position.
+These variants must not be collapsed into one implementation path. Retained KV is a snapshot source and history is an ordered stream source. `after` describes KV visibility; `after` describes a history stream position.
 
 See [subscription-stages.md](subscription-stages.md) for the detailed Hyper API behavior description.
 
@@ -111,7 +111,7 @@ See [subscription-stages.md](subscription-stages.md) for the detailed Hyper API 
 The current `doTrace` flow already has different state for history replay (`traceStarted` and `delayStack`) and retained lookup (`getKey`). Making this separation explicit prevents the delayed-retained implementation from accidentally treating retained KV replay as history replay.
 
 ### 11. Invalid and unreachable IDs
-Invalid `after_event_id` values are rejected at subscription time with a WAMP error. Valid but unreachable IDs wait until a bounded timeout. On timeout, the retained replay is skipped and the subscription remains active for live events, unless a later implementation chooses to surface a subscription error before finalization.
+Invalid `after` values are rejected at subscription time with a WAMP error. Valid but unreachable IDs wait until a bounded timeout. On timeout, the retained replay is skipped and the subscription remains active for live events, unless a later implementation chooses to surface a subscription error before finalization.
 
 **Rationale:**
 This prevents permanent memory growth while preserving the already-created subscription. The exact timeout value should be configurable with a conservative default.
@@ -129,7 +129,7 @@ The local engines will use comparable local retained event IDs. Network/distribu
 
 ## Risks / Trade-offs
 
-- **[Risk] Memory Accumulation**: If a client provides a very large `after_event_id` that is never reached, the waiter might stay in memory indefinitely.
+- **[Risk] Memory Accumulation**: If a client provides a very large `after` that is never reached, the waiter might stay in memory indefinitely.
   - **Mitigation**: Add timeout and cleanup waiters on unsubscribe/session cleanup.
 - **[Trade-off] Performance**: Checking waiters on every event push adds a small overhead.
   - **Mitigation**: Use a sorted structure or only check when there are active waiters to minimize impact.

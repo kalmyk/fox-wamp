@@ -36,8 +36,8 @@ MQTT gate maps MQTT publish/subscribe options to the router's internal options. 
 - exclude_me (boolean)
   - When publishing via gates, the `exclude_me` option controls whether the publisher receives its own published events. MQTT gate sets `exclude_me` according to the mapped options.
 
-- trace / after / after_event_id
-  - The MQTT gate can map session/trace/persistent options such as `trace` and `after` where applicable. `after_event_id` support follows the same engine constraints as WAMP (in-memory and SQLite engines only).
+- trace / after
+  - The MQTT gate can map session/trace/persistent options such as `trace` and `after` where applicable. `after` support for retained synchronization follows the same engine constraints as WAMP (in-memory and SQLite engines only).
 
 - when / watch / will
   - Key-value conditional publish semantics (`when`) and `watch` behaviour (blocking publish until `when` condition is satisfied) are supported when using the key-value storage features exposed by the router. `will` semantics for retained KV writes are integrated with the key-value engine.

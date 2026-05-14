@@ -31,16 +31,16 @@ This variant is used when the subscription requests `retained` or `retainedState
 
 The retained source is key-value storage. The starting position is the latest retained value visible in KV storage, not the event history table.
 
-Without `after_event_id`:
+Without `after`:
 
 1. Fetch last retained values from KV storage.
 2. Send matching retained rows to the subscriber.
 3. Continue listening to incoming live events.
 
-With `after_event_id`:
+With `after`:
 
 1. Register the live listener immediately.
-2. Wait until retained KV storage has committed an event ID greater than or equal to `after_event_id`.
+2. Wait until retained KV storage has committed an event ID greater than or equal to `after`.
 3. Fetch last retained values from KV storage.
 4. Send matching retained rows to the subscriber.
 5. Continue listening to incoming live events.
@@ -69,21 +69,21 @@ Retained KV catch-up and history catch-up cannot be represented as a single orde
 
 - KV retained state is a snapshot of current keys. It intentionally collapses earlier writes.
 - History records are an ordered stream. They preserve each stored event after a position.
-- `after_event_id` waits for KV visibility of a retained write.
+- `after` waits for KV visibility of a retained write.
 - `after` asks history storage for records after a stream position.
 - A retained KV row's event ID identifies the write that produced the visible state, while a history event ID identifies a stream record.
 
-If both `after` and `after_event_id` are present, each option controls its own source. The history path fetches and flushes history-buffered live events according to `after`. The retained path waits for KV visibility according to `after_event_id` before reading KV. The implementation must avoid claiming a total ordering between these two independent catch-up sources unless a later design explicitly defines one.
+If `after` is present, it controls both sources independently. The history path fetches and flushes history-buffered live events based on `after` (exclusive: > `after`). The retained path waits for KV visibility based on `after` (inclusive: >= `after`) before reading KV. The implementation must avoid claiming a total ordering between these two independent catch-up sources unless a later design explicitly defines one.
 
 ## Implementation Shape
 
 At the realm engine level, the subscription actor needs separate state for each initial source:
 
 - `traceStarted` and `delayStack` belong to history catch-up.
-- retained KV waiting belongs to a retained replay task keyed by `after_event_id`.
+- retained KV waiting belongs to a retained replay task keyed by `after`.
 - live listener registration is common and happens before either catch-up source finishes.
 
-For the `after_event_id` change, the retained task should be:
+For the `after` change, the retained task should be:
 
 1. skipped when neither `retained` nor `retainedState` is requested
 2. immediate when the committed retained event marker already reaches the target ID
