@@ -60,14 +60,14 @@ describe('70.retained-sync', () => {
     describe('engine:' + run.it, () => {
       let router: Router
       let realm: BaseRealm
-      let api: HyperClient & { session: () => any }
+      let api: HyperClient
 
       beforeEach(async () => {
         router = new Router()
         realm = await run.mkRealm(router)
         realm.getEngine().retainedEventWaitTimeoutMs = 30
         await router.initRealm(TEST_REALM_NAME, realm)
-        api = realm.api() as HyperClient & { session: () => any }
+        api = realm.api() as HyperClient
       })
 
       afterEach(async () => {
@@ -143,8 +143,8 @@ describe('70.retained-sync', () => {
       })
 
       it('serves two sessions with different after_event_id waits:' + run.it, async () => {
-        const apiFirst = realm.buildApi() as HyperClient & { session: () => any }
-        const apiSecond = realm.buildApi() as HyperClient & { session: () => any }
+        const apiFirst = realm.buildApi() as HyperClient
+        const apiSecond = realm.buildApi() as HyperClient
         const firstEvents: any[] = []
         const secondEvents: any[] = []
 
@@ -271,7 +271,7 @@ describe('70.retained-sync', () => {
     const router = new Router()
     const realm = await makeMemRealm(router)
     await router.initRealm(TEST_REALM_NAME, realm)
-    const api = realm.api() as HyperClient & { session: () => any }
+    const api = realm.api() as HyperClient
 
     await assert.isRejected(
       api.subscribe('sync.topic', () => {}, { after_event_id: 123 }),
@@ -286,7 +286,7 @@ describe('70.retained-sync', () => {
     engine.supportsRetainedEventSync = false
     const realm = new BaseRealm(router, engine)
     await router.initRealm(TEST_REALM_NAME, realm)
-    const api = realm.api() as HyperClient & { session: () => any }
+    const api = realm.api() as HyperClient
 
     await assert.isRejected(
       api.subscribe('sync.topic', () => {}, { after_event_id: 'remote-event' }),

@@ -1,5 +1,6 @@
 import { defaultParse, restoreUri } from '../topic_pattern';
 import { Context } from '../context';
+import { Session } from '../session';
 import { RESULT_OK, RESULT_ACK, RESULT_EMIT, RESULT_ERR,
   REQUEST_TASK, REQUEST_EVENT } from '../messages';
 import { errorCodes } from '../realm_error';
@@ -137,7 +138,20 @@ export class HyperApiContext extends Context {
 }
 
 export class HyperClient {
+  protected _session?: Session
+
   constructor(protected realm: any, protected ctx: Context) {}
+
+  // Return associated Session object. By default throws if not set.
+  public session(): Session {
+    if (this._session) return this._session
+    throw new Error('HyperClient.session() is not set for this client')
+  }
+
+  // Set the associated Session. Used by transports / realm builders.
+  public setSession(session: Session): void {
+    this._session = session
+  }
 
   afterOpen(callback: CallbackFn): any {
     return callback();

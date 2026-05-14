@@ -1040,7 +1040,7 @@ export class BaseRealm extends EventEmitter {
     session.setGateProtocol('internal.hyper.api')
     
     const api = new HyperClient(this, new HyperApiContext(this.getRouter(), session, this));
-    (api as any).session = () => session;
+    api.setSession(session);
     return api
   }
 

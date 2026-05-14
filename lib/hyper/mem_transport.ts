@@ -29,7 +29,7 @@ export class MemServer {
     this._streams.push(pipe);
   }
 
-  createClient(realm: BaseRealm): HyperClient & { session: () => any } {
+  createClient(realm: BaseRealm): HyperClient {
     const session = this.gate.getRouter().createSession();
     session.setGateProtocol('inmemory.hyper');
     realm.joinSession(session);
@@ -42,8 +42,8 @@ export class MemServer {
     const client = new HyperClient(
       clientFormater,
       listener
-    ) as HyperClient & { session: () => any };
-    client.session = () => session;
+    );
+    client.setSession(session);
     return client;
   }
 }

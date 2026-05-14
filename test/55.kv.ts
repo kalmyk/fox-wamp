@@ -63,7 +63,7 @@ describe('55.hyper events', () => {
       let
         router: Router,
         realm: BaseRealm,
-        api: HyperClient & { session: () => any },
+        api: HyperClient,
         mockSocket: any,
         wampGate: WampGate,
         cli: Session,
@@ -73,7 +73,7 @@ describe('55.hyper events', () => {
         router = new Router()
         realm = await run.mkRealm(router)
         await router.initRealm(TEST_REALM_NAME, realm)
-        api = realm.api() as HyperClient & { session: () => any }
+        api = realm.api() as HyperClient
 
         mockSocket = { wampPkgWrite: chai.spy(() => { }) }
         wampGate = new WampGate(router)

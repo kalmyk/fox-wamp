@@ -18,8 +18,8 @@ describe('23.pub-worker', () => {
     router: Router,
     gate: FoxGate,
     realm: BaseRealm,
-    client: HyperClient & { session: () => any },
-    worker: HyperClient & { session: () => any }
+    client: HyperClient,
+    worker: HyperClient
 
   const runs = [
     {it: 'remote-api', client: () => memServer.createClient(realm), worker: () => (realm as any).api()},

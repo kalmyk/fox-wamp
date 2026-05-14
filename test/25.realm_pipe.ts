@@ -18,8 +18,8 @@ describe('25.realm_pipe', async () => {
     router: Router,
     realm1: BaseRealm,
     realm2: BaseRealm,
-    api1: HyperClient & { session: () => any },
-    api2: HyperClient & { session: () => any }
+    api1: HyperClient,
+    api2: HyperClient
 
   function getNextPackage(): Promise<any> {
     return new Promise((resolve) => {
