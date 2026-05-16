@@ -16,33 +16,30 @@ The current subscription model is designed for long-lived listeners. To get a on
 
 ## Decisions
 
-### 1. `ActorTrace` Property
-`ActorTrace` will be extended with a `snapshot: boolean` property, initialized from the subscription options.
+### 1. ActorTrace Property and Filtering
+`ActorTrace` will be extended with a `snapshot: boolean` property. 
+- **Filter Relaxation**: If `snapshot` is true, the strict `retained` filter in `ActorTrace.filter` will be bypassed (similar to `retainedState: true`). This ensures history events (which lack the `retained` flag) are delivered during the snapshot replay.
+- **Live Suppression**: `ActorTrace.delayEvent` will be updated to immediately discard events if `snapshot` is true, preventing unnecessary buffering of live events during the replay phase.
+- **Finality**: Once `traceStarted` is set to true (signaling replay completion), any further events will be rejected by the filter if `snapshot` is true.
 
 ### 2. Coordination in `BaseEngine.doTrace`
-`doTrace` will be updated to wait for both history replay and retained state replay to complete if they are requested.
-- For local engines, `replayRetainedState` and `getHistoryAfter` both return promises.
-- A combined promise (e.g., `Promise.all`) will be used to detect when all initial data has been dispatched.
+`doTrace` will be updated to wait for the completion of the replay chain.
+- For local engines, `replayRetainedState` and `getHistoryAfter` return promises.
+- The system will wait for history replay, then `waitForRetainedEventId` (if applicable), then `replayRetainedState`.
+- A combined promise (e.g., `Promise.all` or a sequential chain) will be used to detect when all initial data has been dispatched.
 
 ### 3. Automatic Cleanup
 When the replay coordination promise resolves and `snapshot` is true:
 - The engine will call `realm.cmdUnTrace` using the actor's context and subscription ID.
 - This ensures the router state is cleaned up and an `UNSUBSCRIBED` message is sent back to the gate/client.
 
-### 4. Hyper API Promise Management
-The Hyper API needs to distinguish between a normal subscription (resolve on `SUBSCRIBED`) and a snapshot (resolve on `UNSUBSCRIBED`).
-- `HyperClient.subscribe` will include the `snapshot` flag in the `id` container passed to `cmdTrace`.
-- `HyperApiContext.sendSubscribed` will be updated: if `snapshot` is true, it will store the subscription ID but NOT resolve the promise.
-- `HyperApiContext.sendUnsubscribed` will be updated: if the `id` container has a pending snapshot promise, it will resolve it now.
-- **Timing Guarantee**: The implementation MUST ensure that all `REQUEST_EVENT` messages containing snapshot data (retained/history) are processed and their callbacks executed BEFORE the `RESULT_OK` (UNSUBSCRIBED) message triggers the promise resolution. This ensures the client has received all data when the `subscribe` call completes.
+### 4. Hyper API and WAMP Promise Management
+- **Hyper API**: `HyperClient.subscribe` will resolve its promise after the initial data has been fetched. The `snapshot` flag will be used to ensure the subscription is automatically cleaned up by the server, but the client-side promise resolution remains tied to the acknowledgment of the subscription setup and initial data trigger.
+- **WAMP**: Standard behavior applies; the `SUBSCRIBED` acknowledgment is sent as usual, and the automatic unsubscription follows the data replay.
+- **Timing**: The server-side automatic `UNSUBSCRIBE` ensures that even if a client doesn't manually close the snapshot, resources are released.
 
-### 5. Suppressing Live Events
-To prevent live events from being delivered to a snapshot subscription:
-- `ActorTrace.filter` will be updated to return `false` if `snapshot` is true and the event is not marked as `retained` or coming from history replay.
-- Alternatively, since `snapshot` subscriptions will never set `traceStarted` to true (or will be unsubscribed before live events are flushed), they are naturally protected. We will explicitly ensure they don't receive live events by checking the `snapshot` flag in `disperseToSubs`.
-
-### 6. MQTT Gateway Support
-The MQTT gate will be updated to recognize the `snapshot: true` flag in its internal subscription logic. This allows MQTT clients (via future protocol extensions or internal API usage) to perform snapshot-only subscriptions using the same attribute name as WAMP and the Hyper API.
+### 5. MQTT Gateway Support
+The MQTT gate will be updated to recognize the `snapshot: true` flag. Since MQTT already uses `retainedState: true` internally, the `snapshot` flag will complement this by adding the automatic unsubscription behavior.
 
 ## Risks / Trade-offs
 

@@ -23,12 +23,13 @@ If a subscription has the `snapshot` flag set to `true`, the system SHALL automa
 - **AND** the router SHALL automatically unsubscribe the client after the last history record is sent
 
 ### Requirement: Hyper API promise resolution for snapshot
-For Hyper API `subscribe` calls with `snapshot: true`, the promise SHALL resolve only after the snapshot unsubscription has been processed.
+For Hyper API `subscribe` calls with `snapshot: true`, the promise SHALL resolve after the initial snapshot data fetch has been initiated and acknowledged.
 
 #### Scenario: Hyper API subscribe snapshot resolution
 - **WHEN** `HyperClient.subscribe` is called with `snapshot: true`
-- **AND** the snapshot data replay completes and triggers automatic unsubscription
+- **AND** the subscription setup is acknowledged and initial data fetching is triggered
 - **THEN** the promise returned by `subscribe` SHALL resolve with the success status of the operation
+- **AND** the router SHALL automatically unsubscribe the client once all data is sent
 
 #### Scenario: Snapshot with no data
 - **WHEN** a subscription with `snapshot: true` is created for a topic with no retained data and no history requested
