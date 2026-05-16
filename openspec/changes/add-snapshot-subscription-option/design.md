@@ -34,6 +34,7 @@ The Hyper API needs to distinguish between a normal subscription (resolve on `SU
 - `HyperClient.subscribe` will include the `snapshot` flag in the `id` container passed to `cmdTrace`.
 - `HyperApiContext.sendSubscribed` will be updated: if `snapshot` is true, it will store the subscription ID but NOT resolve the promise.
 - `HyperApiContext.sendUnsubscribed` will be updated: if the `id` container has a pending snapshot promise, it will resolve it now.
+- **Timing Guarantee**: The implementation MUST ensure that all `REQUEST_EVENT` messages containing snapshot data (retained/history) are processed and their callbacks executed BEFORE the `RESULT_OK` (UNSUBSCRIBED) message triggers the promise resolution. This ensures the client has received all data when the `subscribe` call completes.
 
 ### 5. Suppressing Live Events
 To prevent live events from being delivered to a snapshot subscription:

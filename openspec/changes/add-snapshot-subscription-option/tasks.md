@@ -26,6 +26,7 @@
 - [ ] 4.5 Implement a test case for snapshot with no data (immediate unsubscription).
 - [ ] 4.6 Verify that live events are NOT delivered to snapshot subscribers during replay.
 - [ ] 4.7 Verify that the Hyper API `subscribe` promise resolves correctly after snapshot unsubscription.
+- [ ] 4.8 Explicitly validate that all event callbacks are executed before the Hyper API `subscribe` promise resolves for a snapshot.
 
 ## 5. Documentation
 
