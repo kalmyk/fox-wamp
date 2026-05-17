@@ -449,7 +449,7 @@ export function makeDataSerializable(body: any): any {
 }
 
 export function unSerializeData(body: any): any {
-  return ('p64' in body ? { payload: Buffer.from(body.p64, 'base64') } : body)
+  return (body && 'p64' in body ? { payload: Buffer.from(body.p64, 'base64') } : body)
 }
 
 export class DeferMap {

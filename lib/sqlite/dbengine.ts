@@ -1,4 +1,4 @@
-import { makeDataSerializable, unSerializeData, BaseEngine, ActorPush } from '../realm'
+import { makeDataSerializable, unSerializeData, BaseEngine, ActorPush, ActorPushKv } from '../realm'
 import * as History from './history'
 import { createKvTables, SqliteKvFabric } from './sqlitekv'
 import { ProduceId } from '../masterfree/makeid'
@@ -20,6 +20,14 @@ export class DbEngine extends BaseEngine {
     const db = await this.modKv.getDb(realmName)
     await History.createHistoryTables(db, realmName)
     await createKvTables(db, realmName)
+    await this.modKv.processStaleRecords(
+      realmName,
+      (sessionId: string, uri: string[], bodyValue: any) => this.doPush(new ActorPushKv(
+        uri as any,
+        { kv: bodyValue },
+        { sid: sessionId, retain: true, trace: true }
+      ) as any)
+    )
   }
 
   // @return promise
@@ -42,6 +50,11 @@ export class DbEngine extends BaseEngine {
     const result = this.pushQueue.then(runPush, runPush)
     this.pushQueue = result.catch(() => {})
     return result
+  }
+
+  public override async cleanupSession(sessionId: string): Promise<any[]> {
+    await this.pushQueue
+    return super.cleanupSession(sessionId)
   }
 
   public async saveHistory (actor: ActorPush): Promise<any> {

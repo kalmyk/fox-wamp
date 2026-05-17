@@ -1,10 +1,11 @@
 import * as sqlite from 'sqlite'
 import { match, restoreUri, defaultParse } from '../topic_pattern'
-import { KeyValueStorageAbstract, isDataEmpty, deepDataMerge, unSerializeData, makeDataSerializable } from '../realm'
+import { KeyValueStorageAbstract, isDataEmpty, deepDataMerge, unSerializeData, makeDataSerializable, isDataFit } from '../realm'
 import { KPQueue } from '../masterfree/kpqueue'
 import { DbFactory } from './dbfactory'
 import { ActorPush } from '../realm'
 import { ProduceId } from '../masterfree/makeid'
+import { errorCodes } from '../realm_error'
 
 export async function createKvTables (db: sqlite.Database, realmName: string) {
   await db.run(
@@ -28,15 +29,18 @@ export async function createKvTables (db: sqlite.Database, realmName: string) {
     `CREATE INDEX IF NOT EXISTS kv_sid_${realmName} on kv_${realmName} (will_sid);`
   )
   await db.run(
-    `CREATE TABLE IF NOT EXISTS set_value_${realmName} (
-      key TEXT not null,
-      msg_id TEXT not null,
-      will_sid TEXT not null,
-      set_when TEXT not null,
-      PRIMARY KEY (key, msg_id));`
+    `DROP TABLE IF EXISTS set_value_${realmName};`
   )
   await db.run(
-    `CREATE INDEX IF NOT EXISTS set_value_sid_${realmName} on set_value_${realmName} (will_sid);`
+    `CREATE TABLE IF NOT EXISTS session_kv_${realmName} (
+      key TEXT not null,
+      value TEXT not null,
+      will_sid TEXT not null,
+      msg_id TEXT not null,
+      PRIMARY KEY (key));`
+  )
+  await db.run(
+    `CREATE INDEX IF NOT EXISTS session_kv_sid_${realmName} on session_kv_${realmName} (will_sid);`
   )
 }
 
@@ -51,6 +55,7 @@ export class SqliteKvFabric {
   private pkq: KPQueue = new KPQueue()
   private makeId: ProduceId
   private dbFactory: DbFactory
+  private resWhen: Map<string, ActorPush[]> = new Map()
 
   constructor (dbFactory: DbFactory, makeId: ProduceId) {
     this.dbFactory = dbFactory
@@ -61,62 +66,180 @@ export class SqliteKvFabric {
     return this.dbFactory.getDb(realmName)
   }
 
-  async eraseSessionData (realmName: string, sessionId: string, runInboundEvent: (sid: string, key: string[], will: any) => void) {
-    const toRemove: {key: string, opt: any}[] = []
-    const db = await this.getDb(realmName)
-    await db.each(
-      `SELECT key, opt FROM kv_${realmName} WHERE will_sid = ?`,
-      [sessionId],
-      (err, row) => {
-        toRemove.push({key: row.key, opt: JSON.parse(row.opt)})
+  private getWaitKey(realmName: string, suri: string): string {
+    return realmName + '|' + suri
+  }
+
+  private cleanupWaiters(sessionId: string): void {
+    for (const [key, actors] of this.resWhen) {
+      for (let i = actors.length - 1; i >= 0; i--) {
+        if (actors[i].getSid() === sessionId || !actors[i].isActive()) {
+          actors.splice(i, 1)
+        }
       }
-    )
-    for (let row of toRemove) {
-      if (row.opt.will) {
-        await runInboundEvent(sessionId, defaultParse(row.key), row.opt.will)
-      } else {
-        await runInboundEvent(sessionId, defaultParse(row.key), null)
+      if (actors.length === 0) {
+        this.resWhen.delete(key)
       }
     }
-    // erase is expected to be done by incoming message
-    // await this.db.run(
-    //   `DELETE FROM kv_${realmName} WHERE will_sid = ?`,
-    //   [realmName, sessionId]
-    // )
+  }
 
-    await db.run(
-      `DELETE FROM set_value_${realmName} WHERE will_sid = ?`,
-      [sessionId]
+  private async getStoredValue(db: sqlite.Database, realmName: string, suri: string): Promise<any> {
+    const oldRow = await db.get(
+      `SELECT value FROM kv_${realmName} WHERE key = ?`,
+      [suri]
     )
+    return oldRow && oldRow.value ? unSerializeData(JSON.parse(oldRow.value)) : null
+  }
+
+  private parkActor(realmName: string, suri: string, actor: ActorPush): void {
+    const waitKey = this.getWaitKey(realmName, suri)
+    if (!this.resWhen.has(waitKey)) {
+      this.resWhen.set(waitKey, [])
+    }
+    this.resWhen.get(waitKey)!.push(actor)
+  }
+
+  private async findNextWhenActor(realmName: string, suri: string, curData: any): Promise<ActorPush | false> {
+    const waitKey = this.getWaitKey(realmName, suri)
+    const actors = this.resWhen.get(waitKey)
+    if (!actors) {
+      return false
+    }
+    for (let i = 0; i < actors.length; i++) {
+      const actor = actors[i]
+      if (!actor.isActive()) {
+        actors.splice(i, 1)
+        i--
+        continue
+      }
+      if (isDataFit(actor.getOpt().when, curData)) {
+        actors.splice(i, 1)
+        if (actors.length === 0) {
+          this.resWhen.delete(waitKey)
+        }
+        return actor
+      }
+    }
+    if (actors.length === 0) {
+      this.resWhen.delete(waitKey)
+    }
+    return false
+  }
+
+  async eraseSessionData (realmName: string, sessionId: string, runInboundEvent: (sid: string, key: string[], will: any) => Promise<any> | void) {
+    this.cleanupWaiters(sessionId)
+    const toApply: {key: string, value: any}[] = []
+    const db = await this.getDb(realmName)
+    await db.each(
+      `SELECT key, value FROM session_kv_${realmName} WHERE will_sid = ?`,
+      [sessionId],
+      (err, row) => {
+        toApply.push({key: row.key, value: unSerializeData(JSON.parse(row.value))})
+      }
+    )
+    for (let row of toApply) {
+      await runInboundEvent(sessionId, defaultParse(row.key), row.value)
+      await db.run(
+        `DELETE FROM session_kv_${realmName} WHERE key = ? AND will_sid = ?`,
+        [row.key, sessionId]
+      )
+    }
+  }
+
+  async processStaleRecords (realmName: string, runInboundEvent: (sid: string, key: string[], will: any) => Promise<any> | void): Promise<void> {
+    const toApply: {key: string, value: any, willSid: string}[] = []
+    const db = await this.getDb(realmName)
+    await db.each(
+      `SELECT key, value, will_sid FROM session_kv_${realmName}`,
+      [],
+      (err, row) => {
+        toApply.push({
+          key: row.key,
+          value: unSerializeData(JSON.parse(row.value)),
+          willSid: row.will_sid
+        })
+      }
+    )
+    for (let row of toApply) {
+      await runInboundEvent(row.willSid, defaultParse(row.key), row.value)
+      await db.run(
+        `DELETE FROM session_kv_${realmName} WHERE key = ? AND will_sid = ?`,
+        [row.key, row.willSid]
+      )
+    }
+  }
+
+  private async setKeyValueLocked(
+    db: sqlite.Database,
+    realmName: string,
+    suri: string,
+    origin: string,
+    data: any,
+    opt: any,
+    sid: string,
+    actor?: ActorPush
+  ): Promise<void> {
+    const oldData = await this.getStoredValue(db, realmName, suri)
+    if ('when' in opt && !isDataFit(opt.when, oldData)) {
+      if (opt.watch && actor) {
+        this.parkActor(realmName, suri, actor)
+      } else if (actor) {
+        actor.rejectCmd(String(errorCodes.ERROR_INVALID_PAYLOAD), 'not accepted')
+      }
+      return
+    }
+
+    const newData = deepDataMerge(oldData, data)
+    const updateHistoryId = this.makeId.generateIdStr()
+
+    await db.run(`DELETE FROM session_kv_${realmName} WHERE key = ?`, [suri])
+    if (isDataEmpty(newData)) {
+      await db.run(`DELETE FROM kv_${realmName} WHERE key = ?`, [suri])
+    } else {
+      const willSid = ('will' in opt) ? sid : 0
+      await db.run(
+        `INSERT OR REPLACE INTO kv_${realmName} (key, value, will_sid, opt, stamp) VALUES (?, ?, ?, ?, ?)`,
+        [suri, JSON.stringify(makeDataSerializable(newData)), willSid, JSON.stringify(opt), updateHistoryId]
+      )
+    }
+    if ('will' in opt) {
+      await db.run(
+        `INSERT INTO session_kv_${realmName} (key, value, will_sid, msg_id) VALUES (?, ?, ?, ?)`,
+        [suri, JSON.stringify(makeDataSerializable(opt.will)), sid, origin]
+      )
+    }
+    await saveUpdateHistory(db, realmName, origin, updateHistoryId, suri, makeDataSerializable(oldData))
+    if (actor) {
+      actor.confirm(actor.msg)
+    }
+
+    let nextActor = await this.findNextWhenActor(realmName, suri, newData)
+    while (nextActor) {
+      await this.setKeyValueLocked(
+        db,
+        realmName,
+        suri,
+        nextActor.getEventId() || origin,
+        nextActor.getData(),
+        nextActor.getOpt(),
+        nextActor.getSid(),
+        nextActor
+      )
+      const curData = await this.getStoredValue(db, realmName, suri)
+      nextActor = await this.findNextWhenActor(realmName, suri, curData)
+    }
   }
 
   // @return promise
-  setKeyValue (realmName: string, suri: string, origin: string, data: any, opt: any, sid: string, pubOutEvent: (kind: string, outEvent: any) => void) {
-    return this.pkq.enQueue(realmName + '|' + suri, async () => {
+  setKeyValue (realmName: string, suri: string, origin: string, data: any, opt: any, sid: string, pubOutEvent: (kind: string, outEvent: any) => void, actor?: ActorPush) {
+    return this.pkq.enQueue(this.getWaitKey(realmName, suri), async () => {
       const db = await this.getDb(realmName)
-      const willSid = ('will' in opt) ? sid : 0
-  
       try {
-        const oldRow = await db.get(
-          `SELECT value, opt FROM kv_${realmName} WHERE key = ?`,
-          [suri]
-        )
-        const oldData = oldRow && oldRow.value ? unSerializeData(JSON.parse(oldRow.value)) : null
-        const newData = deepDataMerge(oldData, data)
-
-        const updateHistoryId = this.makeId.generateIdStr()
-        if (isDataEmpty(newData)) {
-          await db.run(`DELETE FROM kv_${realmName} WHERE key = ?`, [suri])
-        } else {
-          await db.run(
-            `INSERT OR REPLACE INTO kv_${realmName} (key, value, will_sid, opt, stamp) VALUES (?, ?, ?, ?, ?)`,
-            [suri, JSON.stringify(makeDataSerializable(newData)), willSid, JSON.stringify(opt), updateHistoryId]
-          )
-        }
-        saveUpdateHistory(db, realmName, origin, updateHistoryId, suri, makeDataSerializable(oldData))
-        pubOutEvent('event', { sid, oldData, newData })
+        await this.setKeyValueLocked(db, realmName, suri, origin, data, opt, sid, actor)
+        pubOutEvent('event', { sid })
       } catch (e: any) {
         console.error('SetKeyValue ERROR:', e.message, e.stack)
+        throw e
       }
     })
   }
@@ -187,7 +310,8 @@ export class SqliteKv extends KeyValueStorageAbstract {
       actor.getData(),
       actor.getOpt(),
       actor.getSid(),
-      (kind:any, outEvent:any) => actor.confirm(actor.msg)
+      (kind:any, outEvent:any) => {},
+      actor
     )
   }
 
