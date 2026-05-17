@@ -42,6 +42,10 @@ These are the canonical internal command/event options used by the Hyper API and
   - History replay: Fetches ordered history stream since the given ID.
   - Retained sync: Retained-storage visibility marker; engines supporting retained event synchronization expose `supportsRetainedEventSync` and provide `waitForRetainedEventId` and `resolveRetainedEventWaiters` behavior.
 
+- snapshot (boolean)
+  - Requests a point-in-time subscription. The router dispatches the initial history and/or retained replay, suppresses live events during replay, then terminates the subscription internally.
+  - `HyperClient.subscribe` resolves after the snapshot replay has completed and event callbacks have run. Engines expose `supportsSnapshotSubscription`; unsupported engines reject the option.
+
 - when (object|null)
   - Conditional predicate used by key-value storage to gate a publish (publish only if storage matches the `when` predicate).
 
@@ -73,6 +77,14 @@ const api = realm.api()
 await api.subscribe('key.value.1', (body, opt) => {
   console.log('received', body, opt)
 }, { retained: true })
+```
+
+Subscribe for a retained snapshot:
+
+```javascript
+await api.subscribe('key.value.1', (body, opt) => {
+  console.log('snapshot', body, opt)
+}, { retained: true, snapshot: true })
 ```
 
 Publish with acknowledge and retain via the Hyper API:

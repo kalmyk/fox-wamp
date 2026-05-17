@@ -62,6 +62,7 @@ export class NetEngine extends BaseEngine {
     super()
     this.netEngineMill = netEngineMill
     this.supportsRetainedEventSync = false
+    this.supportsSnapshotSubscription = false
   }
 
   // @return promise

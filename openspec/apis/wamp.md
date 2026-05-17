@@ -12,7 +12,7 @@ Supported message types and behaviours (non-exhaustive):
 
 - HELLO / WELCOME: Session establishment and realm negotiation. The server will send CHALLENGE for authentication methods that require it, and WELCOME on successful auth.
 - AUTHENTICATE: Handled by the gate; credentials are forwarded to the authorization subsystem.
-- SUBSCRIBE / UNSUBSCRIBE: Subscription requests are converted to internal subscribe commands. Options supported by FOX-WAMP include `retained`, `retainedState`, and protocol extensions such as `after_event_id` (see OpenSpec changes for availability and behavior).
+- SUBSCRIBE / UNSUBSCRIBE: Subscription requests are converted to internal subscribe commands. Options supported by FOX-WAMP include `retained`, `retainedState`, `snapshot`, and protocol extensions such as `after_event_id` (see OpenSpec changes for availability and behavior).
 - PUBLISH: Published events translate to internal publish commands. Server-side filtering and retained storage semantics may modify resulting behavior. When publishing with `retained` option the router will store the last value.
 - REGISTER / UNREGISTER / CALL / YIELD / RESULT / ERROR: RPC lifecycle is handled by registration of procedures, invocations, and results as per WAMP. Gate ensures request lifecycle is coordinated with internal command queue.
 
@@ -40,6 +40,11 @@ The router supports a common set of publish/subscribe options that gates transla
     - For retained sync (when `retained` or `retainedState` is true): Delay retained-state lookup until retained key-value storage has committed an event with ID >= this value. Only affects retained replay, not subscription acknowledgement or live events.
   - Usage: Supported by in-memory and SQLite DbEngine. Rejected in distributed/masterfree mode until supported by storage commit visibility.
   - Validation: Must be a non-empty string when used for synchronization; invalid values are rejected with a protocol error.
+
+- snapshot (boolean)
+  - Purpose: Request a point-in-time subscription that receives only initial history and/or retained replay.
+  - Usage: The router suppresses live events during replay, then terminates the subscription internally after replay completion. No client `UNSUBSCRIBE` command is required.
+  - Validation: Must be boolean when present. Engines that do not support snapshot completion reject the option.
 
 - filter (object)
   - Purpose: Server-side data filtering for subscriptions. The server will only forward events whose body matches the filter predicate. See `isDataFit` in `lib/realm.ts` for matching semantics.
@@ -102,6 +107,12 @@ const eventId = await api.publish('key.value.1', { status: 'ready' }, { acknowle
 
 // subscribe, requesting retained replay only after the stored event with eventId is visible
 await api.subscribe('key.value.1', (body) => console.log('retained value', body), { retained: true, after: eventId })
+```
+
+Subscribe to a retained snapshot:
+
+```javascript
+await api.subscribe('key.value.1', (body) => console.log('snapshot value', body), { retained: true, snapshot: true })
 ```
 
 Publish with conditional (when), watch and will options (WAMP client example):

@@ -160,6 +160,7 @@ export class ActorTrace extends Actor {
   delayStack: any[]
   retained: boolean
   retainedState: boolean
+  snapshot: boolean
   subscriptionActive: boolean
 
   constructor(ctx: Context, msg: any) {
@@ -169,11 +170,15 @@ export class ActorTrace extends Actor {
     this.delayStack = []
     this.retained = !!opt.retained
     this.retainedState = !!opt.retainedState || this.retained
+    this.snapshot = !!opt.snapshot
     this.subscriptionActive = true
   }
 
   filter(event: any): boolean {
-    if (this.retained && !event.opt.retained && !event.opt.delta) {
+    if (this.snapshot && this.traceStarted) {
+      return false
+    }
+    if (!this.snapshot && this.retained && !event.opt.retained && !event.opt.delta) {
       return false
     }
     if (!this.retained && event.opt.delta) {
@@ -206,6 +211,9 @@ export class ActorTrace extends Actor {
   }
 
   delayEvent(cmd: any): void {
+    if (this.snapshot) {
+      return
+    }
     this.delayStack.push(cmd)
   }
 
@@ -495,6 +503,7 @@ export class BaseEngine {
   pendingRetainedEventWaiters: RetainedEventWaiter[]
   retainedEventWaitTimeoutMs: number
   supportsRetainedEventSync: boolean
+  supportsSnapshotSubscription: boolean
 
   constructor() {
     this.wSub = {}
@@ -506,6 +515,7 @@ export class BaseEngine {
     this.pendingRetainedEventWaiters = []
     this.retainedEventWaitTimeoutMs = 30000
     this.supportsRetainedEventSync = true
+    this.supportsSnapshotSubscription = true
   }
 
   getRealmName(): string {
@@ -720,8 +730,16 @@ export class BaseEngine {
 
     const after = actor.getOpt().after
 
-    if (after) {
-      this.getHistoryAfter(
+    const replayHistory = (): Promise<void> => {
+      if (!after) {
+        if (!actor.snapshot || !actor.retainedState) {
+          actor.traceStarted = true
+          actor.flushDelayStack()
+        }
+        return Promise.resolve()
+      }
+
+      return this.getHistoryAfter(
         after,
         actor.getUri() as any,
         (cmd: any) => {
@@ -733,24 +751,42 @@ export class BaseEngine {
           })
         }
       ).then(() => {
-        actor.traceStarted = true
-        actor.flushDelayStack()
+        if (!actor.snapshot || !actor.retainedState) {
+          actor.traceStarted = true
+          actor.flushDelayStack()
+        }
       })
-    } else {
-      actor.traceStarted = true
-      actor.flushDelayStack()
     }
 
-    if (actor.retainedState) {
-      if (after) {
-        this.waitForRetainedEventId(after, actor).then(reached => {
-          if (reached && actor.isActive() && actor.subscriptionActive) {
-            this.replayRetainedState(actor)
-          }
-        })
-      } else {
-        this.replayRetainedState(actor)
+    const replayRetained = (): Promise<any[] | boolean> => {
+      if (!actor.retainedState) {
+        return Promise.resolve([])
       }
+      if (after) {
+        return this.waitForRetainedEventId(after, actor).then(reached => {
+          if (reached && actor.isActive() && actor.subscriptionActive) {
+            return this.replayRetainedState(actor)
+          }
+          return []
+        })
+      }
+      return this.replayRetainedState(actor)
+    }
+
+    const historyReplay = replayHistory()
+    const retainedReplay = actor.snapshot
+      ? historyReplay.then(replayRetained)
+      : replayRetained()
+
+    if (actor.snapshot) {
+      Promise.all([historyReplay, retainedReplay]).then(() => {
+        actor.traceStarted = true
+        actor.flushDelayStack()
+        const realm = actor.getSessionRealm()
+        if (realm && actor.isActive() && actor.subscriptionActive) {
+          realm.terminateTrace(actor.ctx, actor.msg.qid)
+        }
+      })
     }
   }
 
@@ -941,6 +977,18 @@ export class BaseRealm extends EventEmitter {
   cmdTrace(ctx: Context, cmd: any): string | number {
     cmd.opt = cmd.opt || {}
     const retainedState = !!cmd.opt.retainedState || !!cmd.opt.retained
+    if ('snapshot' in cmd.opt && typeof cmd.opt.snapshot !== 'boolean') {
+      throw new RealmError(cmd.id,
+        errorCodes.ERROR_INVALID_ARGUMENT,
+        'snapshot must be a boolean'
+      )
+    }
+    if (cmd.opt.snapshot && !this.engine.supportsSnapshotSubscription) {
+      throw new RealmError(cmd.id,
+        errorCodes.ERROR_OPTION_NOT_SUPPORTED,
+        'snapshot subscription is not supported by this engine'
+      )
+    }
     if ('after' in cmd.opt && !isValidEventIdMarker(cmd.opt.after)) {
       throw new RealmError(cmd.id,
         errorCodes.ERROR_INVALID_ARGUMENT,
@@ -962,6 +1010,22 @@ export class BaseRealm extends EventEmitter {
     this.emit(ON_SUBSCRIBED, subscription)
 
     return cmd.qid
+  }
+
+  terminateTrace(ctx: Context, id: string | number): string | false {
+    const session = ctx.getSession()
+    const subscription = session.removeTrace(this.engine, id as string)
+    if (subscription) {
+      this.emit(ON_UNSUBSCRIBED, subscription)
+      try {
+        subscription.atEndSubscribe()
+      } catch (e) {
+        ctx.setSendFailed(e as Error)
+        throw e
+      }
+      return subscription.getUri()
+    }
+    return false
   }
 
   cmdUnTrace(ctx: Context, cmd: any): string {

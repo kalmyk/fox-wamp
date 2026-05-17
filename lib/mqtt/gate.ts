@@ -88,6 +88,8 @@ export class MqttSocketWriterContext extends Context {
     this.mqttSubscribeDone();
   }
 
+  sendEndSubscribe(cmd: any): void {}
+
   mqttSend(msg: any, callback?: (err?: Error) => void): void {
     this.socketWriter.mqttPkgWrite(msg, callback);
   }
@@ -299,6 +301,9 @@ handlers.subscribe = function (ctx, session, message) {
     pkg.granted[index] = qos;
     const uri = mqttParse(message.subscriptions[index].topic);
     const opt: any = { retainedState: true };
+    if (message.subscriptions[index].snapshot === true) {
+      opt.snapshot = true;
+    }
     if (qos > 0) {
       opt.keepTraceFlag = true;
     }

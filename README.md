@@ -103,6 +103,16 @@ await api.subscribe(
 )
 ```
 
+Use `snapshot: true` when the client only needs the initial retained/history data and does not want a long-lived live subscription. The router terminates the subscription after the initial replay is dispatched, and the Hyper API `subscribe` promise resolves after the snapshot callbacks have run.
+
+```javascript
+await api.subscribe(
+  'key.value.1',
+  (body) => console.log('snapshot value', body),
+  { retained: true, snapshot: true }
+)
+```
+
 `after` for retained synchronization is supported by the in-memory engine and local SQLite `DbEngine`. Distributed/Masterfree mode rejects synchronized retained sync until its storage-to-entry retained commit signal is defined.
 
 The wait is bounded by the engine retained-event timeout. If the event ID is valid but never becomes visible in retained storage, retained replay is skipped and the subscription remains active for live events. When `retainedState` is used, matching live events may arrive before the delayed retained replay.
@@ -207,6 +217,7 @@ register('inbound.topic.#', (args, kwargs, options) => {
 * after: string, specifies a synchronization point.
     * For history replay: returns history events after this ID.
     * For retained sync (when `retained` or `retainedState` is true): delays retained key-value lookup until retained storage has committed this event ID or a later comparable event ID. This does not delay subscription acknowledgement or normal live event delivery.
+* snapshot: boolean, returns only the initial retained/history replay and terminates the subscription after that replay is dispatched. Live events published during the replay are not delivered to the snapshot subscriber.
 * mission:
 * filter: condition to filter messages that accepted by the subscription
 

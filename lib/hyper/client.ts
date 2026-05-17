@@ -115,6 +115,9 @@ export class HyperApiContext extends Context {
   }
 
   sendSubscribed(cmd: any): void {
+    if (cmd.id.snapshot) {
+      return;
+    }
     localAck(cmd.id, cmd);
   }
 
@@ -123,7 +126,11 @@ export class HyperApiContext extends Context {
   }
 
   sendEndSubscribe(cmd: any): void {
-    localOkey(cmd.id, cmd);
+    if (cmd.id.snapshot) {
+      localAck(cmd.id, cmd);
+    } else {
+      localOkey(cmd.id, cmd);
+    }
   }
 
   sendPublished(cmd: any): void {
@@ -206,11 +213,12 @@ export class HyperClient {
   // event (data, opt)
   // resolve traceId
   subscribe(uri: string, cb: CallbackFn, opt?: any): Promise<any> {
+    const finalOpt = opt || {};
     return new Promise((resolve, reject) => {
       return this.realm.cmdTrace(this.ctx, {
-        id: { cb, resolve, reject },
+        id: { cb, resolve, reject, snapshot: finalOpt.snapshot === true },
         uri: defaultParse(uri),
-        opt: opt || {}
+        opt: finalOpt
       });
     });
   }

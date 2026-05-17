@@ -5,7 +5,7 @@ Clients often need to retrieve the current state (retained values or history) wi
 ## What Changes
 
 - **SUBSCRIBE Options**: A new optional boolean attribute `snapshot` is added to the `SUBSCRIBE` message options.
-- **Subscription Lifecycle**: If `snapshot` is true, the subscription will automatically be removed by the router after all initial data (retained state and/or history) has been sent to the client.
+- **Subscription Lifecycle**: If `snapshot` is true, the subscription will automatically be terminated by the router after all initial data (retained state and/or history) has been sent to the client.
 - **Hyper API Promise Resolution**: The `HyperClient.subscribe` method will resolve its promise only after the snapshot data has been successfully fetched and dispatched, ensuring the client knows when the operation is complete.
 - **WAMP/MQTT Integration**: Gateway protocols will be updated to accept and pass the `snapshot` option to the realm engine. Both WAMP and MQTT gateways will support this attribute to allow point-in-time data retrieval.
 
@@ -20,5 +20,5 @@ Clients often need to retrieve the current state (retained values or history) wi
 ## Impact
 
 - **API**: `HyperClient.subscribe` and protocol gates (WAMP/MQTT) will accept the `snapshot` option.
-- **Core**: `lib/realm.ts` will be updated to handle automatic unsubscription after initial replay.
+- **Core**: `lib/realm.ts` will be updated to handle automatic snapshot termination after initial replay.
 - **Hyper Client**: `lib/hyper/client.ts` will be modified to coordinate promise resolution with the completion of data replay.

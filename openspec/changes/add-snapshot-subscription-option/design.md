@@ -6,7 +6,7 @@ The current subscription model is designed for long-lived listeners. To get a on
 
 **Goals:**
 - Provide a `snapshot: true` option for subscriptions.
-- Automatically unsubscribe after initial data (retained state and/or history) is sent.
+- Automatically terminate the subscription after initial data (retained state and/or history) is sent.
 - Ensure the Hyper API `subscribe` promise resolves only after the snapshot is complete.
 - Prevent delivery of live events to snapshot subscribers.
 
@@ -30,20 +30,21 @@ The current subscription model is designed for long-lived listeners. To get a on
 
 ### 3. Automatic Cleanup
 When the replay coordination promise resolves and `snapshot` is true:
-- The engine will call `realm.cmdUnTrace` using the actor's context and subscription ID.
-- This ensures the router state is cleaned up and an `UNSUBSCRIBED` message is sent back to the gate/client.
+- The engine will terminate the trace internally using the actor's context and subscription ID.
+- This cleans up router/session subscription state without processing an `UNSUBSCRIBE` command.
+- Snapshot termination is a completion signal for the initiating subscribe operation, not a client-requested unsubscribe flow.
 
 ### 4. Hyper API and WAMP Promise Management
-- **Hyper API**: `HyperClient.subscribe` will resolve its promise after the initial data has been fetched. The `snapshot` flag will be used to ensure the subscription is automatically cleaned up by the server, but the client-side promise resolution remains tied to the acknowledgment of the subscription setup and initial data trigger.
-- **WAMP**: Standard behavior applies; the `SUBSCRIBED` acknowledgment is sent as usual, and the automatic unsubscription follows the data replay.
-- **Timing**: The server-side automatic `UNSUBSCRIBE` ensures that even if a client doesn't manually close the snapshot, resources are released.
+- **Hyper API**: `HyperClient.subscribe` will resolve its promise after the initial data has been dispatched and snapshot termination has completed. The `snapshot` flag will be used to keep the original subscribe promise pending through the initial `SUBSCRIBED` acknowledgment and resolve it from the internal snapshot completion path.
+- **WAMP**: Standard behavior applies; the `SUBSCRIBED` acknowledgment is sent as usual, and internal snapshot termination follows the data replay.
+- **Timing**: Server-side snapshot termination ensures that even if a client doesn't manually close the snapshot, resources are released.
 
 ### 5. MQTT Gateway Support
 The MQTT gate will be updated to recognize the `snapshot: true` flag. Since MQTT already uses `retainedState: true` internally, the `snapshot` flag will complement this by adding the automatic unsubscription behavior.
 
 ## Risks / Trade-offs
 
-- **[Risk] Promise Leakage**: If the router fails to send an `UNSUBSCRIBED` message for a snapshot, the Hyper API promise might hang.
+- **[Risk] Promise Leakage**: If the router fails to emit the internal snapshot completion signal, the Hyper API promise might hang.
   - **Mitigation**: The automatic cleanup in `doTrace` is reliable for local engines. We can add a timeout to the `subscribe` call if needed, but existing session/engine cleanups also handle this.
-- **[Trade-off] Multi-stage resolution**: Snapshot subscribers receive `SUBSCRIBED` then `UNSUBSCRIBED`.
-  - **Mitigation**: This is consistent with the protocol and ensures gates correctly track the short-lived subscription.
+- **[Trade-off] Short-lived subscription state**: Snapshot subscribers receive `SUBSCRIBED`, then the server terminates the subscription internally after replay.
+  - **Mitigation**: This keeps protocol setup behavior normal while ensuring gates can clear the short-lived subscription.
