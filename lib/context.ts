@@ -1,5 +1,6 @@
 import { Router } from './router'
 import { Session } from './session'
+import { HyperCommand } from './types'
 
 export class Context {
   public router: Router
@@ -26,16 +27,16 @@ export class Context {
     this.session.setSendFailed(e)
   }
 
-  public sendInvoke?(msg: any, qid: any, uri: any, subId: any, hdr: any, data: any, opt: any): void
-  public sendResult?(result: any): void
-  public sendEvent?(cmd: any): void
+  public sendInvoke?(cmd: HyperCommand<any>): void
+  public sendResult?(result: HyperCommand<any>): void
+  public sendEvent?(cmd: HyperCommand<any>): void
   public sendAck?(msg: any): void
-  public sendError?(msg: any, errorCode: string, text?: string): void
-  public sendOkey?(msg: any): void
-  public sendSubscribed?(msg: any): void
-  public sendEndSubscribe?(msg: any): void
-  public sendRegistered?(msg: any): void
-  public sendUnregistered?(msg: any): void
-  public sendPublished?(result: any): void;
-  public sendUnsubscribed?(msg: any): void;
+  public sendError?(msg: HyperCommand<any>, errorCode: string, text?: string): void
+  public sendOkey?(msg: HyperCommand<any>): void
+  public sendSubscribed?(msg: HyperCommand<any>): void
+  public sendEndSubscribe?(msg: HyperCommand<any>): void
+  public sendRegistered?(msg: HyperCommand<any>): void
+  public sendUnregistered?(msg: HyperCommand<any>): void
+  public sendPublished?(result: HyperCommand<any>): void;
+  public sendUnsubscribed?(msg: HyperCommand<any>): void;
 }

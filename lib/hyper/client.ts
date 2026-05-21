@@ -6,22 +6,23 @@ import { RESULT_OK, RESULT_ACK, RESULT_EMIT, RESULT_ERR,
 import { errorCodes } from '../realm_error';
 import { getBodyValue } from '../base_gate';
 import { parseHyperBody } from './gate';
+import { HyperCommand } from '../types';
 
 export type CallbackFn = (...args: any[]) => any;
 
-function localAck(action: any, cmd: any): void {
+function localAck(action: any, cmd: HyperCommand<any>): void {
   action.resolve(cmd.qid);
 }
 
-function localOkey(action: any, cmd: any): void {
+function localOkey(action: any, cmd: HyperCommand<any>): void {
   action.resolve(getBodyValue(cmd.data));
 }
 
-function localError(action: any, cmd: any): void {
+function localError(action: any, cmd: HyperCommand<any>): void {
   action.reject(cmd.data);
 }
 
-function localEvent(action: any, cmd: any): void {
+function localEvent(action: any, cmd: HyperCommand<any>): void {
   const eventOpt = {
     publisher: cmd.sid,
     publication: cmd.qid,
@@ -32,11 +33,11 @@ function localEvent(action: any, cmd: any): void {
   action.cb(getBodyValue(cmd.data), eventOpt);
 }
 
-function localEmit(action: any, cmd: any): void {
+function localEmit(action: any, cmd: HyperCommand<any>): void {
   action.cb(getBodyValue(cmd.data));
 }
 
-function localInvoke(ctx: Context, realm: any, action: any, cmd: any): void {
+function localInvoke(ctx: Context, realm: any, action: any, cmd: HyperCommand<any>): void {
   const callOpt = Object.assign(
     {
       procedure: restoreUri(cmd.uri),
@@ -86,11 +87,11 @@ export class HyperApiContext extends Context {
     this._realm = realm;
   }
 
-  sendInvoke(cmd: any): void {
+  sendInvoke(cmd: HyperCommand<any>): void {
     localInvoke(this, this._realm, cmd.id, cmd);
   }
 
-  sendResult(cmd: any): void {
+  sendResult(cmd: HyperCommand<any>): void {
     if (cmd.rsp === RESULT_EMIT) {
       localEmit(cmd.id, cmd);
     } else {
@@ -98,34 +99,34 @@ export class HyperApiContext extends Context {
     }
   }
 
-  sendEvent(cmd: any): void {
+  sendEvent(cmd: HyperCommand<any>): void {
     localEvent(cmd.id, cmd);
   }
 
-  sendOkey(cmd: any): void {
+  sendOkey(cmd: HyperCommand<any>): void {
     localOkey(cmd.id, cmd);
   }
 
-  sendRegistered(cmd: any): void {
+  sendRegistered(cmd: HyperCommand<any>): void {
     localAck(cmd.id, cmd);
   }
 
-  sendUnregistered(cmd: any): void {
+  sendUnregistered(cmd: HyperCommand<any>): void {
     localOkey(cmd.id, cmd);
   }
 
-  sendSubscribed(cmd: any): void {
+  sendSubscribed(cmd: HyperCommand<any>): void {
     if (cmd.id.snapshot) {
       return;
     }
     localAck(cmd.id, cmd);
   }
 
-  sendUnsubscribed(cmd: any): void {
+  sendUnsubscribed(cmd: HyperCommand<any>): void {
     localOkey(cmd.id, cmd);
   }
 
-  sendEndSubscribe(cmd: any): void {
+  sendEndSubscribe(cmd: HyperCommand<any>): void {
     if (cmd.id.snapshot) {
       localAck(cmd.id, cmd);
     } else {
@@ -133,11 +134,11 @@ export class HyperApiContext extends Context {
     }
   }
 
-  sendPublished(cmd: any): void {
+  sendPublished(cmd: HyperCommand<any>): void {
     localAck(cmd.id, cmd);
   }
 
-  sendError(cmd: any, code: any, text: any): void {
+  sendError(cmd: HyperCommand<any>, code: any, text: any): void {
     if (cmd.id && cmd.id.reject) {
       cmd.id.reject({ error: code, message: text });
     }
@@ -293,7 +294,7 @@ export class HyperSocketFormatter {
 
   constructor(private socketWriter: any) {}
 
-  sendCommand(id: any, command: any): number {
+  sendCommand(id: any, command: HyperCommand<any> & { ft: string }): number {
     command.id = ++this.commandId;
     this.cmdList.set(this.commandId, id);
 
@@ -301,39 +302,39 @@ export class HyperSocketFormatter {
     return this.commandId;
   }
 
-  cmdEcho(ctx: Context, cmd: any): number {
+  cmdEcho(ctx: Context, cmd: HyperCommand<any>): number {
     return this.sendCommand(cmd.id, { ft: 'ECHO', data: cmd.data });
   }
 
-  cmdRegRpc(ctx: Context, cmd: any): number {
+  cmdRegRpc(ctx: Context, cmd: HyperCommand<any>): number {
     return this.sendCommand(cmd.id, { ft: 'REG', uri: cmd.uri, opt: cmd.opt });
   }
 
-  cmdUnRegRpc(ctx: Context, cmd: any): number {
+  cmdUnRegRpc(ctx: Context, cmd: HyperCommand<any>): number {
     return this.sendCommand(cmd.id, { ft: 'UNREG', unr: cmd.unr });
   }
 
-  cmdCallRpc(ctx: Context, cmd: any): number {
+  cmdCallRpc(ctx: Context, cmd: HyperCommand<any>): number {
     return this.sendCommand(cmd.id, { ft: 'CALL', uri: cmd.uri, data: cmd.data, opt: cmd.opt });
   }
 
-  cmdTrace(ctx: Context, cmd: any): number {
+  cmdTrace(ctx: Context, cmd: HyperCommand<any>): number {
     return this.sendCommand(cmd.id, { ft: 'TRACE', uri: cmd.uri, opt: cmd.opt });
   }
 
-  cmdUnTrace(ctx: Context, cmd: any): number {
+  cmdUnTrace(ctx: Context, cmd: HyperCommand<any>): number {
     return this.sendCommand(cmd.id, { ft: 'UNTRACE', unr: cmd.unr });
   }
 
-  cmdPush(ctx: Context, cmd: any): number {
+  cmdPush(ctx: Context, cmd: HyperCommand<any>): number {
     return this.sendCommand(cmd.id, { ft: 'PUSH', uri: cmd.uri, data: cmd.data, hdr: cmd.hdr, opt: cmd.opt, ack: cmd.ack });
   }
 
-  cmdYield(ctx: Context, cmd: any): void {
+  cmdYield(ctx: Context, cmd: HyperCommand<any>): void {
     this.socketWriter.hyperPkgWrite(Object.assign({ ft: 'YIELD' }, cmd));
   }
 
-  private settle(action: any, cmd: any): boolean {
+  private settle(action: any, cmd: HyperCommand<any>): boolean {
     const mode = cmd.rsp || '';
 
     switch (mode) {
@@ -351,7 +352,7 @@ export class HyperSocketFormatter {
     }
   }
 
-  onMessage = (msg: any): void => {
+  onMessage = (msg: HyperCommand<any>): void => {
     if (msg.id && this.cmdList.has(msg.id)) {
       const action = this.cmdList.get(msg.id);
       if (this.settle(action, msg)) {
@@ -387,7 +388,7 @@ export class RemoteHyperClient extends HyperClient {
     }
   }
 
-  private cmdLogin(cmd: any): number {
+  private cmdLogin(cmd: HyperCommand<any>): number {
     return (this.realm as HyperSocketFormatter).sendCommand(cmd.id, { ft: 'LOGIN', data: cmd.data });
   }
 

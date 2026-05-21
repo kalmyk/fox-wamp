@@ -2,6 +2,7 @@
 
 import { match } from '../topic_pattern';
 import { BaseEngine, ActorPush } from '../realm';
+import { RealmCommand } from '../types';
 
 /* store event history in memory */
 
@@ -35,7 +36,7 @@ export class MemEngine extends BaseEngine {
     this.keepMemHistory(this._outMsg, actor);
   }
 
-  getHistoryAfter(after: any, uri: string[], cbRow: (cmd: any) => void): Promise<void> {
+  getHistoryAfter(after: any, uri: string[], cbRow: (cmd: RealmCommand) => void): Promise<void> {
     return new Promise((resolve) => {
       for (let i = 0; i < this._inMsg.length; i++) {
         const event = this._inMsg[i];

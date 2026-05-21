@@ -1,5 +1,6 @@
 import { BaseRealm, BaseEngine } from './realm';
 import { Context } from './context';
+import { RealmCommand } from './types';
 
 export class Session {
   public realmName?: string = undefined;
@@ -10,7 +11,7 @@ export class Session {
   public sessionId: string;
 
   private willPublishCtx?: Context;
-  private willPublishCmd?: any;
+  private willPublishCmd?: RealmCommand;
   private sessionMsgId: number = 0;
   private lastPublishedId: string = '';
   private publishMap: Map<any, any> = new Map();
@@ -124,7 +125,7 @@ export class Session {
     return deletedCount;
   }
 
-  public setDisconnectPublish(ctx: Context, cmd: any): void {
+  public setDisconnectPublish(ctx: Context, cmd: RealmCommand): void {
     this.willPublishCtx = ctx;
     this.willPublishCmd = cmd;
   }
@@ -208,5 +209,3 @@ export class Session {
     return this.realmName;
   }
 }
-
-

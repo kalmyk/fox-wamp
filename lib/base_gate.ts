@@ -1,5 +1,6 @@
 import { errorCodes } from './realm_error';
 import { Router } from './router';
+import { RealmCommand } from './types';
 
 export function getBodyValue(body: any): any {
   if (body === null || body === undefined) {
@@ -54,7 +55,7 @@ export class BaseGate {
     return (typeof this._authHandler !== 'undefined' && typeof this._authHandler.authorize === 'function');
   }
 
-  checkAuthorize(ctx: any, cmd: any, funcClass: string): boolean {
+  checkAuthorize(ctx: any, cmd: RealmCommand, funcClass: string): boolean {
     if (this.isAuthorizeRequired() &&
       !this._authHandler.authorize(ctx.getSession(), funcClass, cmd.uri))
     {

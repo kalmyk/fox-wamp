@@ -7,6 +7,7 @@ import { mqttParse, restoreMqttUri } from '../topic_pattern';
 import { Context } from '../context';
 import { Router } from '../router';
 import { Session } from '../session';
+import { RealmCommand } from '../types';
 
 const CONNACK_RETURN_ACCEPTED = 0;
 // const CONNACK_RETURN_UNACCEPTABLE_PROTOCOL_VERSION = 1;
@@ -61,7 +62,7 @@ export class MqttSocketWriterContext extends Context {
     return this.mqttPkg;
   }
 
-  sendEvent(cmd: any): void {
+  sendEvent(cmd: RealmCommand): void {
     const session = this.getSession();
     if (session.getLastPublishedId() === cmd.qid) {
       return; // do not duplicate MQTT events on different subscriptions
@@ -80,15 +81,15 @@ export class MqttSocketWriterContext extends Context {
     });
   }
 
-  sendPublished(cmd: any): void {
+  sendPublished(cmd: RealmCommand): void {
     this.mqttSend({ cmd: 'puback', messageId: cmd.id });
   }
 
-  sendSubscribed(cmd: any): void {
+  sendSubscribed(cmd: RealmCommand): void {
     this.mqttSubscribeDone();
   }
 
-  sendEndSubscribe(cmd: any): void {}
+  sendEndSubscribe(cmd: RealmCommand): void {}
 
   mqttSend(msg: any, callback?: (err?: Error) => void): void {
     this.socketWriter.mqttPkgWrite(msg, callback);
@@ -98,7 +99,7 @@ export class MqttSocketWriterContext extends Context {
     this.socketWriter.mqttPkgClose(code, reason);
   }
 
-  sendError(cmd: any, code: string, text?: string): void {
+  sendError(cmd: RealmCommand, code: string, text?: string): void {
     if (undefined === cmd.id) {
       throw new RealmError(undefined as any, code, text);
     } else {
@@ -138,7 +139,10 @@ export class MqttGate extends BaseGate {
     const realm = await this.getRouter().getRealm(session.realmName!);
     realm.joinSession(session);
     if (message.will) {
-      session.setDisconnectPublish(ctx, this.makePublishCmd(ctx, message.will));
+      const willCmd = this.makePublishCmd(ctx, message.will);
+      if (willCmd) {
+        session.setDisconnectPublish(ctx, willCmd);
+      }
     }
     if (session.secureDetails.clientId) {
       let found = false;
@@ -195,7 +199,7 @@ export class MqttGate extends BaseGate {
     }
   }
 
-  makePublishCmd(ctx: MqttSocketWriterContext, message: any): any {
+  makePublishCmd(ctx: MqttSocketWriterContext, message: any): RealmCommand | false {
     const opt: any = {};
     if (message.retain) {
       opt.retain = true;
@@ -260,6 +264,9 @@ handlers.publish = function (ctx, session, message) {
   // Error: Invalid publish topic 'com.myapp/#', does it contain '+' or '#'?
 
   const cmd = this.makePublishCmd(ctx, message);
+  if (!cmd) {
+    return;
+  }
   if (message.qos >= 1) {
     cmd.ack = true;
   }

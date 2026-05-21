@@ -6,13 +6,14 @@ import { Session } from '../session'
 import { Context } from '../context'
 import { parseWampArgs, toWampArgs, buildInvokeOpt, buildEventOpt } from './gate'
 import { BaseRealm } from '../realm'
+import { HyperCommand } from '../types'
 
 export class WampApiContext extends Context {
-  public sendInvoke(cmd: any): void {
+  public sendInvoke(cmd: HyperCommand<any>): void {
     cmd.id.cb(cmd.qid, toWampArgs(cmd.data), cmd.hdr, buildInvokeOpt(cmd));
   }
 
-  public sendResult(cmd: any): void {
+  public sendResult(cmd: HyperCommand<any>): void {
     if (cmd.err) {
       cmd.id.reject({ code: wampErrorCode(cmd.err), message: cmd.data });
     } else {
@@ -26,29 +27,29 @@ export class WampApiContext extends Context {
     }
   }
 
-  public sendEvent(cmd: any): void {
+  public sendEvent(cmd: HyperCommand<any>): void {
     cmd.id.cb(cmd.qid, toWampArgs(cmd.data), cmd.hdr, buildEventOpt(cmd));
   }
 
-  public sendRegistered(cmd: any): void {
+  public sendRegistered(cmd: HyperCommand<any>): void {
     cmd.id.resolve(cmd.qid);
   }
 
-  public sendUnregistered(cmd: any): void {}
+  public sendUnregistered(cmd: HyperCommand<any>): void {}
 
-  public sendSubscribed(cmd: any): void {
+  public sendSubscribed(cmd: HyperCommand<any>): void {
     cmd.id.resolve(cmd.qid);
   }
 
-  public sendUnsubscribed(cmd: any): void {}
+  public sendUnsubscribed(cmd: HyperCommand<any>): void {}
 
-  public sendEndSubscribe(cmd: any): void {}
+  public sendEndSubscribe(cmd: HyperCommand<any>): void {}
 
-  public sendPublished(cmd: any): void {
+  public sendPublished(cmd: HyperCommand<any>): void {
     cmd.id.resolve(cmd.qid);
   }
 
-  public sendError(cmd: any, code: string, text?: string): void {
+  public sendError(cmd: HyperCommand<any>, code: string, text?: string): void {
     if (cmd.id && cmd.id.reject) {
       cmd.id.reject({ error: wampErrorCode(code), message: text });
     }

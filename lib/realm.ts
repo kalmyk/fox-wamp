@@ -14,12 +14,13 @@ import * as tools from './tools'
 import { Context } from './context'
 import { Router } from './router'
 import { Session } from './session'
+import { HyperCommand, Id } from './types'
 
 export class Actor {
   ctx: Context
-  msg: any
+  msg: HyperCommand<any>
 
-  constructor(ctx: Context, msg: any) {
+  constructor(ctx: Context, msg: HyperCommand<any>) {
     this.ctx = ctx
     this.msg = msg
   }
@@ -84,9 +85,9 @@ export class ActorCall extends Actor {
   engine: BaseEngine
   destSID: Record<string, boolean>
   registration!: ActorReg
-  taskId: string | number
+  taskId: Id
 
-  constructor(ctx: Context, msg: any) {
+  constructor(ctx: Context, msg: HyperCommand<any>) {
     super(ctx, msg)
     this.engine = ctx.session.realm!.engine
     this.destSID = {}
@@ -157,13 +158,13 @@ export class ActorYield extends Actor {
 
 export class ActorTrace extends Actor {
   traceStarted: boolean
-  delayStack: any[]
+  delayStack: HyperCommand<any>[]
   retained: boolean
   retainedState: boolean
   snapshot: boolean
   subscriptionActive: boolean
 
-  constructor(ctx: Context, msg: any) {
+  constructor(ctx: Context, msg: HyperCommand<any>) {
     super(ctx, msg)
     const opt = msg.opt || {}
     this.traceStarted = false
@@ -190,7 +191,7 @@ export class ActorTrace extends Actor {
     return true
   }
 
-  sendEvent(cmd: any): void {
+  sendEvent(cmd: HyperCommand<any>): void {
     cmd.id = this.msg.id
     cmd.traceId = this.msg.qid
     if (!this.msg.opt.keepTraceFlag) {
@@ -210,7 +211,7 @@ export class ActorTrace extends Actor {
     }
   }
 
-  delayEvent(cmd: any): void {
+  delayEvent(cmd: HyperCommand<any>): void {
     if (this.snapshot) {
       return
     }
@@ -259,9 +260,9 @@ export class ActorTrace extends Actor {
 export class ActorReg extends ActorTrace {
   simultaneousTaskLimit: number
   tasksRequested: number
-  subId: string | number
+  subId: Id
 
-  constructor(ctx: Context, msg: any) {
+  constructor(ctx: Context, msg: HyperCommand<any>) {
     super(ctx, msg)
     this.simultaneousTaskLimit = 1
     this.tasksRequested = 0
@@ -326,7 +327,7 @@ export class ActorPush extends Actor {
   clientNotified: boolean
   eventId: string | null
 
-  constructor(ctx: Context, msg: any) {
+  constructor(ctx: Context, msg: HyperCommand<any>) {
     super(ctx, msg)
     this.clientNotified = false
     this.eventId = null
@@ -340,7 +341,7 @@ export class ActorPush extends Actor {
     return this.eventId
   }
 
-  confirm(cmd: any): void {
+  confirm(cmd: HyperCommand<any>): void {
     if (!this.clientNotified) {
       this.clientNotified = true
       if (this.needAck()) {
@@ -367,10 +368,10 @@ export class ActorPush extends Actor {
   }
 
   needAck(): boolean {
-    return this.msg.ack
+    return this.msg.ack === true
   }
 
-  getEvent(): any {
+  getEvent(): HyperCommand<any> {
     return {
       qid: this.eventId,
       uri: this.getUri(),
@@ -453,18 +454,18 @@ export function unSerializeData(body: any): any {
 }
 
 export class DeferMap {
-  defers: Map<string | number, ActorCall>
+  defers: Map<Id, ActorCall>
 
   constructor() {
     this.defers = new Map()
   }
 
-  addDefer(actor: ActorCall, markId: string | number): string | number {
+  addDefer(actor: ActorCall, markId: Id): Id {
     this.defers.set(markId, actor)
     return markId
   }
 
-  getDefer(sid: string, markId: string | number): ActorCall | undefined {
+  getDefer(sid: string, markId: Id): ActorCall | undefined {
     const result = this.defers.get(markId)
     if (result && result.destSID.hasOwnProperty(sid)) {
       return result
@@ -473,7 +474,7 @@ export class DeferMap {
     }
   }
 
-  doneDefer(sid: string, markId: string | number): void {
+  doneDefer(sid: string, markId: Id): void {
     const found = this.defers.get(markId)
     if (found && found.destSID.hasOwnProperty(sid)) {
       this.defers.delete(markId)
@@ -493,7 +494,7 @@ export function isValidEventIdMarker(eventId: any): boolean {
 }
 
 export class BaseEngine {
-  wSub: Record<string, Record<string | number, ActorReg>>
+  wSub: Record<string, Record<Id, ActorReg>>
   qCall: Map<string, ActorCall[]>
   qYield: DeferMap
   wTrace: any
@@ -530,18 +531,18 @@ export class BaseEngine {
     this._kvList.push({ uri, kv })
   }
 
-  mkDeferId(): string | number {
+  mkDeferId(): Id {
     return tools.randomId()
   }
 
-  createActorEcho(ctx: Context, cmd: any): ActorEcho { return new ActorEcho(ctx, cmd) }
-  createActorReg(ctx: Context, cmd: any): ActorReg { return new ActorReg(ctx, cmd) }
-  createActorCall(ctx: Context, cmd: any): ActorCall { return new ActorCall(ctx, cmd) }
-  createActorYield(ctx: Context, cmd: any): ActorYield { return new ActorYield(ctx, cmd) }
-  createActorTrace(ctx: Context, cmd: any): ActorTrace { return new ActorTrace(ctx, cmd) }
-  createActorPush(ctx: Context, cmd: any): ActorPush { return new ActorPush(ctx, cmd) }
+  createActorEcho(ctx: Context, cmd: HyperCommand<any>): ActorEcho { return new ActorEcho(ctx, cmd) }
+  createActorReg(ctx: Context, cmd: HyperCommand<any>): ActorReg { return new ActorReg(ctx, cmd) }
+  createActorCall(ctx: Context, cmd: HyperCommand<any>): ActorCall { return new ActorCall(ctx, cmd) }
+  createActorYield(ctx: Context, cmd: HyperCommand<any>): ActorYield { return new ActorYield(ctx, cmd) }
+  createActorTrace(ctx: Context, cmd: HyperCommand<any>): ActorTrace { return new ActorTrace(ctx, cmd) }
+  createActorPush(ctx: Context, cmd: HyperCommand<any>): ActorPush { return new ActorPush(ctx, cmd) }
 
-  getSubStack(uri: string): Record<string | number, ActorReg> {
+  getSubStack(uri: string): Record<Id, ActorReg> {
     return (
       this.wSub.hasOwnProperty(uri)
         ? this.wSub[uri]
@@ -564,7 +565,7 @@ export class BaseEngine {
     this.wSub[strUri][subD.subId] = subD
   }
 
-  removeSub(uri: string, id: string | number): void {
+  removeSub(uri: string, id: Id): void {
     const strUri = restoreUri(uri as any)
     if (this.wSub[strUri]) {
       delete this.wSub[strUri][id]
@@ -625,7 +626,7 @@ export class BaseEngine {
     return undefined
   }
 
-  makeTraceId(): string | number {
+  makeTraceId(): Id {
     return tools.randomId()
   }
 
@@ -742,7 +743,7 @@ export class BaseEngine {
       return this.getHistoryAfter(
         after,
         actor.getUri() as any,
-        (cmd: any) => {
+        (cmd: HyperCommand<any>) => {
           actor.filterSendEvent({
             data: cmd.data,
             uri: cmd.uri,
@@ -869,7 +870,7 @@ export class BaseEngine {
     return Promise.all(allKv)
   }
 
-  getHistoryAfter(after: any, uri: string[], cbRow: (cmd: any) => void): Promise<void> {
+  getHistoryAfter(after: any, uri: string[], cbRow: (cmd: HyperCommand<any>) => void): Promise<void> {
     return new Promise((resolve) => { resolve(); })
   }
 }
@@ -901,12 +902,12 @@ export class BaseRealm extends EventEmitter {
     this._dict = dict
   }
 
-  cmdEcho(ctx: Context, cmd: any): void {
+  cmdEcho(ctx: Context, cmd: HyperCommand<any>): void {
     const a = this.engine.createActorEcho(ctx, cmd)
     a.okey()
   }
 
-  cmdRegRpc(ctx: Context, cmd: any): string | number {
+  cmdRegRpc(ctx: Context, cmd: HyperCommand<any>): Id {
     const session = ctx.getSession()
     const actor = this.engine.createActorReg(ctx, cmd)
     actor.subId = tools.randomId().toString()
@@ -930,7 +931,7 @@ export class BaseRealm extends EventEmitter {
     return actor.subId
   }
 
-  cmdUnRegRpc(ctx: Context, cmd: any): string {
+  cmdUnRegRpc(ctx: Context, cmd: HyperCommand<any>): string {
     const session = ctx.getSession()
     const registration = session.removeSub(this.engine, cmd.unr)
     if (registration) {
@@ -949,7 +950,7 @@ export class BaseRealm extends EventEmitter {
     }
   }
 
-  cmdCallRpc(ctx: Context, cmd: any): string | number {
+  cmdCallRpc(ctx: Context, cmd: HyperCommand<any>): Id {
     if (this._dict) {
       this._dict.validateStruct(cmd.uri, cmd.data)
     }
@@ -959,7 +960,7 @@ export class BaseRealm extends EventEmitter {
     return actor.taskId
   }
 
-  cmdYield(ctx: Context, cmd: any): void {
+  cmdYield(ctx: Context, cmd: HyperCommand<any>): void {
     const session = ctx.getSession()
     const invocation = this.engine.qYield.getDefer(session.sessionId, cmd.qid)
     if (invocation) {
@@ -972,9 +973,9 @@ export class BaseRealm extends EventEmitter {
     }
   }
 
-  cmdConfirm(ctx: Context, cmd: any): void {}
+  cmdConfirm(ctx: Context, cmd: HyperCommand<any>): void {}
 
-  cmdTrace(ctx: Context, cmd: any): string | number {
+  cmdTrace(ctx: Context, cmd: HyperCommand<any>): Id {
     cmd.opt = cmd.opt || {}
     const retainedState = !!cmd.opt.retainedState || !!cmd.opt.retained
     if ('snapshot' in cmd.opt && typeof cmd.opt.snapshot !== 'boolean') {
@@ -1012,7 +1013,7 @@ export class BaseRealm extends EventEmitter {
     return cmd.qid
   }
 
-  terminateTrace(ctx: Context, id: string | number): string | false {
+  terminateTrace(ctx: Context, id: Id): string | false {
     const session = ctx.getSession()
     const subscription = session.removeTrace(this.engine, id as string)
     if (subscription) {
@@ -1028,7 +1029,7 @@ export class BaseRealm extends EventEmitter {
     return false
   }
 
-  cmdUnTrace(ctx: Context, cmd: any): string {
+  cmdUnTrace(ctx: Context, cmd: HyperCommand<any>): string {
     const session = ctx.getSession()
     const subscription = session.removeTrace(this.engine, cmd.unr)
     if (subscription) {
@@ -1047,7 +1048,7 @@ export class BaseRealm extends EventEmitter {
     }
   }
 
-  cmdPush(ctx: Context, cmd: any): void {
+  cmdPush(ctx: Context, cmd: HyperCommand<any>): void {
     if (this._dict) {
       this._dict.validateStruct(cmd.uri, cmd.data)
     }

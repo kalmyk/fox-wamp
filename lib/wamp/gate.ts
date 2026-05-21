@@ -7,6 +7,7 @@ import { getBodyValue, BaseGate } from '../base_gate'
 import { Context } from '../context'
 import { Router } from '../router'
 import { Session } from '../session'
+import { RealmCommand } from '../types'
 
 const handlers: { [key: number]: Function } = {};
 
@@ -22,7 +23,7 @@ export function parseWampArgs(args: any[]): any {
   return { args: args };
 }
 
-export function buildInvokeOpt(cmd: any): any {
+export function buildInvokeOpt(cmd: RealmCommand): any {
   let invOpts: any = {};
   if (cmd.opt.receive_progress) {
     invOpts.receive_progress = true;
@@ -30,7 +31,7 @@ export function buildInvokeOpt(cmd: any): any {
   return invOpts;
 }
 
-export function buildEventOpt(cmd: any): any {
+export function buildEventOpt(cmd: RealmCommand): any {
   let eventOpt: any = {
     topic: restoreUri(cmd.uri),
     publisher: cmd.sid
@@ -56,17 +57,17 @@ export class WampSocketWriterContext extends Context {
     this.msgType = msgType;
   }
 
-  public sendRegistered(cmd: any): void {
+  public sendRegistered(cmd: RealmCommand): void {
     this.wampSend([WAMP.REGISTERED, cmd.id, cmd.qid]);
   }
 
-  public sendUnregistered(cmd: any): void {
+  public sendUnregistered(cmd: RealmCommand): void {
     if (cmd.id) { // do not send on disconnect
       this.wampSend([WAMP.UNREGISTERED, cmd.id]);
     }
   }
 
-  public sendInvoke(cmd: any): void {
+  public sendInvoke(cmd: RealmCommand): void {
     this.wampSend([
       WAMP.INVOCATION,
       cmd.qid,
@@ -77,9 +78,9 @@ export class WampSocketWriterContext extends Context {
     ]);
   }
 
-  public sendResult(cmd: any): void {
+  public sendResult(cmd: RealmCommand): void {
     if (cmd.err) {
-      this.wampSendError(WAMP.CALL, cmd.id, wampErrorCode(cmd.err), [cmd.data]);
+      this.wampSendError(WAMP.CALL, cmd.id!, wampErrorCode(cmd.err), [cmd.data]);
       return;
     }
     let resOpt: any = {};
@@ -95,7 +96,7 @@ export class WampSocketWriterContext extends Context {
     ]);
   }
 
-  public sendEvent(cmd: any): void {
+  public sendEvent(cmd: RealmCommand): void {
     this.wampSend([
       WAMP.EVENT,
       cmd.traceId,
@@ -106,26 +107,26 @@ export class WampSocketWriterContext extends Context {
     ]);
   }
 
-  public sendSubscribed(cmd: any): void {
+  public sendSubscribed(cmd: RealmCommand): void {
     this.wampSend([WAMP.SUBSCRIBED, cmd.id, cmd.qid]);
   }
 
-  public sendEndSubscribe(cmd: any): void {}
+  public sendEndSubscribe(cmd: RealmCommand): void {}
 
-  public sendPublished(cmd: any): void {
+  public sendPublished(cmd: RealmCommand): void {
     this.wampSend([WAMP.PUBLISHED, cmd.id, cmd.qid]);
   }
 
-  public sendUnsubscribed(cmd: any): void {
+  public sendUnsubscribed(cmd: RealmCommand): void {
     this.wampSend([WAMP.UNSUBSCRIBED, cmd.id]);
   }
 
-  public sendError(cmd: any, errorCode: string, text?: string): void {
+  public sendError(cmd: RealmCommand, errorCode: string, text?: string): void {
     let args: any[] = [];
     if (text) {
       args.push(text);
     }
-    return this.wampSendError(this.msgType!, cmd.id, wampErrorCode(errorCode), args);
+    return this.wampSendError(this.msgType!, cmd.id!, wampErrorCode(errorCode), args);
   }
 
   public wampSendError(mtype: number, requestId: number | string, wampCode: string, args: any[], kwargs?: any): void {
@@ -321,7 +322,7 @@ handlers[WAMP.REGISTER] = function (this: WampGate, ctx: WampSocketWriterContext
     opt.reducer = true;
   }
 
-  const cmd: any = { id, uri, opt };
+  const cmd: RealmCommand = { id, uri, opt };
   if (!this.checkAuthorize(ctx, cmd, 'register')) {
     return;
   }
@@ -336,7 +337,7 @@ handlers[WAMP.CALL] = function (this: WampGate, ctx: WampSocketWriterContext, se
   var kwargs = message.shift() || {};
 
   this.checkRealm(session, id);
-  let cmd: any = {
+  let cmd: RealmCommand = {
     id,
     uri,
     opt: {},
@@ -370,7 +371,7 @@ handlers[WAMP.YIELD] = function (this: WampGate, ctx: WampSocketWriterContext, s
   var kwargs = message.shift();
   this.checkRealm(session, qid);
 
-  let cmd: any = {
+  let cmd: RealmCommand = {
     qid,
     hdr: kwargs,
     data: parseWampArgs(args),
@@ -392,7 +393,7 @@ handlers[WAMP.SUBSCRIBE] = function (this: WampGate, ctx: WampSocketWriterContex
   const uri = wampUriParse(message.shift());
 
   this.checkRealm(session, id);
-  const cmd = { id, uri, opt };
+  const cmd: RealmCommand = { id, uri, opt };
   if (this.checkAuthorize(ctx, cmd, 'subscribe')) {
     session.realm!.cmdTrace(ctx, cmd);
   }
@@ -413,7 +414,7 @@ handlers[WAMP.PUBLISH] = function (this: WampGate, ctx: WampSocketWriterContext,
   const args = message.shift() || null;
   const kwargs = message.shift() || null;
 
-  const cmd: any = {
+  const cmd: RealmCommand = {
     id,
     uri,
     hdr: kwargs,

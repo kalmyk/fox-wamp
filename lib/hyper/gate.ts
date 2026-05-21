@@ -5,6 +5,7 @@ import { errorCodes, RealmError } from '../realm_error'
 import { Context } from '../context'
 import { Router } from '../router'
 import { Session } from '../session'
+import { RealmCommand } from '../types'
 
 export function parseHyperBody(kv: any): any {
   return kv === null ? null : { kv: kv }
@@ -22,7 +23,7 @@ export class FoxSocketWriterContext extends Context {
     this.socketWriter = socketWriter;
   }
 
-  sendRegistered(cmd: any): void {
+  sendRegistered(cmd: RealmCommand): void {
     this.foxSend({
       id: cmd.id,
       rsp: RESULT_ACK,
@@ -30,14 +31,14 @@ export class FoxSocketWriterContext extends Context {
     });
   }
 
-  sendUnregistered(cmd: any): void {
+  sendUnregistered(cmd: RealmCommand): void {
     this.foxSend({
       id: cmd.id,
       rsp: RESULT_OK
     });
   }
 
-  sendInvoke(cmd: any): void {
+  sendInvoke(cmd: RealmCommand): void {
     this.foxSend({
       id: cmd.id,
       uri: cmd.uri,
@@ -48,7 +49,7 @@ export class FoxSocketWriterContext extends Context {
     });
   }
 
-  sendResult(cmd: any): void {
+  sendResult(cmd: RealmCommand): void {
     this.foxSend({
       id: cmd.id,
       rsp: cmd.rsp,
@@ -56,7 +57,7 @@ export class FoxSocketWriterContext extends Context {
     });
   }
 
-  sendEvent(cmd: any): void {
+  sendEvent(cmd: RealmCommand): void {
     this.foxSend({
       id: cmd.id,
       uri: cmd.uri,
@@ -69,7 +70,7 @@ export class FoxSocketWriterContext extends Context {
     });
   }
 
-  sendOkey(cmd: any): void {
+  sendOkey(cmd: RealmCommand): void {
     this.foxSend({
       id: cmd.id,
       rsp: RESULT_OK,
@@ -77,7 +78,7 @@ export class FoxSocketWriterContext extends Context {
     });
   }
 
-  sendSubscribed(cmd: any): void {
+  sendSubscribed(cmd: RealmCommand): void {
     this.foxSend({
       id: cmd.id,
       rsp: RESULT_ACK,
@@ -85,15 +86,15 @@ export class FoxSocketWriterContext extends Context {
     });
   }
 
-  sendEndSubscribe(cmd: any): void {
+  sendEndSubscribe(cmd: RealmCommand): void {
     this.foxSend({ id: cmd.id, rsp: RESULT_OK, qid: cmd.qid });
   }
 
-  sendUnsubscribed(cmd: any): void {
+  sendUnsubscribed(cmd: RealmCommand): void {
     this.foxSend({ id: cmd.id, rsp: RESULT_OK });
   }
 
-  sendPublished(cmd: any): void {
+  sendPublished(cmd: RealmCommand): void {
     this.foxSend({ id: cmd.id, rsp: RESULT_OK, qid: cmd.qid });
   }
 
@@ -106,7 +107,7 @@ export class FoxSocketWriterContext extends Context {
     this.socketWriter.hyperPkgClose(code, reason);
   }
 
-  sendError(cmd: any, errorCode: string | number, text?: string): void {
+  sendError(cmd: RealmCommand, errorCode: string | number, text?: string): void {
     this.foxSend({
       id: cmd.id,
       rsp: RESULT_ERR,
@@ -126,7 +127,7 @@ export class FoxGate extends BaseGate {
     }
   }
 
-  sendWelcome(ctx: FoxSocketWriterContext, session: Session, cmd: any): void {
+  sendWelcome(ctx: FoxSocketWriterContext, session: Session, cmd: RealmCommand): void {
     ctx.foxSend({
       id: cmd.id,
       rsp: RESULT_OK,
