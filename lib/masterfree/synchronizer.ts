@@ -55,7 +55,7 @@ export class StageOneTask {
 
   async listenEntry(entry: HyperClient, entryId: string) {
     const acceptBody: BODY_INIT_ENTRY_ACCEPTED = {
-      nodeId: this.myId,
+      syncNodeId: this.myId,
       advanceOwner: entryId,
       lastSeenAdvanceId: this.getRecentAdvanceSegment(entryId)
     }

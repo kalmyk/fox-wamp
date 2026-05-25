@@ -8,8 +8,7 @@ import sqlite3 from 'sqlite3'
 import * as sqlite from 'sqlite'
 
 import { Router } from '../lib/router'
-import { StorageTask, COMMIT_COMPLETED } from '../lib/masterfree/storage'
-import { StageOneTask } from '../lib/masterfree/synchronizer'
+import { StorageTask, SEGMENT_COMMITTED } from '../lib/masterfree/storage'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { Event, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_KEEP_ADVANCE_HISTORY, BODY_PICK_CHALLENGER } from '../lib/masterfree/hyper.h'
 import { BaseRealm } from '../lib/realm'
@@ -104,7 +103,7 @@ describe('63.storage', function () {
     }
     await api.publish(Event.KEEP_ADVANCE_HISTORY, eventKAH, { exclude_me: false })
 
-    const commit_requested: Promise<any[]> = once(storage, COMMIT_COMPLETED)
+    const commit_requested: Promise<any[]> = once(storage, SEGMENT_COMMITTED)
 
     // 2. Send ADVANCE_SEGMENT_RESOLVED
     const eventASR: BODY_ADVANCE_SEGMENT_RESOLVED = {

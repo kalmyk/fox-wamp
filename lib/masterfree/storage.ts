@@ -8,7 +8,7 @@ import { DbFactory } from '../sqlite/dbfactory'
 import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER, BODY_GENERATE_DRAFT } from './hyper.h'
 import { EventEmitter } from 'stream'
 
-export const COMMIT_COMPLETED = 'commit-completed'  // emit BODY_ADVANCE_SEGMENT_RESOLVED
+export const SEGMENT_COMMITTED = 'segment-committed'  // emit BODY_ADVANCE_SEGMENT_RESOLVED
 
 export class HistoryBuffer {
   private content: Array<BODY_KEEP_ADVANCE_HISTORY> = []
@@ -73,7 +73,7 @@ export class StorageTask extends EventEmitter {
 
     this.api.subscribe(Event.ADVANCE_SEGMENT_RESOLVED, (body: BODY_ADVANCE_SEGMENT_RESOLVED) => {
       this.commit_segment(body.advanceOwner, body.advanceSegment, body.segment).then((result) => {
-        this.emit(COMMIT_COMPLETED, body)
+        this.emit(SEGMENT_COMMITTED, body)
       }).catch((err) => {
         console.error("Error in commit_segment:", err)
       })
@@ -163,11 +163,18 @@ export class StorageTask extends EventEmitter {
     let result: string[] = []
     let offset: number = 0
 
-    for (let row of historyBuffer.getContent()) {
-      await this.ensureRealm(row.realm)
-      let eventId: string = segment + keyId(++offset)
-      await History.saveEventHistory(db, row.realm, eventId, historyBuffer.getShard(), row.uri, row.data, row.opt)
-      result.push(eventId) // keep event position in result array
+    await db.run('BEGIN TRANSACTION')
+    try {
+      for (let row of historyBuffer.getContent()) {
+        await this.ensureRealm(row.realm)
+        let eventId: string = segment + keyId(++offset)
+        await History.saveEventHistory(db, row.realm, eventId, historyBuffer.getShard(), row.uri, row.data, row.opt)
+        result.push(eventId) // keep event position in result array
+      }
+      await db.run('COMMIT')
+    } catch (err) {
+      await db.run('ROLLBACK')
+      throw err
     }
     return result
   }

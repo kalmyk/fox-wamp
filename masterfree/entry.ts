@@ -32,10 +32,10 @@ async function main() {
   router.setLogTrace(true)
 
   listenHyperNetServer(new FoxGate(router), { port: Number(conf_fox_port) })
-  netEngineMill.once(INIT_ADVANCE_SEGMENTS_COMPLETED, () => {
+  netEngineMill.once(INIT_ADVANCE_SEGMENTS_COMPLETED, (recentAdvanceSegment: number) => {
     new WampServer(new WampGate(router), { port: Number(conf_wamp_port) })
     listenMqttServer(new MqttGate(router), { port: Number(conf_mqtt_port) })
-    console.log('=> INIT_ADVANCE_SEGMENTS_COMPLETED, listening WAMP:', conf_wamp_port, 'MQTT:', conf_mqtt_port)
+    console.log('=> INIT_ADVANCE_SEGMENTS_COMPLETED', new Date(recentAdvanceSegment).toISOString(), 'listening WAMP:', conf_wamp_port, 'MQTT:', conf_mqtt_port)
   })
   console.log('ENTRY_ID:', conf_node_id, 'listening FOX:', conf_fox_port)
 }

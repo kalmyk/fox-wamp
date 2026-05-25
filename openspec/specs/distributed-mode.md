@@ -14,7 +14,7 @@ The system uses a unique ID generation and synchronization process to ensure con
 ### ID Structure
 `DateTime + Segment + Offset + [ Shard * ProcessingStep ]`
 - **advanceId {segment, offset}**: 
-    - `segment`: A nearly random string value.
+    - `segment`: A numeric value (timestamp in msec).
     - `offset`: Offset inside the segment.
 
 ### Sequence Diagram

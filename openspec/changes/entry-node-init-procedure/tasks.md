@@ -19,7 +19,7 @@
 - [ ] 4.3 Create `test/64.net_init.ts` to fully verify handshake quorum and maxAdvanceId calculation (as originally planned).
 - [x] 4.4 Test successful initialization with quorum (in 61.net_entry.ts).
 - [ ] 4.5 Test initialization waiting behavior when quorum is not reached.
-- [ ] 4.6 Verify `maxAdvanceId` calculation with alphanumeric IDs (currently failing).
+- [x] 4.6 Verify `maxAdvanceId` calculation with alphanumeric IDs (N/A - changed to numeric format in 5.1).
 
 ## 5. Bug Fixes and Improvements
 

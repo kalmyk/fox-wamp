@@ -12,7 +12,7 @@ export class HistorySegment {
 
   private content: Map<number,ActorPush> = new Map()
   private advanceSegment: number
-  private generator: number = 0
+  private offsetGenerator: number = 0
   private shard: number = 0
 
   constructor (advanceSegment: number, shard: number = 0) {
@@ -34,9 +34,9 @@ export class HistorySegment {
   }
 
   addActorPush (actor: ActorPush): AdvanceOffsetId {
-    this.generator++
-    this.content.set(this.generator, actor)
-    return { segment: this.advanceSegment, offset: this.generator }
+    this.offsetGenerator++
+    this.content.set(this.offsetGenerator, actor)
+    return { segment: this.advanceSegment, offset: this.offsetGenerator }
   }
 
   fetchActor (advanceId: AdvanceOffsetId): ActorPush | undefined {
@@ -90,7 +90,7 @@ export class NetEngine extends BaseEngine {
 export class NetEngineMill extends EventEmitter {
 
   private curSegment: HistorySegment | null = null
-  private advanceSegmentGen: number = 0
+  private recentAdvanceSegment: number = 0
   private localSegments = new Map<number, HistorySegment>()
   private configQuorum: number
   private router: Router
@@ -141,12 +141,12 @@ export class NetEngineMill extends EventEmitter {
 
   event_init_entry_accepted(data: BODY_INIT_ENTRY_ACCEPTED, opt: any) {
     console.log('rx:INIT_ENTRY_ACCEPTED', data)
-    this.initReceived.set(data.nodeId, data.lastSeenAdvanceId)
+    this.initReceived.set(data.syncNodeId, data.lastSeenAdvanceId)
     if (!this.initReceivedDone && this.initReceived.size >= this.configQuorum) {
       this.initReceivedDone = true
       const maxReceivedId = this.computeMaxId(this.initReceived)
-      this.advanceSegmentGen = Math.max(this.advanceSegmentGen, maxReceivedId)
-      this.emit(INIT_ADVANCE_SEGMENTS_COMPLETED, this.computeMaxId(this.initReceived))
+      this.recentAdvanceSegment = Math.max(this.recentAdvanceSegment, maxReceivedId)
+      this.emit(INIT_ADVANCE_SEGMENTS_COMPLETED, this.recentAdvanceSegment)
     }
   }
 
@@ -157,7 +157,7 @@ export class NetEngineMill extends EventEmitter {
     }
     // to do voute for complete
     if (this.curSegment) {
-      if (data.advanceSegment == this.curSegment.getAdvanceSegment()) {
+      if (data.advanceSegment === this.curSegment.getAdvanceSegment()) {
         // it will be required to create new segment at the next inbound message
         console.log('Event.ADVANCE_SEGMENT_OVER =>', data.advanceSegment)
         const body: BODY_ADVANCE_SEGMENT_OVER = {
@@ -177,8 +177,8 @@ export class NetEngineMill extends EventEmitter {
     if (this.curSegment) {
       return this.curSegment
     }
-    this.advanceSegmentGen++
-    let curAdvanceSegment = this.advanceSegmentGen
+    let curAdvanceSegment = Math.max(this.recentAdvanceSegment + 1, Date.now())
+    this.recentAdvanceSegment = curAdvanceSegment
     this.curSegment = new HistorySegment(curAdvanceSegment, this.nextShard())
     this.localSegments.set(curAdvanceSegment, this.curSegment)
     // todo: sent all open advance segments, in case of sharding that keeps order
@@ -257,7 +257,7 @@ export class NetEngineMill extends EventEmitter {
     }
   }
 
-  getAdvanceSegmentGen(): number {
-    return this.advanceSegmentGen
+  getRecentAdvanceSegment(): number {
+    return this.recentAdvanceSegment
   }
 }

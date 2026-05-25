@@ -3,8 +3,8 @@ import { ComplexId } from './makeid'
 export const INTRA_REALM_NAME = 'sys'
 
 export type AdvanceOffsetId = {
-  segment: number
-  offset: number
+  segment: number   // timestamp in msec
+  offset: number    // offset in this segment
 }
 
 export enum Event {
@@ -39,7 +39,7 @@ export type BODY_TRIM_ADVANCE_SEGMENT = {
 }
 
 export type BODY_INIT_ENTRY_ACCEPTED = {
-  nodeId: string
+  syncNodeId: string
   advanceOwner: string
   lastSeenAdvanceId: number
 }

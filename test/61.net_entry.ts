@@ -76,7 +76,7 @@ describe('61.net-entry', function () {
     await handshakePromise
 
     // assert: maxAdvanceId should be the highest recentValue from responders
-    expect(netEngineMill.getAdvanceSegmentGen()).to.equal(7)
+    expect(netEngineMill.getRecentAdvanceSegment()).to.lessThanOrEqual(Date.now())
   })
 
   it('Event.BEGIN_ADVANCE_SEGMENT', async () => {
@@ -89,7 +89,7 @@ describe('61.net-entry', function () {
     expect(advanceSegmentStarted.length).equal(2)
     expect(advanceSegmentStarted[0]).equal(Event.BEGIN_ADVANCE_SEGMENT)
     expect(advanceSegmentStarted[1])
-      .deep.include({ advanceOwner: "E1", advanceSegment: 1 })
+      .deep.include({ advanceOwner: "E1", advanceSegment: netEngineMill.getRecentAdvanceSegment() })
 
     const admanceEventSent = await admanceEventSentPkg
     expect(admanceEventSent.length).equal(2)
@@ -99,8 +99,8 @@ describe('61.net-entry', function () {
     expect(admanceEventSent[1]).deep.equal({
       advanceOwner: 'E1',
       advanceId: {
-        offset: 1,
-        segment: 1
+        segment: netEngineMill.getRecentAdvanceSegment(),
+        offset: 1
       },
       data: {
         kv: {

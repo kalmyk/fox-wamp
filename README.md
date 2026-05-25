@@ -251,7 +251,6 @@ register('inbound.topic.#', (args, kwargs, options) => {
 
 ```javascript
     "invoice": {
-        "type": "object",
         "properties": {
             "date": { "type": "string" },
             "customer": { "type": "string" },
@@ -268,7 +267,6 @@ register('inbound.topic.#', (args, kwargs, options) => {
     },
 
     "detail": {
-        "type": "aggregate",
         "properties": {
             "customer": { "type": "string" },
             "total": { "type": "string" }
