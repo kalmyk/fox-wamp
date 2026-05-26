@@ -73,7 +73,7 @@ FOX-WAMP supports several operational modes depending on the storage and distrib
 
 ## Domain Knowledge
 - **Message Routing:** Pub/Sub and RPC (Remote Procedure Call) patterns.
-- **Topic Translation:** MQTT topics (`app/topic/name`) are automatically translated to WAMP topics (`app.topic.name`).
+- **Topic Translation:** MQTT topics (`app/topic/name`) are translated at the MQTT gate into the router's internal topic array. WAMP, Hyper/FOX APIs, OpenSpec examples, and database text fields use the canonical dotted form (`app.topic.name`), parsed with `defaultParse()` and serialized with `restoreUri()`.
 - **Retained Storage:** Supports keeping the last content of a published message.
 - **Synchronization Service:** Provides locking mechanisms (mutex) using WAMP/MQTT primitives.
 - **Event Filtering:** Server-side filtering of messages based on subscription options.

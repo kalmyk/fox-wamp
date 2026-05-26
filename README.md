@@ -10,6 +10,17 @@ Message router has pluggable interface to the several message protocols. As for 
 
 It means that event could be send through MQTT interface and handled by WAMP client. Topic notation is translated automatically from "app/topic/name" in MQTT to "app.topic.name" in WAMP.
 
+## Topic and URI Notation
+
+FOX-WAMP accepts two external topic notations:
+
+* MQTT clients use slash-separated topics, for example `app/topic/name`.
+* WAMP, Hyper/FOX APIs, and database fields use dotted topics, for example `app.topic.name`.
+
+Internally, topics are represented as an array of path parts without a separator, for example `['app', 'topic', 'name']`. MQTT gates parse slash topics into that array and WAMP/FOX APIs parse dotted topics into the same array, so an MQTT subscription to `app/topic/#` can receive a WAMP publish to `app.topic.name`.
+
+When a topic or URI is stored as text in FOX API payloads, OpenSpec artifacts, or SQLite metadata such as `msg_uri` and `uri_pattern`, use the canonical dotted form. Code should parse those text fields with `defaultParse()` and serialize them with `restoreUri()`. Slash notation should stay at the MQTT protocol boundary.
+
 ## Project Specifications
 Detailed documentation on architecture, tech stack, conventions, and operational modes can be found in the [OpenSpec Specifications](openspec/project.md).
 

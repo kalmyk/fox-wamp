@@ -19,6 +19,8 @@ export async function createHistoryTables (db: sqlite.Database, realmName: strin
     `CREATE TABLE IF NOT EXISTS event_history_${realmName} (
       msg_id TEXT not null,
       msg_shard INTEGER,
+      -- Canonical dotted FOX topic text. Use defaultParse()/restoreUri();
+      -- MQTT slash syntax is normalized before history storage.
       msg_uri TEXT not null,
       msg_body TEXT,
       msg_opt TEXT,
@@ -28,6 +30,7 @@ export async function createHistoryTables (db: sqlite.Database, realmName: strin
 }
 
 export async function saveEventHistory (db: sqlite.Database, realmName: string, id: string, shard: number, uri:any, body:any, opt:any) {
+  // Persist topics in canonical dotted form even when the publish arrived via MQTT.
   return db.run(
     `INSERT INTO event_history_${realmName} (msg_id, msg_shard, msg_uri, msg_body, msg_opt) VALUES (?, ?, ?, ?, ?);`,
     [id, shard, restoreUri(uri), JSON.stringify(body), JSON.stringify(opt)]

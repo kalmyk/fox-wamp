@@ -5,7 +5,7 @@ This document describes how FOX-WAMP handles MQTT protocol messages and how MQTT
 Key points:
 
 - FOX-WAMP supports MQTT 3.1 semantics via an MQTT gate which translates MQTT CONNECT/PUBLISH/SUBSCRIBE messages into internal Hyper API calls.
-- Topic translation: MQTT topics using slashes (e.g. `app/topic/name`) are converted into WAMP-style dotted topics (`app.topic.name`) when bridged. Wildcards are mapped according to typical MQTT-to-topic translation rules.
+- Topic translation: MQTT topics using slashes (e.g. `app/topic/name`) are parsed at the MQTT gate into the router's internal topic array. When the same topic is exposed through WAMP, Hyper/FOX APIs, OpenSpec, or database text fields, it uses canonical dotted form (`app.topic.name`).
 - QoS: The gate implements MQTT QoS up to the level required by the project. Persistent retained messages are supported and integrate with the router's retained storage.
 
 Supported behaviors:
@@ -31,7 +31,7 @@ MQTT gate maps MQTT publish/subscribe options to the router's internal options. 
   - MQTT QoS levels are handled by the MQTT gate. The router supports an acknowledgement flag for publishers that requests a publication response containing the assigned event id.
 
 - subscribe wildcards and topic mapping
-  - MQTT topic filters (with `+` and `#`) are converted to internal dotted-topic form and matched against subscriptions.
+  - MQTT topic filters (with `+` and `#`) are converted to the internal topic array and matched against subscriptions. Dotted text is only used when serializing the internal topic for FOX/WAMP APIs or database fields.
 
 - exclude_me (boolean)
   - When publishing via gates, the `exclude_me` option controls whether the publisher receives its own published events. MQTT gate sets `exclude_me` according to the mapped options.

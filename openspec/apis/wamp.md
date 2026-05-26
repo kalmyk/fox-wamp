@@ -6,7 +6,7 @@ Key points:
 
 - FOX-WAMP implements WAMP V2 Basic Profile for Pub/Sub and RPC.
 - WAMP messages received by entry nodes (WAMP gates) are validated and translated into the internal Hyper API commands and events. Responses and events from the Hyper API are translated back into WAMP protocol messages.
-- Topic translation: WAMP topic names map directly to internal topics. MQTT topics are translated to WAMP form (dots instead of slashes) when bridging.
+- Topic translation: WAMP topic names use the canonical dotted FOX form, such as `app.topic.name`. They are parsed with the same dotted parser used by the Hyper/FOX API. MQTT slash topics are converted at the MQTT gate into the same internal topic array.
 
 Supported message types and behaviours (non-exhaustive):
 

@@ -34,8 +34,9 @@ The CLI will utilize subcommands to categorize operations logically:
 - `foxctl schema delete <name>`: Deletes a schema (must be unbound first).
 
 **KV Storage Management (`foxctl kv`)**
-- `foxctl kv list`: Displays a table of all registered KV storages, including their `name`, `status`, and `current_position`.
-- `foxctl kv reset <name>`: Resets a specific storage's `current_position` to `0` and changes its status to `inactive` or `refreshing`, forcing a re-synchronization.
+- `foxctl kv list`: Displays a table of all registered KV storages, including their `name`, `status`, `current_position`, and `last_error`.
+- `foxctl kv activate <name>`: Sends the dedicated activation command for a registered storage. The server changes the storage to `refreshing`, applies related committed events, then changes it to `online` or `failed`.
+- `foxctl kv reset <name>`: Clears the projected KV data for the storage, sets `current_position` to `NULL`, clears `last_error`, and changes its status to `inactive`. A subsequent `foxctl kv activate <name>` performs the rebuild from committed history.
 - `foxctl kv delete <name>`: Deregisters a storage module (removes metadata).
 
 ### 3. Output Formatting

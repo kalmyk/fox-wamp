@@ -12,12 +12,14 @@ export async function createKvTables (db: sqlite.Database, realmName: string) {
     `CREATE TABLE IF NOT EXISTS update_history_${realmName} (
       msg_id TEXT not null,
       msg_origin TEXT not null,
+      -- Canonical dotted FOX topic text, parsed with defaultParse().
       msg_uri TEXT not null,
       msg_oldv TEXT,
       PRIMARY KEY (msg_id));`
   )
   await db.run(
     `CREATE TABLE IF NOT EXISTS kv_${realmName} (
+      -- Canonical dotted FOX topic text, never MQTT slash syntax.
       key TEXT not null,
       value TEXT not null,
       will_sid TEXT not null,
@@ -33,6 +35,7 @@ export async function createKvTables (db: sqlite.Database, realmName: string) {
   )
   await db.run(
     `CREATE TABLE IF NOT EXISTS session_kv_${realmName} (
+      -- Canonical dotted FOX topic text, never MQTT slash syntax.
       key TEXT not null,
       value TEXT not null,
       will_sid TEXT not null,

@@ -46,7 +46,8 @@ When an event is received, the router will query the `SchemaRepository`.
 Schemas that dictate persistence will define SQLite table structures via custom schema extensions (e.g., using properties like `"x-sqlite-key"` to denote primary keys).
 When a schema with persistence rules is registered:
 1. The system creates the corresponding SQLite table if it does not exist.
-2. The newly provisioned table/storage is registered via the `kv-storage-registry` API (status initialized to `inactive` or `online` depending on sync requirements).
+2. The newly provisioned table/storage is registered via the `kv-storage-registry` API with status initialized to `inactive`.
+3. A separate activation command refreshes the projection from committed history and moves it to `online` after catch-up completes.
 
 ## Risks / Trade-offs
 

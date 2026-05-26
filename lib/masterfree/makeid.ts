@@ -21,6 +21,8 @@ export function keyDate(date: Date): string {
 }
 
 export function keyId(id: number): string {
+  // Sortable string encoding for numeric offsets. The leading length character
+  // keeps lexicographic order aligned with numeric order across base36 widths.
   const idStr = id.toString(36)
   return String.fromCharCode(idStr.length + 96) + idStr
 }

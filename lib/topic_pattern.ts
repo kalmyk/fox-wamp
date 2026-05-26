@@ -1,4 +1,6 @@
 export function mqttParse(topic: string): string[] {
+  // MQTT slash syntax is accepted only at the MQTT boundary. Router internals
+  // use separator-free topic parts, and persisted FOX text uses dotted form.
   let result = String(topic).split('/');
   for (let i = 0; i < result.length; i++) {
     if (result[i] === '+') {
@@ -13,10 +15,14 @@ export function wampUriParse(topic: string): string[] {
 }
 
 export function defaultParse(topic: string): string[] {
+  // Canonical parser for FOX/Hyper API strings and database topic fields.
+  // Example: "app.topic.#" -> ["app", "topic", "#"].
   return String(topic).split('.');
 }
 
 export function restoreUri(topic: string[]): string {
+  // Canonical serializer for FOX/Hyper API strings and database topic fields.
+  // MQTT output must use restoreMqttUri instead.
   return topic.join('.');
 }
 

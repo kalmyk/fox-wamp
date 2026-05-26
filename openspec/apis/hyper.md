@@ -13,6 +13,7 @@ Important concepts:
 - BODY_* types: Typed shapes for event payloads. Use these for compile-time checking and documentation.
 - Commands: Gate-translated instructions such as `CMD_SUBSCRIBE`, `CMD_PUBLISH`, `CMD_CALL`, etc. Commands carry metadata like `qid`, `sessionId`, `options`, and `tag`/`shardTag` for distributed routing.
 - Advance / Segments: In masterfree distributed mode, messages pass through multi-stage lifecycle using advance IDs and segments for ordering and sharding.
+- Topic form: Hyper/FOX API methods accept and expose dotted topic strings, parsed with `defaultParse()`. Router internals use `string[]` topic parts. Database text fields such as `msg_uri` and registry `uri_pattern` store canonical dotted text serialized with `restoreUri()`. Slash-separated topic text is MQTT-only boundary syntax.
 
 Files of interest:
 

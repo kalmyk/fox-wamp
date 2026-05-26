@@ -219,7 +219,6 @@ describe('55.hyper events', () => {
             acknowledge: true
           }
         )
-        console.log('push-watch-for-push==>>', events)
         event = events.shift()
         assert.isTrue(event.opt.publication > lastEventId, `publication ${event.opt.publication} <= ${lastEventId}`)
         lastEventId = event.opt.publication
