@@ -15,7 +15,7 @@ The system supports retained messages where a subscriber can receive the latest 
 - Waiting for events on topics other than the subscribed topic (though the mechanism might allow it, it's not the primary goal).
 - Providing a generic "wait for event" API to clients (it's integrated into SUBSCRIBE).
 - Blocking normal live event delivery for the subscription while retained replay is waiting.
-- Completing network/distributed mode support before the storage-to-entry commit signal is defined.
+- Completing network/distributed mode support before the Key-Value projection catch-up mechanism is defined.
 
 ## Decisions
 
@@ -119,7 +119,7 @@ This prevents permanent memory growth while preserving the already-created subsc
 ## Open Issues
 
 ### Network mode commit visibility
-The existing masterfree flow separates entry-side acknowledgement from storage-side history commit. `NetEngine.advance_segment_resolved` confirms local actors, while `storage.commit_segment` writes history on storage nodes. The change still needs a concrete signal from storage back to the serving engine that the event ID is locally committed and visible to retained lookup.
+A separate commit signal from storage nodes back to entry nodes is NOT necessary. In distributed mode, consistency is achieved because the entry node (or projection node) will wait for its own local Key-Value storage to apply changes from resolved segments (up to the target `after` event ID) before fulfilling the retained replay. This aligns the subscription's `after` wait with the existing `ADVANCE_SEGMENT_RESOLVED` consensus flow.
 
 ### Network retained key-value update
 The current storage flow clearly saves event history, but the proposal needs to confirm where retained key-value state is updated for network events. Waiting for history commit alone is not enough if retained lookup reads from a different state store.

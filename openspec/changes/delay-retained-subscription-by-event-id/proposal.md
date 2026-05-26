@@ -21,11 +21,10 @@ When a client publishes an event and immediately subscribes to the same topic wi
 
 - **API**: WAMP `SUBSCRIBE` options will accept `after`.
 - **Core**: `lib/realm.ts` and `lib/wamp/gate.ts` will be updated to handle the new option.
-- **Engines**: The in-memory engine and `DbEngine` will support event ID tracking and waiting after retained storage commits. The unfinished network engine will reject `after` until its retained-storage commit signal is designed.
+- **Engines**: The in-memory engine and `DbEngine` will support event ID tracking and waiting after retained storage commits. The network engine will support `after` by waiting for local Key-Value projection updates from resolved segments.
 - **Storage**: Retained state lookup will be delayed when the sync option is present; the subscription itself remains active unless the design is changed later.
 
 ## Open Issues
 
-- **Network commit signal**: Define how an entry-side `NetEngine` observes that a target event ID has been committed to the local storage node and is visible through retained key-value lookup.
 - **Network retained state path**: Confirm whether retained key-value state is updated in network mode for the same events as history, and which component owns that update.
 - **Network event ID comparator**: Define whether network/distributed event IDs can use the same comparator as local engines or require a network-specific parser.

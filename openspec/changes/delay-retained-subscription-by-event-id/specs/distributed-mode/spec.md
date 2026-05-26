@@ -1,15 +1,9 @@
-## ADDED Requirements
+## Requirements
 
-### Requirement: Distributed retained event synchronization design gate
-Distributed mode SHALL NOT claim full `after` support until the implementation defines an entry-visible retained-storage commit signal for locally served subscriptions.
+### Requirement: Distributed retained event synchronization
+In distributed mode, synchronization for `after` is achieved by waiting for the local Key-Value projection to be updated from resolved segments.
 
-#### Scenario: Distributed sync remains explicitly gated
-- **WHEN** a subscription is made on Node A with `after: "REMOTE_EVENT_999"`
-- **AND** Node A is using distributed mode
-- **AND** Node A cannot verify that retained storage has committed and exposed `REMOTE_EVENT_999` to retained lookup
-- **THEN** Node A SHALL reject the subscription with an unsupported-option WAMP error
-
-#### Scenario: Future distributed sync wait
-- **WHEN** distributed support is implemented
-- **AND** a subscription is made on Node A with `retained: true` and `after: "REMOTE_EVENT_999"`
-- **THEN** Node A SHALL wait until its local retained-state lookup path can observe state committed through `REMOTE_EVENT_999` before fetching and sending retained state.
+#### Scenario: Distributed sync wait
+- **WHEN** a subscription is made on an entry node with `retained: true` and `after: "REMOTE_EVENT_999"`
+- **THEN** the node SHALL wait until its local Key-Value storage projection has applied changes from resolved segments up to at least `"REMOTE_EVENT_999"` before fetching and sending the retained state.
+- **AND** the subscription SHALL remain active and deliver matching live events during this wait.
