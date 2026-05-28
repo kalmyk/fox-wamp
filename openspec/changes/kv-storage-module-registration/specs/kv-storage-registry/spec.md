@@ -112,13 +112,45 @@ The system SHALL update persistent KV projections only from committed segment vi
 - **THEN** the system SHALL advance the projection's `current_position` watermark to at least the committed segment ID.
 - **AND** matching KV mutations in the committed segment SHALL still be applied using their committed event IDs.
 
+#### Scenario: Selecting retained event projections
+- **GIVEN** a committed event has `opt.retain` set to `true`
+- **WHEN** the event realm matches a registered projection's `realm_name`
+- **AND** the event URI matches the projection's `uri_pattern`
+- **THEN** the system SHALL apply the event to that projection.
+
+#### Scenario: Applying retained event to multiple projections
+- **GIVEN** a committed retained event matches more than one registered projection
+- **WHEN** the projection listener processes the committed event
+- **THEN** the system SHALL apply the event to each matching projection.
+
+#### Scenario: Ignoring retained event without matching projection
+- **GIVEN** a committed event has `opt.retain` set to `true`
+- **WHEN** the event does not match any registered projection for its realm and URI
+- **THEN** the system SHALL NOT write projected KV state for that event.
+
+#### Scenario: Validating projected retained value
+- **GIVEN** a committed retained event matches a projection whose accepted URL has a registered schema
+- **WHEN** the projection listener processes the event
+- **THEN** the system SHALL validate the event body value against that schema before storing it.
+
+#### Scenario: Deleting retained row with empty value
+- **GIVEN** a committed retained event matches a registered projection
+- **WHEN** `isDataEmpty(event.data)` is true after normal body decoding
+- **THEN** the system SHALL delete the retained row from the projection instead of storing a value.
+
+#### Scenario: Accepting MQTT null delete
+- **GIVEN** an MQTT retained publish has an empty payload
+- **WHEN** the MQTT gate maps that payload to `null`
+- **AND** the committed event matches a registered projection
+- **THEN** the system SHALL accept the `null` value as an empty value for retained row deletion.
+
 #### Scenario: Applying retained KV mutation after commit
 - **GIVEN** a committed segment event contains a retained KV mutation matching a registered projection
 - **WHEN** the projection listener receives the `SEGMENT_COMMITTED` payload
 - **THEN** the projection SHALL apply the mutation to persistent KV state.
 
 #### Scenario: Ignoring non-retained committed events
-- **GIVEN** a committed segment event does not contain a retained KV mutation for a registered projection
+- **GIVEN** a committed segment event does not have `opt.retain` set to `true`
 - **WHEN** the projection listener receives the `SEGMENT_COMMITTED` payload
 - **THEN** the projection SHALL leave persistent KV state unchanged for that event.
 

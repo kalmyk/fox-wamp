@@ -5,10 +5,25 @@ import { ComplexId, makeEmpty, keyId } from './makeid'
 import { HyperClient } from '../hyper/client'
 import * as History from '../sqlite/history'
 import { DbFactory } from '../sqlite/dbfactory'
+import { createStorageRegistryTables } from '../sqlite/storage_registry'
 import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER, BODY_GENERATE_DRAFT } from './hyper.h'
 import { EventEmitter } from 'stream'
 
-export const SEGMENT_COMMITTED = 'segment-committed'  // emit BODY_ADVANCE_SEGMENT_RESOLVED
+export const SEGMENT_COMMITTED = 'segment-committed'  // emit CommittedSegmentEvent
+
+export type CommittedSegmentRecord = {
+  eventId: string
+  realm: string
+  uri: string[]
+  data: any
+  opt: any
+  sid: string
+  shard: number
+}
+
+export type CommittedSegmentEvent = BODY_ADVANCE_SEGMENT_RESOLVED & {
+  events: CommittedSegmentRecord[]
+}
 
 export class HistoryBuffer {
   private content: Array<BODY_KEEP_ADVANCE_HISTORY> = []
@@ -73,7 +88,7 @@ export class StorageTask extends EventEmitter {
 
     this.api.subscribe(Event.ADVANCE_SEGMENT_RESOLVED, (body: BODY_ADVANCE_SEGMENT_RESOLVED) => {
       this.commit_segment(body.advanceOwner, body.advanceSegment, body.segment).then((result) => {
-        this.emit(SEGMENT_COMMITTED, body)
+        this.emit(SEGMENT_COMMITTED, result)
       }).catch((err) => {
         console.error("Error in commit_segment:", err)
       })
@@ -143,24 +158,27 @@ export class StorageTask extends EventEmitter {
   async ensureRealm (realm: string) {
     if (!this.realms.has(realm)) {
       await History.createHistoryTables(this.dbFactory.getMainDb(), realm)
+      await createStorageRegistryTables(this.dbFactory.getMainDb())
       this.realms.set(realm, "ok")
     }
   }
 
-  async commit_segment (advanceOwner: string, advanceSegment: number, segment: string) {
+  async commit_segment (advanceOwner: string, advanceSegment: number, segment: string): Promise<CommittedSegmentEvent> {
     const key = advanceOwner + ':' + advanceSegment
     let buffer = this.bufferToWrite.get(key)
+    let events: CommittedSegmentRecord[] = []
     if (buffer) {
-      let effectId = await this.dbSaveSegment(buffer, segment)
+      events = await this.dbSaveSegment(buffer, segment)
       this.bufferToWrite.delete(key)
     } else {
       console.error("advanceSegment not found in segments [", key, "]")
     }
+    return { advanceOwner, advanceSegment, segment, events }
   }
 
-  async dbSaveSegment (historyBuffer: HistoryBuffer, segment: string): Promise<string[]> {
+  async dbSaveSegment (historyBuffer: HistoryBuffer, segment: string): Promise<CommittedSegmentRecord[]> {
     const db: sqlite.Database = this.dbFactory.getMainDb()
-    let result: string[] = []
+    let result: CommittedSegmentRecord[] = []
     let offset: number = 0
 
     await db.run('BEGIN TRANSACTION')
@@ -169,7 +187,15 @@ export class StorageTask extends EventEmitter {
         await this.ensureRealm(row.realm)
         let eventId: string = segment + keyId(++offset)
         await History.saveEventHistory(db, row.realm, eventId, historyBuffer.getShard(), row.uri, row.data, row.opt)
-        result.push(eventId) // keep event position in result array
+        result.push({
+          eventId,
+          realm: row.realm,
+          uri: row.uri,
+          data: row.data,
+          opt: row.opt,
+          sid: row.sid,
+          shard: historyBuffer.getShard()
+        })
       }
       await db.run('COMMIT')
     } catch (err) {

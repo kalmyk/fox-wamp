@@ -32,3 +32,21 @@ export interface HyperCommand<CommandId = Id> {
 }
 
 export type RealmCommand = HyperCommand<Id>
+
+export enum StorageStatus {
+  Inactive = 'inactive',
+  Refreshing = 'refreshing',
+  Online = 'online',
+  Failed = 'failed',
+}
+
+export interface StorageRecord {
+  name: string
+  realmName: string
+  uriPattern: string
+  storageType: string
+  startedAt: number | null
+  status: StorageStatus
+  currentPosition: string | null
+  lastError: string | null
+}

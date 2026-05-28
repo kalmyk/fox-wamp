@@ -49,6 +49,8 @@ When a schema with persistence rules is registered:
 2. The newly provisioned table/storage is registered via the `kv-storage-registry` API with status initialized to `inactive`.
 3. A separate activation command refreshes the projection from committed history and moves it to `online` after catch-up completes.
 
+The exact schema extension shape is still to be finalized. The README contains an older information-schema style example with `properties`, `primary_key`, and propagation rules; the implementation should either adopt that shape or replace it with an explicitly documented JSON Schema extension before code is written. Regardless of shape, projected retained values must be validated against the matched schema before they are stored.
+
 ## Risks / Trade-offs
 
 - **[Risk] Performance Overhead** → Synchronous schema validation on high-throughput URLs may cause latency.

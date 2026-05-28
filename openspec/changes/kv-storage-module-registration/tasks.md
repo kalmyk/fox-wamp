@@ -1,24 +1,24 @@
 ## 1. Database Schema
 
-- [ ] 1.1 Add `kv_storages` table creation logic to `lib/sqlite/history.ts` or a new metadata utility.
-- [ ] 1.2 Use `current_position TEXT` and include `realm_name` and `storage_type` columns.
-- [ ] 1.3 Store `uri_pattern` as canonical dotted FOX topic text and parse it with `defaultParse()` when matching events.
-- [ ] 1.4 Add `failed` to the status constraint and add `last_error TEXT`.
-- [ ] 1.5 Ensure the table is created during storage/projection initialization.
+- [x] 1.1 Add `kv_storages` table creation logic to `lib/sqlite/history.ts` or a new metadata utility.
+- [x] 1.2 Use `current_position TEXT` and include `realm_name` and `storage_type` columns.
+- [x] 1.3 Store `uri_pattern` as canonical dotted FOX topic text and parse it with `defaultParse()` when matching events.
+- [x] 1.4 Add `failed` to the status constraint and add `last_error TEXT`.
+- [x] 1.5 Ensure the table is created during storage/projection initialization.
 
 ## 2. Storage Registry Core
 
-- [ ] 2.1 Define `StorageStatus` enum and `StorageRecord` interface in `lib/types.ts`.
-- [ ] 2.2 Implement `StorageRegistry` class to handle DB operations (register, update status, update position, update last error).
-- [ ] 2.3 Make registration idempotent and preserve existing `current_position` on restart.
-- [ ] 2.4 Ensure new registrations start as `inactive`.
+- [x] 2.1 Define `StorageStatus` enum and `StorageRecord` interface in `lib/types.ts`.
+- [x] 2.2 Implement `StorageRegistry` class to handle DB operations (register, update status, update position, update last error).
+- [x] 2.3 Make registration idempotent and preserve existing `current_position` on restart.
+- [x] 2.4 Ensure new registrations start as `inactive`.
 
 ## 3. Committed Segment Payload
 
-- [ ] 3.1 Define a committed-segment payload type containing `advanceOwner`, `advanceSegment`, `segment`, and committed event records.
-- [ ] 3.2 Update `StorageTask.dbSaveSegment` to return committed event records with assigned event IDs.
-- [ ] 3.3 Update `StorageTask.commit_segment` and the `SEGMENT_COMMITTED` emitter to emit the full committed-segment payload.
-- [ ] 3.4 Update existing storage tests that listen for `SEGMENT_COMMITTED`.
+- [x] 3.1 Define a committed-segment payload type containing `advanceOwner`, `advanceSegment`, `segment`, and committed event records.
+- [x] 3.2 Update `StorageTask.dbSaveSegment` to return committed event records with assigned event IDs.
+- [x] 3.3 Update `StorageTask.commit_segment` and the `SEGMENT_COMMITTED` emitter to emit the full committed-segment payload.
+- [x] 3.4 Update existing storage tests that listen for `SEGMENT_COMMITTED`.
 
 ## 4. KV Projection Listener
 
@@ -35,22 +35,29 @@
 - [ ] 4.11 Keep `Realm.registerKeyValueEngine()` as the local/in-memory compatibility path, not the persistent distributed KV registration mechanism.
 - [ ] 4.12 Add a reset command that clears projected KV data, sets `current_position = NULL`, clears `last_error`, and sets status to `inactive`.
 - [ ] 4.13 Advance `current_position` for every online KV projection on each `SEGMENT_COMMITTED`, using the committed segment ID when no later matching event ID is applied.
+- [ ] 4.14 Select projection targets by `opt.retain === true`, matching `realm_name`, and matching `uri_pattern`.
+- [ ] 4.15 Apply one retained event to every matching projection, not just the first match.
+- [ ] 4.16 Validate projected values against the matching schema when a schema exists for the accepted URL.
+- [ ] 4.17 Delete projected retained rows when `isDataEmpty(event.data)` is true, including MQTT empty-payload publishes mapped to `null`.
 
 ## 5. Verification
 
-- [ ] 5.1 Create `test/56.kv_registry.ts` to test registration and lifecycle.
-- [ ] 5.2 Verify that `current_position` stores text event/segment watermarks and tracks the last inspected or reached committed position.
-- [ ] 5.3 Verify that `SEGMENT_COMMITTED` includes committed event records with assigned event IDs.
+- [x] 5.1 Create `test/56.kv_registry.ts` to test registration and lifecycle.
+- [x] 5.2 Verify that `current_position` stores text event/segment watermarks and tracks the last inspected or reached committed position.
+- [x] 5.3 Verify that `SEGMENT_COMMITTED` includes committed event records with assigned event IDs.
 - [ ] 5.4 Verify retained KV state is updated by the committed-segment listener, not by pre-commit save/update hooks.
-- [ ] 5.5 Verify non-retained events do not advance KV projection position unless they represent a KV mutation that the projection applies.
-- [ ] 5.6 Verify a newly registered projection remains `inactive` until the activation command runs.
+- [ ] 5.5 Verify non-retained events do not change projected KV state, while committed segments may still advance the projection `current_position` watermark.
+- [x] 5.6 Verify a newly registered projection remains `inactive` until the activation command runs.
 - [ ] 5.7 Verify activation moves through `refreshing` to `online` after historical catch-up reaches the realm-scoped activation target.
 - [ ] 5.8 Verify activation failure sets `failed` and records `last_error`.
 - [ ] 5.9 Verify activation target selection uses the latest committed event ID for the projection realm when a segment contains events for multiple realms.
-- [ ] 5.10 Verify committed event IDs are built as `<string-segment-id><string-event-offset>`, where `<string-event-offset>` is produced by `keyId(id: number)`.
+- [x] 5.10 Verify committed event IDs are built as `<string-segment-id><string-event-offset>`, where `<string-event-offset>` is produced by `keyId(id: number)`.
 - [ ] 5.11 Verify activation and catch-up compare event IDs with string comparison, without parsing event IDs into segment and offset parts.
 - [ ] 5.12 Verify reset clears projected KV data, clears `current_position` and `last_error`, and leaves the projection `inactive` until activation is requested.
 - [ ] 5.13 Verify activation status handling: `inactive` and `failed` start refresh, `refreshing` rejects as already running, and `online` returns no-op success.
 - [ ] 5.14 Verify empty-realm activation sets status to `online` with `current_position = NULL`.
 - [ ] 5.15 Verify each `SEGMENT_COMMITTED` advances `current_position` for all online KV projections, even when a projection has no matching KV mutation in that segment.
 - [ ] 5.16 Verify committed segment IDs compare greater than previous message IDs and segment IDs by string comparison.
+- [ ] 5.17 Verify a retained event is stored in all matching projections and no non-matching projections.
+- [ ] 5.18 Verify schema validation runs before projected retained values are stored.
+- [ ] 5.19 Verify `null` from MQTT empty retained payload deletes the projected retained row.

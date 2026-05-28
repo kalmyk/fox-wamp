@@ -1,6 +1,7 @@
 import { makeDataSerializable, unSerializeData, BaseEngine, ActorPush, ActorPushKv } from '../realm'
 import * as History from './history'
 import { createKvTables, SqliteKvFabric } from './sqlitekv'
+import { createStorageRegistryTables } from './storage_registry'
 import { ProduceId } from '../masterfree/makeid'
 
 export class DbEngine extends BaseEngine {
@@ -20,6 +21,7 @@ export class DbEngine extends BaseEngine {
     const db = await this.modKv.getDb(realmName)
     await History.createHistoryTables(db, realmName)
     await createKvTables(db, realmName)
+    await createStorageRegistryTables(db)
     await this.modKv.processStaleRecords(
       realmName,
       (sessionId: string, uri: string[], bodyValue: any) => this.doPush(new ActorPushKv(

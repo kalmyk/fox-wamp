@@ -40,8 +40,9 @@
 - [x] 5.1 Update root `README.md` to document the new `after` option in the "Retained Storage" section.
 - [x] 5.2 Document supported engines, timeout behavior, and the fact that live events may arrive before delayed retained replay.
 
-## 6. Open Issues To Resolve Before Network Implementation
+## 6. Distributed Support Dependencies
 
-- [ ] 6.1 Define network commit visibility from storage nodes back to the serving `NetEngine`.
-- [ ] 6.2 Confirm how network retained key-value state is updated and read.
-- [ ] 6.3 Define network event ID format and comparator.
+- [ ] 6.1 Depend on `kv-storage-module-registration` for the local KV projection path from `SEGMENT_COMMITTED` to retained KV state.
+- [ ] 6.2 Ensure distributed retained lookup reads from the same local KV projection that advances `kv_storages.current_position`.
+- [ ] 6.3 Use the string-comparable event/segment watermark from `kv-storage-module-registration` for distributed `after` comparisons.
+- [ ] 6.4 Keep distributed synchronized retained replay unsupported until the local KV projection watermark is observable to the serving node.

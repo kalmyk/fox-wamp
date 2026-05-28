@@ -15,16 +15,16 @@ When a client publishes an event and immediately subscribes to the same topic wi
 - `retained-state-event-sync`: Provides the ability to synchronize the retrieval of retained state with the processing of a specific event ID to ensure data consistency.
 
 ### Modified Capabilities
-- `distributed-mode`: Distributed behavior is documented as an open issue for this change. The current masterfree code does not expose a clear entry-engine signal that a remote event is both locally committed and visible through retained key-value lookup.
+- `distributed-mode`: Distributed behavior is documented as dependent on the local KV projection watermark defined by `kv-storage-module-registration`. Distributed `after` support remains unavailable until the projection catch-up path is implemented and retained lookup can observe that watermark.
 
 ## Impact
 
 - **API**: WAMP `SUBSCRIBE` options will accept `after`.
 - **Core**: `lib/realm.ts` and `lib/wamp/gate.ts` will be updated to handle the new option.
-- **Engines**: The in-memory engine and `DbEngine` will support event ID tracking and waiting after retained storage commits. The network engine will support `after` by waiting for local Key-Value projection updates from resolved segments.
+- **Engines**: The in-memory engine and `DbEngine` will support event ID tracking and waiting after retained storage commits. The network engine will support `after` only after it can wait for local Key-Value projection updates from committed segments.
 - **Storage**: Retained state lookup will be delayed when the sync option is present; the subscription itself remains active unless the design is changed later.
 
 ## Open Issues
 
-- **Network retained state path**: Confirm whether retained key-value state is updated in network mode for the same events as history, and which component owns that update.
-- **Network event ID comparator**: Define whether network/distributed event IDs can use the same comparator as local engines or require a network-specific parser.
+- **Network retained state path**: Confirm that retained key-value lookup in network mode reads from the local KV projection updated from committed segments.
+- **Network event ID comparator**: Align distributed retained `after` comparisons with the string-comparable event/segment watermark defined by `kv-storage-module-registration`.

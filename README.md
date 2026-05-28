@@ -124,7 +124,7 @@ await api.subscribe(
 )
 ```
 
-`after` for retained synchronization is supported by the in-memory engine and local SQLite `DbEngine`. Distributed/Masterfree mode rejects synchronized retained sync until its storage-to-entry retained commit signal is defined.
+`after` for retained synchronization is supported by the in-memory engine and local SQLite `DbEngine`. Distributed/Masterfree mode rejects synchronized retained sync until retained lookup can observe the local KV projection watermark produced from committed segments.
 
 The wait is bounded by the engine retained-event timeout. If the event ID is valid but never becomes visible in retained storage, retained replay is skipped and the subscription remains active for live events. When `retainedState` is used, matching live events may arrive before the delayed retained replay.
 
@@ -141,10 +141,12 @@ session.publish('key.value.1', [ 'args' ], { kwArgs: true }, {
 
 ### Publish Options Description
 * retain: boolean, keep in Key Value storage. Default value is false that means message does
-  not retain.
+  not retain. A retained event is written to each retained storage whose accepted URL pattern matches the event URL.
 * when: struct, publish the event only if value in the storage meets the value. If the `when` key is `null` that means the key not exists in stored value or value is not present.
 * watch: boolean, applicable if `when` option defined. Provides ability to wait for the required condition in storage and then do the publish immediately. If several clients waits for same value the only one achieves acknowledge of publish.
 * will: value that will be assigned at session unexpected disconnect. If the value is changed by any process the `will` value is cleaned. Set `will` to `null` if value need to be erased at disconnect.
+
+Retained deletes use the same empty-value rule as the storage engine. Publishing an empty value, including an MQTT retained publish with an empty payload that is decoded as `null`, deletes the retained row for matching storage.
 
 ### Synchronization Service
 The options above provide ability to use the server as Synchronization Service. The `watch` option

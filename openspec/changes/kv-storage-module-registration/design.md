@@ -98,7 +98,22 @@ type CommittedSegmentEvent = {
 
 The `uri` field in the payload is the internal separator-free topic array. If a listener stores it in SQLite metadata or FOX API output, it serializes it with `restoreUri()` to dotted text. The KV projection listener can apply retained KV mutations directly from this payload without re-reading history. If a committed event does not request retained KV behavior, the listener ignores it for KV projection purposes.
 
-### 5. Event ID and Activation Target
+### 5. Retained KV Mutation Selection
+A committed event is eligible for persistent KV projection when `event.opt.retain === true`. The retain flag marks that the event should be kept as retained state; it does not by itself choose a storage.
+
+Storage selection is based on registered KV projections. Each projection has an accepted URL pattern in `kv_storages.uri_pattern`. A retained event may be stored in zero, one, or many projections:
+
+```text
+event.opt.retain === true
+AND event.realm == projection.realm_name
+AND match(event.uri, defaultParse(projection.uri_pattern))
+```
+
+When the event matches a projection, the projected value is the event body value after normal FOX body decoding (`getBodyValue`). If a schema is registered for the accepted URL, the value MUST be validated by that schema before it is stored. The exact schema-extension shape for provisioning tables belongs to the `message-schema-repository` change; this registry only requires that matching retained values are validated before projection storage when a schema applies.
+
+Deletes use the existing retained-storage empty-value rule. After body decoding, if `isDataEmpty(event.data)` is true, the projection deletes the retained row instead of storing a value. This includes MQTT retained publishes with an empty payload, because the MQTT gate maps an empty payload to `null`, and `null` is accepted as an empty value for delete.
+
+### 6. Event ID and Activation Target
 Committed event IDs are text values built from the resolved segment ID plus the event offset inside that segment:
 
 ```text
@@ -115,7 +130,7 @@ At activation start, the projection captures the latest committed event ID for i
 
 If the realm has no committed events at activation time, `current_position` remains `NULL`. This is only the initial empty-realm state. After a projection is active, every `SEGMENT_COMMITTED` advances the position watermark for all active KV projections, even if the segment contains no matching KV mutation for a projection. Each committed segment has a segment ID, and each next segment ID compares greater than the previous message ID or segment ID when compared as a string. This lets active projections move their `current_position` forward on segment commits without parsing IDs.
 
-### 6. Activation and Status Lifecycle
+### 7. Activation and Status Lifecycle
 - **Registration**: Occurs when a persistent KV projection is configured or initialized. Registration creates the row with `status = 'inactive'`. It does not start historical replay or live segment application.
 - **Activation**: A dedicated command activates a registered projection. Activation sets `status = 'refreshing'`, clears `last_error`, records `started_at`, captures the realm-scoped activation target, reads committed history events related to the projection's `realm_name` and `uri_pattern`, applies matching KV mutations, and advances `current_position`.
 - **Activation by Current Status**: Activation is allowed when status is `inactive` or `failed`. Activation while `refreshing` is rejected as already running. Activation while `online` is a no-op success and does not replay history.
