@@ -4,10 +4,10 @@ The system currently has an outdated key-value storage registration path tied to
 
 ## What Changes
 
-- **New Registration Table**: Create a `kv_storages` table to register persistent KV projection modules.
+- **New Registration Table**: Create realm-scoped `kv_storages_${realmName}` tables to register persistent KV projection modules, matching the existing `kv_${realmName}` table naming style.
 - **Storage Fields**:
     - `name`: Unique identifier for the storage instance.
-    - `realm_name`: Realm whose committed events feed this projection.
+    - Realm is selected by table name, not by a row column.
     - `uri_pattern`: Canonical dotted FOX topic pattern this storage is responsible for, such as `app.topic.#`.
     - `storage_type`: Implementation type, such as `sqlite`.
     - `started_at`: Timestamp when the storage was last started.

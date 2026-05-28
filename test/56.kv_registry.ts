@@ -16,18 +16,17 @@ describe('56.kv_registry', function () {
       filename: ':memory:',
       driver: sqlite3.Database,
     })
-    registry = new StorageRegistry(db)
+    registry = new StorageRegistry(db, 'realm1')
   })
 
-  it('creates kv_storages table with expected columns', async () => {
-    await createStorageRegistryTables(db)
+  it('creates realm-scoped kv_storages table with expected columns', async () => {
+    await createStorageRegistryTables(db, 'realm1')
 
-    const rows = await db.all(`PRAGMA table_info(kv_storages)`)
+    const rows = await db.all(`PRAGMA table_info(kv_storages_realm1)`)
     const columns = rows.map((row: any) => row.name)
 
     expect(columns).to.include.members([
       'name',
-      'realm_name',
       'uri_pattern',
       'storage_type',
       'started_at',
@@ -40,7 +39,6 @@ describe('56.kv_registry', function () {
   it('registers storage as inactive with dotted uri pattern', async () => {
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
-      realmName: 'realm1',
       uriPattern: 'app.topic.#',
       storageType: 'sqlite',
     })
@@ -62,7 +60,6 @@ describe('56.kv_registry', function () {
   it('keeps current position during idempotent registration', async () => {
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
-      realmName: 'realm1',
       uriPattern: 'app.topic.#',
       storageType: 'sqlite',
     })
@@ -71,7 +68,6 @@ describe('56.kv_registry', function () {
 
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
-      realmName: 'realm1',
       uriPattern: 'app.topic.#',
       storageType: 'sqlite',
     })
@@ -85,7 +81,6 @@ describe('56.kv_registry', function () {
   it('updates status position and last error', async () => {
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
-      realmName: 'realm1',
       uriPattern: 'app.topic.#',
       storageType: 'sqlite',
     })
@@ -105,7 +100,6 @@ describe('56.kv_registry', function () {
   it('resets registry metadata to inactive', async () => {
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
-      realmName: 'realm1',
       uriPattern: 'app.topic.#',
       storageType: 'sqlite',
     })

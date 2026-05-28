@@ -21,7 +21,7 @@ export class DbEngine extends BaseEngine {
     const db = await this.modKv.getDb(realmName)
     await History.createHistoryTables(db, realmName)
     await createKvTables(db, realmName)
-    await createStorageRegistryTables(db)
+    await createStorageRegistryTables(db, realmName)
     await this.modKv.processStaleRecords(
       realmName,
       (sessionId: string, uri: string[], bodyValue: any) => this.doPush(new ActorPushKv(

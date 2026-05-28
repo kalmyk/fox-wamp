@@ -37,4 +37,4 @@ The system SHALL register auto-provisioned key-value storages to ensure proper l
 
 #### Scenario: Registering auto-provisioned storage
 - **WHEN** a key-value SQLite table is successfully provisioned from a schema
-- **THEN** the system SHALL register this new storage module in the `kv_storages` registry (as defined in the `kv-storage-module-registration` specification), setting its initial status to `inactive`.
+- **THEN** the system SHALL register this new storage module in the realm-scoped `kv_storages_${realmName}` registry (as defined in the `kv-storage-module-registration` specification), setting its initial status to `inactive`.

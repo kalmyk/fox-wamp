@@ -5,11 +5,12 @@ The system SHALL maintain a persistent registry of key-value projection modules 
 
 #### Scenario: Registering a new storage
 - **WHEN** a persistent KV projection is initialized for the first time
-- **THEN** the system SHALL create a record in the `kv_storages` table with its `name`, `realm_name`, `uri_pattern`, `storage_type`, and initial `status` as `inactive`.
+- **THEN** the system SHALL create a record in the realm-scoped `kv_storages_${realmName}` table with its `name`, `uri_pattern`, `storage_type`, and initial `status` as `inactive`.
+- **AND** the projection realm SHALL be represented by the registry table name, not by a `realm_name` row column.
 - **AND** `uri_pattern` SHALL be stored as canonical dotted FOX topic text parsed by `defaultParse()`, not MQTT slash syntax.
 
 #### Scenario: Preserving position during idempotent registration
-- **GIVEN** a KV projection already has a `kv_storages` record with `current_position` set
+- **GIVEN** a KV projection already has a realm-scoped registry record with `current_position` set
 - **WHEN** the same projection is registered during restart
 - **THEN** the system SHALL NOT reset `current_position`.
 
@@ -47,7 +48,7 @@ The system SHALL provide a dedicated command to activate a registered KV project
 #### Scenario: Activating a registered projection
 - **GIVEN** a KV projection is registered with status `inactive`
 - **WHEN** the activation command is received for that projection
-- **THEN** the system SHALL read committed history events related to the projection's `realm_name` and `uri_pattern`.
+- **THEN** the system SHALL read committed history events related to the registry table's realm and the projection's `uri_pattern`.
 - **AND** the system SHALL apply matching KV mutations in committed event order.
 - **AND** the system SHALL keep the projection status as `refreshing` until it reaches the realm-scoped activation target observed for activation.
 
@@ -114,7 +115,7 @@ The system SHALL update persistent KV projections only from committed segment vi
 
 #### Scenario: Selecting retained event projections
 - **GIVEN** a committed event has `opt.retain` set to `true`
-- **WHEN** the event realm matches a registered projection's `realm_name`
+- **WHEN** the event realm selects the registry table containing a registered projection
 - **AND** the event URI matches the projection's `uri_pattern`
 - **THEN** the system SHALL apply the event to that projection.
 

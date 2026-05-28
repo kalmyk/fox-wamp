@@ -26,17 +26,18 @@ That path is outdated for distributed mode. Persistent KV state should be treate
 
 ## Decisions
 
-### 1. Centralized Registry Storage
-We will use the primary SQLite database used by storage/history metadata to host the `kv_storages` table.
+### 1. Realm-Scoped Registry Storage
+We will use the primary SQLite database used by storage/history metadata to host realm-scoped `kv_storages_${realmName}` tables.
 - **Rationale**: The registry describes durable KV projections over committed history. Keeping it beside history metadata makes projection startup, status checks, and position tracking local to the storage node.
 - **Alternatives**: File-based storage (harder to query), or in-memory (loses state on restart).
 
 ### 2. Table Schema
-The `kv_storages` table will be defined as follows:
+Each realm registry table is named `kv_storages_${realmName}`, following the existing `kv_${realmName}` table naming style. The realm is therefore part of the table name, not a repeated column in every row.
+
+The table will be defined as follows:
 ```sql
-CREATE TABLE kv_storages (
+CREATE TABLE kv_storages_<realmName> (
     name TEXT PRIMARY KEY,
-    realm_name TEXT NOT NULL,
     uri_pattern TEXT NOT NULL,
     storage_type TEXT NOT NULL,
     started_at INTEGER, -- Unix timestamp in milliseconds
@@ -73,7 +74,7 @@ KEEP_ADVANCE_HISTORY
   -> StorageTask.commit_segment()
   -> SEGMENT_COMMITTED
   -> KV projection listener applies retained mutations
-  -> kv_storages.current_position is advanced
+  -> kv_storages_<realmName>.current_position is advanced
 ```
 
 ### 4. Committed Segment Payload
@@ -101,11 +102,11 @@ The `uri` field in the payload is the internal separator-free topic array. If a 
 ### 5. Retained KV Mutation Selection
 A committed event is eligible for persistent KV projection when `event.opt.retain === true`. The retain flag marks that the event should be kept as retained state; it does not by itself choose a storage.
 
-Storage selection is based on registered KV projections. Each projection has an accepted URL pattern in `kv_storages.uri_pattern`. A retained event may be stored in zero, one, or many projections:
+Storage selection is based on registered KV projections in the event realm's registry table. Each projection has an accepted URL pattern in `kv_storages_${realmName}.uri_pattern`. A retained event may be stored in zero, one, or many projections:
 
 ```text
 event.opt.retain === true
-AND event.realm == projection.realm_name
+AND projection is registered in kv_storages_<event.realm>
 AND match(event.uri, defaultParse(projection.uri_pattern))
 ```
 
@@ -124,7 +125,7 @@ eventId = <string-segment-id><string-event-offset>
 
 Event IDs SHALL be compared as strings. The ID generation functions are designed to produce event ID strings whose lexicographic order matches event order, so activation and catch-up logic should use normal string comparisons such as `msg_id > current_position` and `msg_id <= activation_target`. Implementations should not parse event IDs into segment and offset parts for ordering.
 
-A single dbnode may commit events for several realms in one resolved segment. KV projection activation is realm-scoped, so the activation target is the latest committed `eventId` for the projection's `realm_name`, not merely the latest global segment and not the latest event from another realm.
+A single dbnode may commit events for several realms in one resolved segment. KV projection activation is realm-scoped, so the activation target is the latest committed `eventId` for the registry table's realm, not merely the latest global segment and not the latest event from another realm.
 
 At activation start, the projection captures the latest committed event ID for its realm as the activation target. Refresh applies related events for the same realm in committed event order until `current_position` reaches that realm-scoped target. If the realm has no committed events, activation may complete immediately and move the projection online.
 
@@ -132,7 +133,7 @@ If the realm has no committed events at activation time, `current_position` rema
 
 ### 7. Activation and Status Lifecycle
 - **Registration**: Occurs when a persistent KV projection is configured or initialized. Registration creates the row with `status = 'inactive'`. It does not start historical replay or live segment application.
-- **Activation**: A dedicated command activates a registered projection. Activation sets `status = 'refreshing'`, clears `last_error`, records `started_at`, captures the realm-scoped activation target, reads committed history events related to the projection's `realm_name` and `uri_pattern`, applies matching KV mutations, and advances `current_position`.
+- **Activation**: A dedicated command activates a registered projection. Activation sets `status = 'refreshing'`, clears `last_error`, records `started_at`, captures the realm-scoped activation target, reads committed history events related to the registry table's realm and the projection's `uri_pattern`, applies matching KV mutations, and advances `current_position`.
 - **Activation by Current Status**: Activation is allowed when status is `inactive` or `failed`. Activation while `refreshing` is rejected as already running. Activation while `online` is a no-op success and does not replay history.
 - **Refresh/Catch-up**: While the activation command is applying historical events, the projection remains `refreshing`. The projection should apply events in committed event order until it reaches the realm-scoped activation target observed at activation time.
 - **Online**: When catch-up reaches the realm-scoped activation target, the projection sets `status = 'online'` and begins applying later `SEGMENT_COMMITTED` payloads as live committed updates.

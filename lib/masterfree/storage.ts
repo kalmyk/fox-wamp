@@ -158,7 +158,7 @@ export class StorageTask extends EventEmitter {
   async ensureRealm (realm: string) {
     if (!this.realms.has(realm)) {
       await History.createHistoryTables(this.dbFactory.getMainDb(), realm)
-      await createStorageRegistryTables(this.dbFactory.getMainDb())
+      await createStorageRegistryTables(this.dbFactory.getMainDb(), realm)
       this.realms.set(realm, "ok")
     }
   }

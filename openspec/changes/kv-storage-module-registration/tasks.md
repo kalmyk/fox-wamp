@@ -1,7 +1,7 @@
 ## 1. Database Schema
 
-- [x] 1.1 Add `kv_storages` table creation logic to `lib/sqlite/history.ts` or a new metadata utility.
-- [x] 1.2 Use `current_position TEXT` and include `realm_name` and `storage_type` columns.
+- [x] 1.1 Add `kv_storages_${realmName}` table creation logic to `lib/sqlite/history.ts` or a new metadata utility.
+- [x] 1.2 Use `current_position TEXT`, include `storage_type`, and keep realm selection in the table name rather than a row column.
 - [x] 1.3 Store `uri_pattern` as canonical dotted FOX topic text and parse it with `defaultParse()` when matching events.
 - [x] 1.4 Add `failed` to the status constraint and add `last_error TEXT`.
 - [x] 1.5 Ensure the table is created during storage/projection initialization.
@@ -35,7 +35,7 @@
 - [ ] 4.11 Keep `Realm.registerKeyValueEngine()` as the local/in-memory compatibility path, not the persistent distributed KV registration mechanism.
 - [ ] 4.12 Add a reset command that clears projected KV data, sets `current_position = NULL`, clears `last_error`, and sets status to `inactive`.
 - [ ] 4.13 Advance `current_position` for every online KV projection on each `SEGMENT_COMMITTED`, using the committed segment ID when no later matching event ID is applied.
-- [ ] 4.14 Select projection targets by `opt.retain === true`, matching `realm_name`, and matching `uri_pattern`.
+- [ ] 4.14 Select projection targets by `opt.retain === true`, the event realm's registry table, and matching `uri_pattern`.
 - [ ] 4.15 Apply one retained event to every matching projection, not just the first match.
 - [ ] 4.16 Validate projected values against the matching schema when a schema exists for the accepted URL.
 - [ ] 4.17 Delete projected retained rows when `isDataEmpty(event.data)` is true, including MQTT empty-payload publishes mapped to `null`.

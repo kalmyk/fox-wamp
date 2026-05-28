@@ -4,15 +4,18 @@ import { StorageRecord, StorageStatus } from '../types'
 
 export type StorageRegistration = {
   name: string
-  realmName: string
   uriPattern: string
   storageType: string
 }
 
-function mapStorageRecord(row: any): StorageRecord {
+function storageRegistryTableName(realmName: string): string {
+  return `kv_storages_${realmName}`
+}
+
+function mapStorageRecord(realmName: string, row: any): StorageRecord {
   return {
     name: row.name,
-    realmName: row.realm_name,
+    realmName,
     uriPattern: row.uri_pattern,
     storageType: row.storage_type,
     startedAt: row.started_at === null || row.started_at === undefined ? null : row.started_at,
@@ -22,11 +25,10 @@ function mapStorageRecord(row: any): StorageRecord {
   }
 }
 
-export async function createStorageRegistryTables(db: sqlite.Database): Promise<void> {
+export async function createStorageRegistryTables(db: sqlite.Database, realmName: string): Promise<void> {
   await db.run(
-    `CREATE TABLE IF NOT EXISTS kv_storages (
+    `CREATE TABLE IF NOT EXISTS ${storageRegistryTableName(realmName)} (
       name TEXT PRIMARY KEY,
-      realm_name TEXT NOT NULL,
       uri_pattern TEXT NOT NULL,
       storage_type TEXT NOT NULL,
       started_at INTEGER,
@@ -39,24 +41,27 @@ export async function createStorageRegistryTables(db: sqlite.Database): Promise<
 
 export class StorageRegistry {
   private db: sqlite.Database
+  private realmName: string
+  private tableName: string
 
-  constructor(db: sqlite.Database) {
+  constructor(db: sqlite.Database, realmName: string) {
     this.db = db
+    this.realmName = realmName
+    this.tableName = storageRegistryTableName(realmName)
   }
 
   async init(): Promise<void> {
-    await createStorageRegistryTables(this.db)
+    await createStorageRegistryTables(this.db, this.realmName)
   }
 
   async register(storage: StorageRegistration): Promise<void> {
     await this.init()
     await this.db.run(
-      `INSERT OR IGNORE INTO kv_storages
-        (name, realm_name, uri_pattern, storage_type, started_at, status, current_position, last_error)
-        VALUES (?, ?, ?, ?, NULL, ?, NULL, NULL)`,
+      `INSERT OR IGNORE INTO ${this.tableName}
+        (name, uri_pattern, storage_type, started_at, status, current_position, last_error)
+        VALUES (?, ?, ?, NULL, ?, NULL, NULL)`,
       [
         storage.name,
-        storage.realmName,
         storage.uriPattern,
         storage.storageType,
         StorageStatus.Inactive,
@@ -67,36 +72,36 @@ export class StorageRegistry {
   async get(name: string): Promise<StorageRecord | null> {
     await this.init()
     const row = await this.db.get(
-      `SELECT name, realm_name, uri_pattern, storage_type, started_at, status, current_position, last_error
-        FROM kv_storages
+      `SELECT name, uri_pattern, storage_type, started_at, status, current_position, last_error
+        FROM ${this.tableName}
         WHERE name = ?`,
       [name]
     )
-    return row ? mapStorageRecord(row) : null
+    return row ? mapStorageRecord(this.realmName, row) : null
   }
 
   async list(): Promise<StorageRecord[]> {
     await this.init()
     const rows = await this.db.all(
-      `SELECT name, realm_name, uri_pattern, storage_type, started_at, status, current_position, last_error
-        FROM kv_storages
+      `SELECT name, uri_pattern, storage_type, started_at, status, current_position, last_error
+        FROM ${this.tableName}
         ORDER BY name`,
       []
     )
-    return rows.map(mapStorageRecord)
+    return rows.map(row => mapStorageRecord(this.realmName, row))
   }
 
   async updateStatus(name: string, status: StorageStatus, startedAt?: number | null): Promise<void> {
     await this.init()
     if (startedAt === undefined) {
       await this.db.run(
-        `UPDATE kv_storages SET status = ? WHERE name = ?`,
+        `UPDATE ${this.tableName} SET status = ? WHERE name = ?`,
         [status, name]
       )
       return
     }
     await this.db.run(
-      `UPDATE kv_storages SET status = ?, started_at = ? WHERE name = ?`,
+      `UPDATE ${this.tableName} SET status = ?, started_at = ? WHERE name = ?`,
       [status, startedAt, name]
     )
   }
@@ -104,7 +109,7 @@ export class StorageRegistry {
   async updatePosition(name: string, currentPosition: string | null): Promise<void> {
     await this.init()
     await this.db.run(
-      `UPDATE kv_storages SET current_position = ? WHERE name = ?`,
+      `UPDATE ${this.tableName} SET current_position = ? WHERE name = ?`,
       [currentPosition, name]
     )
   }
@@ -112,7 +117,7 @@ export class StorageRegistry {
   async updateLastError(name: string, lastError: string | null): Promise<void> {
     await this.init()
     await this.db.run(
-      `UPDATE kv_storages SET last_error = ? WHERE name = ?`,
+      `UPDATE ${this.tableName} SET last_error = ? WHERE name = ?`,
       [lastError, name]
     )
   }
@@ -120,7 +125,7 @@ export class StorageRegistry {
   async reset(name: string): Promise<void> {
     await this.init()
     await this.db.run(
-      `UPDATE kv_storages
+      `UPDATE ${this.tableName}
         SET current_position = NULL, last_error = NULL, status = ?, started_at = NULL
         WHERE name = ?`,
       [StorageStatus.Inactive, name]
