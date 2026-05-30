@@ -62,7 +62,7 @@ The system SHALL register auto-provisioned key-value storages with a required sc
 
 #### Scenario: Registering auto-provisioned storage
 - **WHEN** a key-value SQLite table is successfully provisioned from a schema
-- **THEN** the system SHALL register this new storage module in the realm-scoped `kv_storages_${realmName}` registry with the schema's `schema_id`, setting its initial status to `inactive`.
+- **THEN** the system SHALL register this new storage module in the realm-scoped `kv_storage_${realmName}` registry with the schema's `schema_id`, setting its initial status to `inactive`.
 - **AND** each KV storage registry row SHALL link to exactly one schema.
 - **AND** the KV storage registry SHALL use `schema_id` instead of `storage_type`.
 

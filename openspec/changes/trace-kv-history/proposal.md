@@ -7,7 +7,7 @@ Currently, update history is partially implemented for Key-Value (KV) storage, b
 - Formalize the `update_history_${realmName}` table as the single source of truth for tracking changes to persistent entities.
 - Ensure all Key-Value (KV) updates record their prior state, the originating message/event ID, and a stable update ID.
 - Extend history tracking to message schema lifecycle events (registration, activation, deactivation).
-- Standardize the `update_history` record format to support different entity types (KV, Schema).
+- Standardize the `update_history` record format with explicit entity type, action, old value, new value, and timestamp fields.
 - Provide a consistent API for querying the history of a specific entity or the entire realm.
 
 ## Capabilities
@@ -25,5 +25,5 @@ Currently, update history is partially implemented for Key-Value (KV) storage, b
 
 - `lib/sqlite/sqlitekv.ts`: Refactor existing history logic to align with the new unified format.
 - `lib/sqlite/schema_repository.ts` (pending implementation): Integrate history logging for schema lifecycle events.
-- Database Schema: Standardize `update_history_${realmName}` to include fields for entity type and action if necessary, or ensure `msg_uri` is sufficient for both KV and Schemas.
+- Database Schema: Standardize `update_history_${realmName}` to include explicit `entity_type` and `action` fields so KV changes and schema lifecycle events are unambiguous.
 - Testing: Add comprehensive tests for history recording across different storage modules.

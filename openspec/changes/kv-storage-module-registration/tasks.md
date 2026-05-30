@@ -1,7 +1,7 @@
 ## 1. Database Schema
 
-- [x] 1.1 Add `kv_storages_${realmName}` table creation logic to `lib/sqlite/history.ts` or a new metadata utility.
-- [x] 1.2 Use `current_position TEXT`, include `storage_type`, and keep realm selection in the table name rather than a row column.
+- [x] 1.1 Add `kv_storage_${realmName}` table creation logic to `lib/sqlite/history.ts` or a new metadata utility.
+- [x] 1.2 Use `current_position TEXT`, include required `schema_id`, and keep realm selection in the table name rather than a row column.
 - [x] 1.3 Store `uri_pattern` as canonical dotted FOX topic text and parse it with `defaultParse()` when matching events.
 - [x] 1.4 Add `failed` to the status constraint and add `last_error TEXT`.
 - [x] 1.5 Ensure the table is created during storage/projection initialization.
@@ -12,6 +12,8 @@
 - [x] 2.2 Implement `StorageRegistry` class to handle DB operations (register, update status, update position, update last error).
 - [x] 2.3 Make registration idempotent and preserve existing `current_position` on restart.
 - [x] 2.4 Ensure new registrations start as `inactive`.
+- [x] 2.5 Update code and tests to use the singular `kv_storage_${realmName}` table name.
+- [x] 2.6 Replace any remaining `storage_type` registry fields with required `schema_id`.
 
 ## 3. Committed Segment Payload
 
@@ -22,12 +24,12 @@
 
 ## 4. KV Projection Listener
 
-- [ ] 4.1 Add a dedicated activation command for a registered persistent KV projection.
-- [ ] 4.2 Activation sets status to `refreshing`, clears `last_error`, records `started_at`, and captures the latest committed event ID for the projection realm as the activation target.
+- [x] 4.1 Add a dedicated activation command for a registered persistent KV projection.
+- [x] 4.2 Activation sets status to `refreshing`, clears `last_error`, records `started_at`, and captures the latest committed event ID for the projection realm as the activation target.
 - [ ] 4.3 Activation applies matching retained KV mutations in committed event order and persists `current_position` as events are inspected.
 - [ ] 4.4 Activation sets status to `failed` and writes `last_error` if historical apply fails.
 - [ ] 4.5 Activation sets status to `online` only after refresh reaches the realm-scoped activation target.
-- [ ] 4.6 Allow activation from `inactive` and `failed`; reject activation from `refreshing` as already running; return no-op success from `online`.
+- [x] 4.6 Allow activation from `inactive` and `failed`; reject activation from `refreshing` as already running; return no-op success from `online`.
 - [ ] 4.7 Add a persistent KV projection listener that subscribes to `SEGMENT_COMMITTED` after the projection is online.
 - [ ] 4.8 Apply retained KV mutations from committed event records only after the segment commit completes.
 - [ ] 4.9 Ignore non-retained events for KV projection updates.
@@ -54,7 +56,7 @@
 - [x] 5.10 Verify committed event IDs are built as `<string-segment-id><string-event-offset>`, where `<string-event-offset>` is produced by `keyId(id: number)`.
 - [ ] 5.11 Verify activation and catch-up compare event IDs with string comparison, without parsing event IDs into segment and offset parts.
 - [ ] 5.12 Verify reset clears projected KV data, clears `current_position` and `last_error`, and leaves the projection `inactive` until activation is requested.
-- [ ] 5.13 Verify activation status handling: `inactive` and `failed` start refresh, `refreshing` rejects as already running, and `online` returns no-op success.
+- [x] 5.13 Verify activation status handling: `inactive` and `failed` start refresh, `refreshing` rejects as already running, and `online` returns no-op success.
 - [ ] 5.14 Verify empty-realm activation sets status to `online` with `current_position = NULL`.
 - [ ] 5.15 Verify each `SEGMENT_COMMITTED` advances `current_position` for all online KV projections, even when a projection has no matching KV mutation in that segment.
 - [ ] 5.16 Verify committed segment IDs compare greater than previous message IDs and segment IDs by string comparison.

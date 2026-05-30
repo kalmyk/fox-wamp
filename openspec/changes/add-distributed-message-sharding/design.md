@@ -42,11 +42,12 @@ Current bottleneck: Message shard allocation is buried in segment logic without 
 - Keep `tag` and document it: Leaves ambiguity and future confusion.
 - Use numeric shard ID directly: Would require schema changes and complicates trace/audit logs where the string tag is useful.
 
-### Decision 4: Shard Allocation Storage at Entry Node
-**Rationale:** Store the round-robin counter as instance state in the entry node's `netengine.ts`. Recoverable on restart by syncing the counter with the highest known `shardTag` from NDB storage via `INIT_ENTRY_ACCEPTED` message.
+### Decision 4: Shard Allocation Counter Startup
+**Rationale:** Store the round-robin counter as instance state in the entry node's `netengine.ts`. On entry-node startup, initialize the counter to a random value in the 2^20 shard space and continue round-robin allocation from there. There is no requirement to recover the last used shard from storage.
 **Alternatives:**
 - Persist counter to storage immediately: Extra I/O overhead per message.
 - Coordinate counter across entry nodes via sync cluster: Adds latency and consensus overhead.
+- Recover the highest observed shard from storage: Unnecessary for load distribution and couples shard allocation to the entry initialization handshake.
 
 ### Decision 5: NDB Shard Scheme Configuration (Divider-Based Mapping)
 **Rationale:** Each NDB storage node maintains a configurable shard scheme via a `divider` parameter. The `msg_shard` value stored in the `event_history_${realmName}` table is computed as `msg_shard = shardTag % divider`. This allows:
@@ -71,7 +72,7 @@ The `msg_shard` value is deterministic: `msg_shard = parseInt(shardTag.substring
 | Risk | Mitigation |
 |------|-----------|
 | **Counter wraparound after 2^32 messages per entry node** | At 1M msgs/sec, takes ~4000 seconds (1.1 hours) to wrap. Use modulo 1048576 to cycle through shards deterministically. Track absolute message count separately for debugging. |
-| **Shard allocation counter lost on entry node restart** | Sync with storage on `INIT_ENTRY_ACCEPTED` to recover the highest observed `shardTag` and resume from next shard. Add unit tests to verify recovery. |
+| **Shard allocation counter lost on entry node restart** | Start from a random shard in the 2^20 shard space, then continue round-robin allocation. Recovery of the last used shard is not required. |
 | **Client tools that parse internal protocol messages break** | No external-facing API changes, but internal tooling (debugging, monitoring) needs updates to recognize `shardTag` instead of `tag`. Document in migration notes. |
 | **Uneven shard distribution if messages are bursty per client** | Round-robin is deterministic but doesn't account for per-client locality. If all messages from one client arrive in a burst on one entry node, they may concentrate on adjacent shards. Add monitoring to detect hot shards post-launch. |
 | **Divider mismatch across NDB nodes** | If NDB nodes are configured with different divider values, the same shardTag will map to different msg_shard slots on different nodes, causing consistency issues. Solution: Divider must be synchronized and deployed uniformly across all NDB nodes in a cluster. Document in deployment guides. |
@@ -89,14 +90,14 @@ The `msg_shard` value is deterministic: `msg_shard = parseInt(shardTag.substring
 2. **Phase 2: Implement Round-Robin Allocation & Storage Computation** (low risk)
    - Add a `shardCounter` instance variable to the entry node's netengine.
    - Implement allocation logic: `shardTag = "s" + (shardCounter++ % 1048576)`.
-   - Recover counter on restart via `INIT_ENTRY_ACCEPTED`.
+   - Initialize the counter randomly on entry-node startup.
    - In storage.ts, compute `msg_shard = parseInt(shardTag.substring(1)) % divider` when storing events.
    - Add `msg_shard` column to `event_history_${realmName}` table schema.
 
 3. **Phase 3: Database Migration** (medium risk)
    - Create database migration scripts for existing deployments to add `msg_shard` column.
-   - Backfill existing events: `msg_shard = (shardTag_value % 1048576) % divider` or null if shardTag unknown.
-   - Support both null and computed values during transition period.
+   - Backfill existing events only when a legacy `shardTag` is available; otherwise leave `msg_shard = NULL`.
+   - Support both null legacy values and computed values during transition period.
    - Add index on (realm, msg_shard) for efficient shard-range queries.
 
 4. **Phase 4: Testing & Validation** (medium risk)
@@ -117,7 +118,7 @@ The `msg_shard` value is deterministic: `msg_shard = parseInt(shardTag.substring
 
 1. Should the `shardTag` format remain string-based (`"s" + number`) or switch to numeric? String format is backward compatible with logging but slightly less efficient. Decision: Keep string format for now to maintain consistency with existing trace logs.
 
-2. How will multi-entry-node deployments coordinate counter initialization after network partitions? Should we add a "counter sync" message to the sync cluster protocol? Decision: Defer to phase 2; for now, assume entry nodes are provisioned/restarted independently.
+2. How will multi-entry-node deployments coordinate counter initialization after network partitions? Decision: They do not coordinate shard counters. Each entry node starts from a random shard and then advances round-robin within the 2^20 shard space.
 
 3. What should be the default `divider` value for NDB nodes? Decision: Default to 1048576 (1:1 mapping with entry node shards), allowing operators to override based on deployment topology.
 

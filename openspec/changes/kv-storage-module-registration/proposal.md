@@ -4,12 +4,12 @@ The system currently has an outdated key-value storage registration path tied to
 
 ## What Changes
 
-- **New Registration Table**: Create realm-scoped `kv_storages_${realmName}` tables to register persistent KV projection modules, matching the existing `kv_${realmName}` table naming style.
+- **New Registration Table**: Create realm-scoped `kv_storage_${realmName}` tables to register persistent KV projection modules, matching the existing `kv_${realmName}` table naming style.
 - **Storage Fields**:
     - `name`: Unique identifier for the storage instance.
     - Realm is selected by table name, not by a row column.
     - `uri_pattern`: Canonical dotted FOX topic pattern this storage is responsible for, such as `app.topic.#`.
-    - `storage_type`: Implementation type, such as `sqlite`.
+    - `schema_id`: Required link to exactly one message schema that owns validation and the generated projection table.
     - `started_at`: Timestamp when the storage was last started.
     - `status`: Lifecycle state (`inactive`, `refreshing`, `online`, `failed`).
     - `current_position`: The last committed event or segment watermark reached by the KV projection, stored as `TEXT`.

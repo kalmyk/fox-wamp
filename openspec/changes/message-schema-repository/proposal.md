@@ -10,7 +10,7 @@ The current KV registry has a `storage_type` placeholder, but persistent KV proj
 - Use the README information-schema shape as the initial schema body format: `properties`, `primary_key`, optional aggregate/projection fields such as `sum` and `propagate`.
 - Bind each schema record to an accepted URL pattern stored as canonical dotted FOX topic text.
 - Generate a related SQLite data table for each schema, with a `${realmName}` suffix and a stable hash-derived table name.
-- Link each `kv_storages_${realmName}` row to exactly one schema via `schema_id`; this replaces the current `storage_type` placeholder in the KV registry proposal.
+- Link each `kv_storage_${realmName}` row to exactly one schema via `schema_id`; this replaces the current `storage_type` placeholder in the KV registry proposal.
 - Validate incoming committed retained events against the schema selected by URL before storing projected data.
 - Treat schemas and generated data tables as immutable for now. To modify a schema, create a new schema record, create a new generated table, activate the new KV projection, deactivate the old one, and then remove the old generated data table when it is no longer needed.
 

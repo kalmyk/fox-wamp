@@ -22,7 +22,7 @@ The README already contains an information-schema style example with `properties
 ## Decisions
 
 ### 1. Schema Repository Definition
-We will replace the old in-memory `TableDictionary` responsibility with a persistent `SchemaRepository`. Repository tables are realm-scoped, matching the existing `kv_${realmName}` and proposed `kv_storages_${realmName}` naming style.
+We will replace the old in-memory `TableDictionary` responsibility with a persistent `SchemaRepository`. Repository tables are realm-scoped, matching the existing `kv_${realmName}` and proposed `kv_storage_${realmName}` naming style.
 
 **Database Schema for the Repository:**
 ```sql
@@ -67,10 +67,10 @@ The initial schema body follows the README information-schema shape:
 For the first implementation, `properties` and `primary_key` define validation and generated table columns. Aggregate features such as `sum` and `propagate` may be stored and validated structurally, but full aggregate behavior can remain a later implementation task unless explicitly required by a projection.
 
 ### 3. KV Registry Link
-Each persistent KV projection row in `kv_storages_${realmName}` must link to one schema:
+Each persistent KV projection row in `kv_storage_${realmName}` must link to one schema:
 
 ```sql
-CREATE TABLE kv_storages_<realmName> (
+CREATE TABLE kv_storage_<realmName> (
     name TEXT PRIMARY KEY,
     schema_id TEXT NOT NULL,
     uri_pattern TEXT NOT NULL,

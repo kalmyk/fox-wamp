@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Entry Initialization with Shard Allocation
-When a message arrives, a unique `advance-id` is created. Shard allocation is handled via deterministic round-robin across 2^20 (1048576) shards at the entry node. Each incoming message is assigned a `shardTag` indicating its shard, and the message and subsequent ones are signed with the `advance-id`, `shardTag`, and a sequence number.
+When a message arrives, a unique `advance-id` is created. The entry node SHALL handle shard allocation via deterministic round-robin across 2^20 (1048576) shards. Each incoming message SHALL be assigned a `shardTag` indicating its shard, and the message and subsequent ones are signed with the `advance-id`, `shardTag`, and a sequence number.
 
 #### Scenario: Message receives shardTag on arrival
 - **WHEN** the entry node receives a new message
@@ -11,16 +11,16 @@ When a message arrives, a unique `advance-id` is created. Shard allocation is ha
 - **WHEN** the entry node sends BEGIN_ADVANCE_SEGMENT to sync hosts and NDB storages
 - **THEN** the message includes the assigned `shardTag` for that segment
 
-#### Scenario: Recovery preserves shard sequence
+#### Scenario: Startup chooses random shard position
 - **WHEN** an entry node restarts and resumes message processing
-- **THEN** it queries storage via INIT_ENTRY_ACCEPTED to recover the highest known shardTag and resumes allocation from the next shard
+- **THEN** it initializes the shard counter to a random value in the 2^20 shard space and resumes round-robin allocation from that value
 
 ### Requirement: HyperNet Protocol Message Format
-The HyperNet protocol messages use a `shardTag` field (replacing the generic `tag` field) to communicate shard assignments through the distributed system. Messages affected: BEGIN_ADVANCE_SEGMENT, ADVANCE_SEGMENT_OVER, GENERATE_DRAFT, PICK_CHALLENGER, ELECT_SEGMENT.
+The HyperNet protocol messages SHALL use a `shardTag` field (replacing the generic `tag` field) to communicate shard assignments through the distributed system. Messages affected: BEGIN_ADVANCE_SEGMENT, ADVANCE_SEGMENT_OVER, GENERATE_DRAFT, PICK_CHALLENGER, ELECT_SEGMENT.
 
 #### Scenario: Protocol body includes shardTag
 - **WHEN** any HyperNet message is constructed
-- **THEN** it includes a `shardTag` field with format "s" followed by a numeric shard ID [0-4095]
+- **THEN** it includes a `shardTag` field with format "s" followed by a numeric shard ID [0-1048575]
 
 #### Scenario: shardTag immutability through lifecycle
 - **WHEN** a message flows from entry through sync cluster to resolution
@@ -50,7 +50,7 @@ Each NDB storage node SHALL be configured with a `divider` parameter (default: 1
 
 #### Scenario: Divider determines physical shard slots
 - **WHEN** an NDB is configured with divider=512
-- **THEN** the 1048576 virtual shards from the entry node are bucketed into 512 physical slots: shards [0-7] → slot 0, [8-15] → slot 1, etc.
+- **THEN** the 1048576 virtual shards from the entry node are bucketed into 512 physical slots by modulo: shard 0 and shard 512 map to slot 0, shard 1 and shard 513 map to slot 1, etc.
 
 ### Requirement: msg_shard Storage in event_history Table
 The `event_history_${realmName}` table SHALL include a `msg_shard` column that stores the physical shard assignment for each event. The column SHALL be indexed for efficient shard-range queries. The `msg_shard` value is computed as `(shardTag_numeric % divider)` at storage time and is immutable.
@@ -65,7 +65,7 @@ The `event_history_${realmName}` table SHALL include a `msg_shard` column that s
 
 #### Scenario: Backward compatibility with null msg_shard
 - **WHEN** querying event_history that contains events from before msg_shard column was added
-- **THEN** legacy rows have msg_shard=NULL; after backfill and schema migration, all rows have computed values
+- **THEN** legacy rows may keep msg_shard=NULL; new rows have computed values
 
 #### Scenario: msg_shard determines event placement
 - **WHEN** an NDB with divider=4 stores messages with shardTags 0-15

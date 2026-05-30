@@ -5,11 +5,18 @@ import { StorageRecord, StorageStatus } from '../types'
 export type StorageRegistration = {
   name: string
   uriPattern: string
-  storageType: string
+  schemaId: string
+}
+
+export type StorageActivation = {
+  name: string
+  status: StorageStatus
+  activationTarget: string | null
+  started: boolean
 }
 
 function storageRegistryTableName(realmName: string): string {
-  return `kv_storages_${realmName}`
+  return `kv_storage_${realmName}`
 }
 
 function mapStorageRecord(realmName: string, row: any): StorageRecord {
@@ -17,7 +24,7 @@ function mapStorageRecord(realmName: string, row: any): StorageRecord {
     name: row.name,
     realmName,
     uriPattern: row.uri_pattern,
-    storageType: row.storage_type,
+    schemaId: row.schema_id,
     startedAt: row.started_at === null || row.started_at === undefined ? null : row.started_at,
     status: row.status,
     currentPosition: row.current_position === undefined ? null : row.current_position,
@@ -25,12 +32,28 @@ function mapStorageRecord(realmName: string, row: any): StorageRecord {
   }
 }
 
+async function latestRealmEventId(db: sqlite.Database, realmName: string): Promise<string | null> {
+  const tableName = `event_history_${realmName}`
+  const table = await db.get(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+    [tableName]
+  )
+  if (!table) {
+    return null
+  }
+  const row = await db.get(
+    `SELECT MAX(msg_id) max_id FROM ${tableName}`,
+    []
+  )
+  return row && row.max_id ? row.max_id : null
+}
+
 export async function createStorageRegistryTables(db: sqlite.Database, realmName: string): Promise<void> {
   await db.run(
     `CREATE TABLE IF NOT EXISTS ${storageRegistryTableName(realmName)} (
       name TEXT PRIMARY KEY,
+      schema_id TEXT NOT NULL,
       uri_pattern TEXT NOT NULL,
-      storage_type TEXT NOT NULL,
       started_at INTEGER,
       status TEXT NOT NULL CHECK(status IN ('inactive', 'refreshing', 'online', 'failed')) DEFAULT 'inactive',
       current_position TEXT,
@@ -58,12 +81,12 @@ export class StorageRegistry {
     await this.init()
     await this.db.run(
       `INSERT OR IGNORE INTO ${this.tableName}
-        (name, uri_pattern, storage_type, started_at, status, current_position, last_error)
+        (name, schema_id, uri_pattern, started_at, status, current_position, last_error)
         VALUES (?, ?, ?, NULL, ?, NULL, NULL)`,
       [
         storage.name,
+        storage.schemaId,
         storage.uriPattern,
-        storage.storageType,
         StorageStatus.Inactive,
       ]
     )
@@ -72,7 +95,7 @@ export class StorageRegistry {
   async get(name: string): Promise<StorageRecord | null> {
     await this.init()
     const row = await this.db.get(
-      `SELECT name, uri_pattern, storage_type, started_at, status, current_position, last_error
+      `SELECT name, schema_id, uri_pattern, started_at, status, current_position, last_error
         FROM ${this.tableName}
         WHERE name = ?`,
       [name]
@@ -83,7 +106,7 @@ export class StorageRegistry {
   async list(): Promise<StorageRecord[]> {
     await this.init()
     const rows = await this.db.all(
-      `SELECT name, uri_pattern, storage_type, started_at, status, current_position, last_error
+      `SELECT name, schema_id, uri_pattern, started_at, status, current_position, last_error
         FROM ${this.tableName}
         ORDER BY name`,
       []
@@ -120,6 +143,40 @@ export class StorageRegistry {
       `UPDATE ${this.tableName} SET last_error = ? WHERE name = ?`,
       [lastError, name]
     )
+  }
+
+  async startActivation(name: string, startedAt: number = Date.now()): Promise<StorageActivation> {
+    await this.init()
+    const record = await this.get(name)
+    if (!record) {
+      throw new Error(`Storage projection not registered: ${name}`)
+    }
+    if (record.status === StorageStatus.Refreshing) {
+      throw new Error(`Storage projection activation already running: ${name}`)
+    }
+    if (record.status === StorageStatus.Online) {
+      return {
+        name,
+        status: StorageStatus.Online,
+        activationTarget: record.currentPosition,
+        started: false,
+      }
+    }
+
+    const activationTarget = await latestRealmEventId(this.db, this.realmName)
+    await this.db.run(
+      `UPDATE ${this.tableName}
+        SET status = ?, started_at = ?, last_error = NULL
+        WHERE name = ?`,
+      [StorageStatus.Refreshing, startedAt, name]
+    )
+
+    return {
+      name,
+      status: StorageStatus.Refreshing,
+      activationTarget,
+      started: true,
+    }
   }
 
   async reset(name: string): Promise<void> {

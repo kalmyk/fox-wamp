@@ -27,19 +27,19 @@ That path is outdated for distributed mode. Persistent KV state should be treate
 ## Decisions
 
 ### 1. Realm-Scoped Registry Storage
-We will use the primary SQLite database used by storage/history metadata to host realm-scoped `kv_storages_${realmName}` tables.
+We will use the primary SQLite database used by storage/history metadata to host realm-scoped `kv_storage_${realmName}` tables.
 - **Rationale**: The registry describes durable KV projections over committed history. Keeping it beside history metadata makes projection startup, status checks, and position tracking local to the storage node.
 - **Alternatives**: File-based storage (harder to query), or in-memory (loses state on restart).
 
 ### 2. Table Schema
-Each realm registry table is named `kv_storages_${realmName}`, following the existing `kv_${realmName}` table naming style. The realm is therefore part of the table name, not a repeated column in every row.
+Each realm registry table is named `kv_storage_${realmName}`, following the existing `kv_${realmName}` table naming style. The realm is therefore part of the table name, not a repeated column in every row.
 
 The table will be defined as follows:
 ```sql
-CREATE TABLE kv_storages_<realmName> (
+CREATE TABLE kv_storage_<realmName> (
     name TEXT PRIMARY KEY,
+    schema_id TEXT NOT NULL,
     uri_pattern TEXT NOT NULL,
-    storage_type TEXT NOT NULL,
     started_at INTEGER, -- Unix timestamp in milliseconds
     status TEXT NOT NULL CHECK(status IN ('inactive', 'refreshing', 'online', 'failed')) DEFAULT 'inactive',
     current_position TEXT,
@@ -48,6 +48,8 @@ CREATE TABLE kv_storages_<realmName> (
 ```
 
 `current_position` is `TEXT` because event IDs in this codebase are strings. Distributed event positions are also segment-derived IDs rather than simple integers.
+
+`schema_id` links each persistent KV projection to exactly one message schema. The schema defines validation rules and the generated SQLite projection table. `storage_type` is not part of this registry shape; the projection implementation is derived from the linked schema.
 
 `uri_pattern` is also `TEXT`, but it is not MQTT slash syntax and not a JSON array. It stores the canonical dotted FOX topic form, for example `app.topic.#`. Projection code should parse it with `defaultParse()` into the internal `string[]` representation before matching events. MQTT slash topics are normalized at the MQTT gate before they reach this registry.
 
@@ -74,7 +76,7 @@ KEEP_ADVANCE_HISTORY
   -> StorageTask.commit_segment()
   -> SEGMENT_COMMITTED
   -> KV projection listener applies retained mutations
-  -> kv_storages_<realmName>.current_position is advanced
+  -> kv_storage_<realmName>.current_position is advanced
 ```
 
 ### 4. Committed Segment Payload
@@ -102,15 +104,15 @@ The `uri` field in the payload is the internal separator-free topic array. If a 
 ### 5. Retained KV Mutation Selection
 A committed event is eligible for persistent KV projection when `event.opt.retain === true`. The retain flag marks that the event should be kept as retained state; it does not by itself choose a storage.
 
-Storage selection is based on registered KV projections in the event realm's registry table. Each projection has an accepted URL pattern in `kv_storages_${realmName}.uri_pattern`. A retained event may be stored in zero, one, or many projections:
+Storage selection is based on registered KV projections in the event realm's registry table. Each projection has an accepted URL pattern in `kv_storage_${realmName}.uri_pattern`. A retained event may be stored in zero, one, or many projections:
 
 ```text
 event.opt.retain === true
-AND projection is registered in kv_storages_<event.realm>
+AND projection is registered in kv_storage_<event.realm>
 AND match(event.uri, defaultParse(projection.uri_pattern))
 ```
 
-When the event matches a projection, the projected value is the event body value after normal FOX body decoding (`getBodyValue`). If a schema is registered for the accepted URL, the value MUST be validated by that schema before it is stored. The exact schema-extension shape for provisioning tables belongs to the `message-schema-repository` change; this registry only requires that matching retained values are validated before projection storage when a schema applies.
+When the event matches a projection, the projected value is the event body value after normal FOX body decoding (`getBodyValue`). The value MUST be validated by the schema linked through `schema_id` before it is stored.
 
 Deletes use the existing retained-storage empty-value rule. After body decoding, if `isDataEmpty(event.data)` is true, the projection deletes the retained row instead of storing a value. This includes MQTT retained publishes with an empty payload, because the MQTT gate maps an empty payload to `null`, and `null` is accepted as an empty value for delete.
 

@@ -44,7 +44,7 @@ export interface StorageRecord {
   name: string
   realmName: string
   uriPattern: string
-  storageType: string
+  schemaId: string
   startedAt: number | null
   status: StorageStatus
   currentPosition: string | null

@@ -11,9 +11,10 @@ The entry node SHALL allocate incoming messages to shards using a deterministic 
 - **WHEN** the counter reaches 1048576
 - **THEN** the next message is assigned to shard 0 and the counter wraps (counter % 1048576 = 0)
 
-#### Scenario: Recovery after restart
-- **WHEN** an entry node restarts and receives INIT_ENTRY_ACCEPTED from storage with a highest observed shardTag
-- **THEN** the entry node resumes allocation from the next shard after the highest observed value
+#### Scenario: Random startup after restart
+- **WHEN** an entry node starts or restarts
+- **THEN** the entry node initializes its shard counter to a random value in the range [0, 1048575]
+- **AND** subsequent messages continue round-robin allocation from that value
 
 ### Requirement: Formalized shardTag field in protocol messages
 The HyperNet protocol messages (BEGIN_ADVANCE_SEGMENT, ADVANCE_SEGMENT_OVER, GENERATE_DRAFT, PICK_CHALLENGER, ELECT_SEGMENT) SHALL use a `shardTag` field to carry the shard assignment through the message lifecycle.
@@ -28,7 +29,7 @@ The HyperNet protocol messages (BEGIN_ADVANCE_SEGMENT, ADVANCE_SEGMENT_OVER, GEN
 
 #### Scenario: shardTag format
 - **WHEN** a shardTag is generated
-- **THEN** it has the format "s" followed by a numeric shard ID in the range [0, 4095]
+- **THEN** it has the format "s" followed by a numeric shard ID in the range [0, 1048575]
 
 ### Requirement: Shard-aware message routing
 Storage nodes and routing components SHALL use the shardTag field to make deterministic placement or affinity decisions for message storage and synchronization.

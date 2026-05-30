@@ -19,7 +19,7 @@
 - [ ] 3.2 Implement round-robin shard allocation logic: `shardTag = "s" + (shardCounter++ % 1048576)` in entry node message creation
 - [ ] 3.3 Update BEGIN_ADVANCE_SEGMENT generation to assign `shardTag` using round-robin allocation
 - [ ] 3.4 Update ADVANCE_SEGMENT_OVER generation to use the same `shardTag` from the segment
-- [ ] 3.5 Implement shard counter recovery logic on node restart by syncing with storage via INIT_ENTRY_ACCEPTED response
+- [ ] 3.5 Initialize shard counter to a random value in the 2^20 shard space on entry-node startup
 
 ## 4. NetEngine and Segment Management Updates
 
@@ -36,7 +36,7 @@
 
 ## 6. Database Schema Changes
 
-- [ ] 6.1 Create database migration to add `msg_shard` (INTEGER NOT NULL DEFAULT 0) column to `event_history_${realmName}` tables
+- [ ] 6.1 Create database migration to add nullable `msg_shard` (INTEGER) column to `event_history_${realmName}` tables
 - [ ] 6.2 Add composite index on (realm, msg_shard, timestamp) for efficient shard-range queries
 - [ ] 6.3 Write migration script to backfill `msg_shard` values for existing events: `msg_shard = (shardTag_numeric % 1048576) % divider` (or NULL if shardTag unknown)
 - [ ] 6.4 Implement schema migration execution as part of NDB startup or separate migration tool
@@ -52,7 +52,7 @@
 ## 8. Testing and Validation
 
 - [ ] 8.1 Write unit tests for round-robin shard allocation (allocation sequence, wraparound at 1048576)
-- [ ] 8.2 Write unit tests for shard counter recovery on node restart
+- [ ] 8.2 Write unit tests for random shard counter initialization on node restart
 - [ ] 8.3 Write unit tests for `computeMsgShard()` function with various divider values (4, 512, 1048576)
 - [ ] 8.4 Write integration tests verifying `shardTag` is correctly assigned and propagated through message lifecycle
 - [ ] 8.5 Write integration tests verifying `msg_shard` is correctly computed and stored in event_history
