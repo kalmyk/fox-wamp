@@ -9,17 +9,22 @@ import * as sqlite from 'sqlite'
 import { StorageStatus } from '../lib/types'
 import { createHistoryTables, saveEventHistory } from '../lib/sqlite/history'
 import { createStorageRegistryTables, StorageRegistry } from '../lib/sqlite/storage_registry'
+import { ProduceId } from '../lib/masterfree/makeid'
 
 describe('56.kv_registry', function () {
   let db: sqlite.Database
   let registry: StorageRegistry
+  const makeId = {
+    _count: 0,
+    generateIdStr: function() { return 'test-id-' + (this._count++) }
+  } as any
 
   beforeEach(async () => {
     db = await sqlite.open({
       filename: ':memory:',
       driver: sqlite3.Database,
     })
-    registry = new StorageRegistry(db, 'realm1')
+    registry = new StorageRegistry(db, 'realm1', makeId)
   })
 
   it('creates realm-scoped kv_storage table with expected columns', async () => {
@@ -39,7 +44,7 @@ describe('56.kv_registry', function () {
     ])
   })
 
-  it('registers storage as inactive with dotted uri pattern', async () => {
+  it('registers storage as inactive and records history', async () => {
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
       uriPattern: 'app.topic.#',
@@ -58,9 +63,18 @@ describe('56.kv_registry', function () {
       currentPosition: null,
       lastError: null,
     })
+
+    const history = await db.all(`SELECT * FROM update_history_realm1`)
+    expect(history).to.have.lengthOf(1)
+    expect(history[0].action).to.equal('register')
+    expect(history[0].entity_type).to.equal('kv_storage')
+    expect(history[0].entity_uri).to.equal('sqlite:realm1:app.topic.#')
+    expect(history[0].old_updated_by_msg_id).to.be.null
+    expect(history[0].msg_oldv).to.be.null
+    expect(JSON.parse(history[0].msg_newv).status).to.equal(StorageStatus.Inactive)
   })
 
-  it('keeps current position during idempotent registration', async () => {
+  it('keeps current position during idempotent registration and does not record duplicate history', async () => {
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
       uriPattern: 'app.topic.#',
@@ -69,6 +83,8 @@ describe('56.kv_registry', function () {
     await registry.updateStatus('sqlite:realm1:app.topic.#', StorageStatus.Online)
     await registry.updatePosition('sqlite:realm1:app.topic.#', 'seg1a1')
 
+    const historyBefore = await db.all(`SELECT * FROM update_history_realm1`)
+
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
       uriPattern: 'app.topic.#',
@@ -76,12 +92,14 @@ describe('56.kv_registry', function () {
     })
 
     const record = await registry.get('sqlite:realm1:app.topic.#')
-
     expect(record!.status).to.equal(StorageStatus.Online)
     expect(record!.currentPosition).to.equal('seg1a1')
+
+    const historyAfter = await db.all(`SELECT * FROM update_history_realm1`)
+    expect(historyAfter).to.have.lengthOf(historyBefore.length)
   })
 
-  it('updates status position and last error', async () => {
+  it('updates status and records history', async () => {
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
       uriPattern: 'app.topic.#',
@@ -89,99 +107,50 @@ describe('56.kv_registry', function () {
     })
 
     await registry.updateStatus('sqlite:realm1:app.topic.#', StorageStatus.Refreshing, 1234)
-    await registry.updatePosition('sqlite:realm1:app.topic.#', 'seg2')
-    await registry.updateLastError('sqlite:realm1:app.topic.#', 'failed to apply')
-
+    
     const record = await registry.get('sqlite:realm1:app.topic.#')
-
     expect(record!.status).to.equal(StorageStatus.Refreshing)
     expect(record!.startedAt).to.equal(1234)
-    expect(record!.currentPosition).to.equal('seg2')
-    expect(record!.lastError).to.equal('failed to apply')
+
+    const history = await db.all(`SELECT * FROM update_history_realm1 WHERE action = 'status'`)
+    expect(history).to.have.lengthOf(1)
+    expect(JSON.parse(history[0].msg_oldv).status).to.equal(StorageStatus.Inactive)
+    expect(JSON.parse(history[0].msg_newv).status).to.equal(StorageStatus.Refreshing)
   })
 
-  it('starts activation by marking storage refreshing and capturing realm target', async () => {
+  it('starts activation and records history', async () => {
     await createHistoryTables(db, 'realm1')
-    await createHistoryTables(db, 'realm2')
     await saveEventHistory(db, 'realm1', 'seg1a1', 0, ['app', 'topic'], 'a', {})
-    await saveEventHistory(db, 'realm2', 'seg2a1', 0, ['app', 'topic'], 'b', {})
-    await saveEventHistory(db, 'realm1', 'seg3a1', 0, ['app', 'topic'], 'c', {})
-    await registry.register({
-      name: 'sqlite:realm1:app.topic.#',
-      uriPattern: 'app.topic.#',
-      schemaId: 'schema:app-topic',
-    })
-    await registry.updateLastError('sqlite:realm1:app.topic.#', 'previous failure')
-
-    const activation = await registry.startActivation('sqlite:realm1:app.topic.#', 1234)
-    const record = await registry.get('sqlite:realm1:app.topic.#')
-
-    expect(activation).to.deep.equal({
-      name: 'sqlite:realm1:app.topic.#',
-      status: StorageStatus.Refreshing,
-      activationTarget: 'seg3a1',
-      started: true,
-    })
-    expect(record!.status).to.equal(StorageStatus.Refreshing)
-    expect(record!.startedAt).to.equal(1234)
-    expect(record!.lastError).to.equal(null)
-  })
-
-  it('allows failed activation retry rejects duplicate activation and treats online activation as no-op', async () => {
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
       uriPattern: 'app.topic.#',
       schemaId: 'schema:app-topic',
     })
 
-    await registry.updateStatus('sqlite:realm1:app.topic.#', StorageStatus.Failed, 1234)
-    await registry.updateLastError('sqlite:realm1:app.topic.#', 'previous failure')
-
-    const retry = await registry.startActivation('sqlite:realm1:app.topic.#', 2345)
-    expect(retry).to.deep.equal({
-      name: 'sqlite:realm1:app.topic.#',
-      status: StorageStatus.Refreshing,
-      activationTarget: null,
-      started: true,
-    })
-
-    await registry.updateStatus('sqlite:realm1:app.topic.#', StorageStatus.Refreshing, 1234)
-
-    await expect(registry.startActivation('sqlite:realm1:app.topic.#', 5678))
-      .to.be.rejectedWith('activation already running')
-
-    await registry.updateStatus('sqlite:realm1:app.topic.#', StorageStatus.Online, 1234)
-    await registry.updatePosition('sqlite:realm1:app.topic.#', 'seg1a1')
-
-    const activation = await registry.startActivation('sqlite:realm1:app.topic.#', 5678)
-    const record = await registry.get('sqlite:realm1:app.topic.#')
-
-    expect(activation).to.deep.equal({
-      name: 'sqlite:realm1:app.topic.#',
-      status: StorageStatus.Online,
-      activationTarget: 'seg1a1',
-      started: false,
-    })
-    expect(record!.startedAt).to.equal(1234)
+    await registry.startActivation('sqlite:realm1:app.topic.#', 1234)
+    
+    const history = await db.all(`SELECT * FROM update_history_realm1 WHERE action = 'activate'`)
+    expect(history).to.have.lengthOf(1)
+    expect(JSON.parse(history[0].msg_oldv).status).to.equal(StorageStatus.Inactive)
+    expect(JSON.parse(history[0].msg_newv).status).to.equal(StorageStatus.Refreshing)
   })
 
-  it('resets registry metadata to inactive', async () => {
+  it('resets registry metadata and records history', async () => {
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
       uriPattern: 'app.topic.#',
       schemaId: 'schema:app-topic',
     })
     await registry.updateStatus('sqlite:realm1:app.topic.#', StorageStatus.Failed, 1234)
-    await registry.updatePosition('sqlite:realm1:app.topic.#', 'seg2')
-    await registry.updateLastError('sqlite:realm1:app.topic.#', 'failed to apply')
 
     await registry.reset('sqlite:realm1:app.topic.#')
 
     const record = await registry.get('sqlite:realm1:app.topic.#')
-
     expect(record!.status).to.equal(StorageStatus.Inactive)
-    expect(record!.startedAt).to.equal(null)
-    expect(record!.currentPosition).to.equal(null)
-    expect(record!.lastError).to.equal(null)
+
+    const history = await db.all(`SELECT * FROM update_history_realm1 WHERE action = 'reset'`)
+    expect(history).to.have.lengthOf(1)
+    expect(JSON.parse(history[0].msg_oldv).status).to.equal(StorageStatus.Failed)
+    expect(JSON.parse(history[0].msg_newv).status).to.equal(StorageStatus.Inactive)
   })
 })

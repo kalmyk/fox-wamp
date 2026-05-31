@@ -24,11 +24,14 @@ export class DbEngine extends BaseEngine {
     await createStorageRegistryTables(db, realmName)
     await this.modKv.processStaleRecords(
       realmName,
-      (sessionId: string, uri: string[], bodyValue: any) => this.doPush(new ActorPushKv(
-        uri as any,
-        { kv: bodyValue },
-        { sid: sessionId, retain: true, trace: true }
-      ) as any)
+      (sessionId: string, uri: string[], bodyValue: any) => {
+        const actor = new ActorPushKv(
+          uri as any,
+          { kv: bodyValue },
+          { sid: sessionId, retain: true, trace: true }
+        )
+        return this.doPush(actor as any)
+      }
     )
   }
 

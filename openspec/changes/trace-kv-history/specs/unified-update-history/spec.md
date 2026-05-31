@@ -5,7 +5,17 @@ The system SHALL maintain an `update_history_${realmName}` table in each realm's
 
 #### Scenario: Verify table creation
 - **WHEN** a realm's persistent storage is initialized
-- **THEN** the `update_history_${realmName}` table SHALL be created with the following columns: `msg_id` (update ID), `msg_origin` (originating event or command ID), `entity_type`, `entity_id`, `action`, `msg_oldv` (serialized previous state), `msg_newv` (serialized new state), and `created_at`.
+- **THEN** the `update_history_${realmName}` table SHALL be created with the following columns: `msg_id`, `old_updated_by_msg_id`, `entity_type`, `entity_id`, `entity_uri`, `action`, `msg_oldv`, and `msg_newv`.
+- **AND** the primary key SHALL be `(entity_uri, msg_id)`.
+
+### Requirement: Causal linking of updates
+The system SHALL preserve a causal chain for every persistent entity by recording the previous update's ID.
+
+#### Scenario: Chain KV updates
+- **WHEN** a KV value is modified
+- **THEN** the system SHALL fetch the current `updated_by_msg_id` from the `kv_${realmName}` table.
+- **AND** the system SHALL record this as `old_updated_by_msg_id` in the new history entry.
+- **AND** the system SHALL update `kv_${realmName}` with the new `msg_id`.
 
 ### Requirement: Recording updates to persistent entities
 The system SHALL record an entry in the `update_history_${realmName}` table for every change made to a persistent entity.
@@ -13,21 +23,7 @@ The system SHALL record an entry in the `update_history_${realmName}` table for 
 #### Scenario: Record KV update history
 - **WHEN** a KV value is modified or deleted
 - **THEN** an entry SHALL be added to `update_history_${realmName}` with `entity_type = 'kv'`.
-- **AND** `entity_id` SHALL be the KV topic as canonical dotted text.
+- **AND** `entity_uri` SHALL be the KV topic as canonical dotted text.
 - **AND** `action` SHALL describe whether the KV entry was created, updated, or deleted.
 - **AND** `msg_oldv` SHALL contain the serialized prior value, or `NULL` if it was a new key.
 - **AND** `msg_newv` SHALL contain the serialized new value, or `NULL` if the key was deleted.
-
-#### Scenario: Record Schema lifecycle history
-- **WHEN** a message schema is registered, activated, or deactivated
-- **THEN** an entry SHALL be added to `update_history_${realmName}` with `entity_type = 'schema'`.
-- **AND** `entity_id` SHALL be the schema identifier.
-- **AND** `action` SHALL describe the lifecycle operation.
-- **AND** `msg_oldv` and `msg_newv` SHALL record the previous and resulting schema state or status.
-
-#### Scenario: Record KV storage lifecycle history
-- **WHEN** a KV storage projection is registered, activated, reset, or has its status changed
-- **THEN** an entry SHALL be added to `update_history_${realmName}` with `entity_type = 'kv_storage'`.
-- **AND** `entity_id` SHALL be the storage name.
-- **AND** `action` SHALL describe the lifecycle operation.
-- **AND** `msg_oldv` and `msg_newv` SHALL record the previous and resulting storage registry state.

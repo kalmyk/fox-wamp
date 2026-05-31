@@ -1,6 +1,8 @@
 import * as sqlite from 'sqlite'
 
 import { StorageRecord, StorageStatus } from '../types'
+import { ProduceId } from '../masterfree/makeid'
+import { createUpdateHistoryTable, saveUpdateHistory, UpdateHistoryAction } from './update_history'
 
 export type StorageRegistration = {
   name: string
@@ -49,6 +51,7 @@ async function latestRealmEventId(db: sqlite.Database, realmName: string): Promi
 }
 
 export async function createStorageRegistryTables(db: sqlite.Database, realmName: string): Promise<void> {
+  await createUpdateHistoryTable(db, realmName)
   await db.run(
     `CREATE TABLE IF NOT EXISTS ${storageRegistryTableName(realmName)} (
       name TEXT PRIMARY KEY,
@@ -66,11 +69,13 @@ export class StorageRegistry {
   private db: sqlite.Database
   private realmName: string
   private tableName: string
+  private makeId: ProduceId
 
-  constructor(db: sqlite.Database, realmName: string) {
+  constructor(db: sqlite.Database, realmName: string, makeId: ProduceId) {
     this.db = db
     this.realmName = realmName
     this.tableName = storageRegistryTableName(realmName)
+    this.makeId = makeId
   }
 
   async init(): Promise<void> {
@@ -79,6 +84,9 @@ export class StorageRegistry {
 
   async register(storage: StorageRegistration): Promise<void> {
     await this.init()
+    const oldRecord = await this.get(storage.name)
+    if (oldRecord) return
+
     await this.db.run(
       `INSERT OR IGNORE INTO ${this.tableName}
         (name, schema_id, uri_pattern, started_at, status, current_position, last_error)
@@ -89,6 +97,18 @@ export class StorageRegistry {
         storage.uriPattern,
         StorageStatus.Inactive,
       ]
+    )
+    const newRecord = await this.get(storage.name)
+    await saveUpdateHistory(
+      this.db,
+      this.realmName,
+      this.makeId.generateIdStr(),
+      null,
+      'kv_storage',
+      storage.name,
+      'register',
+      null,
+      newRecord
     )
   }
 
@@ -116,16 +136,29 @@ export class StorageRegistry {
 
   async updateStatus(name: string, status: StorageStatus, startedAt?: number | null): Promise<void> {
     await this.init()
+    const oldRecord = await this.get(name)
     if (startedAt === undefined) {
       await this.db.run(
         `UPDATE ${this.tableName} SET status = ? WHERE name = ?`,
         [status, name]
       )
-      return
+    } else {
+      await this.db.run(
+        `UPDATE ${this.tableName} SET status = ?, started_at = ? WHERE name = ?`,
+        [status, startedAt, name]
+      )
     }
-    await this.db.run(
-      `UPDATE ${this.tableName} SET status = ?, started_at = ? WHERE name = ?`,
-      [status, startedAt, name]
+    const newRecord = await this.get(name)
+    await saveUpdateHistory(
+      this.db,
+      this.realmName,
+      this.makeId.generateIdStr(),
+      null,
+      'kv_storage',
+      name,
+      'status',
+      oldRecord,
+      newRecord
     )
   }
 
@@ -171,6 +204,19 @@ export class StorageRegistry {
       [StorageStatus.Refreshing, startedAt, name]
     )
 
+    const newRecord = await this.get(name)
+    await saveUpdateHistory(
+      this.db,
+      this.realmName,
+      this.makeId.generateIdStr(),
+      null,
+      'kv_storage',
+      name,
+      'activate',
+      record,
+      newRecord
+    )
+
     return {
       name,
       status: StorageStatus.Refreshing,
@@ -181,11 +227,24 @@ export class StorageRegistry {
 
   async reset(name: string): Promise<void> {
     await this.init()
+    const oldRecord = await this.get(name)
     await this.db.run(
       `UPDATE ${this.tableName}
         SET current_position = NULL, last_error = NULL, status = ?, started_at = NULL
         WHERE name = ?`,
       [StorageStatus.Inactive, name]
+    )
+    const newRecord = await this.get(name)
+    await saveUpdateHistory(
+      this.db,
+      this.realmName,
+      this.makeId.generateIdStr(),
+      null,
+      'kv_storage',
+      name,
+      'reset',
+      oldRecord,
+      newRecord
     )
   }
 }

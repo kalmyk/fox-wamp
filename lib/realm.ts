@@ -1128,11 +1128,12 @@ export class BaseRealm extends EventEmitter {
   }
 
   runInboundEvent(sessionId: string, uri: string[], bodyValue: any): void {
-    return this.engine.doPush(new ActorPushKv(
+    const actor = new ActorPushKv(
       uri as any,
       { kv: bodyValue },
       { sid: sessionId, retain: true, trace: true }
-    ) as any)
+    )
+    return this.engine.doPush(actor as any)
   }
 
   registerKeyValueEngine(uriPattern: string[], kv: KeyValueStorageAbstract): void {

@@ -6,17 +6,10 @@ import { DbFactory } from './dbfactory'
 import { ActorPush } from '../realm'
 import { ProduceId } from '../masterfree/makeid'
 import { errorCodes } from '../realm_error'
+import { createUpdateHistoryTable, saveUpdateHistory, UpdateHistoryAction } from './update_history'
 
 export async function createKvTables (db: sqlite.Database, realmName: string) {
-  await db.run(
-    `CREATE TABLE IF NOT EXISTS update_history_${realmName} (
-      msg_id TEXT not null,
-      msg_origin TEXT not null,
-      -- Canonical dotted FOX topic text, parsed with defaultParse().
-      msg_uri TEXT not null,
-      msg_oldv TEXT,
-      PRIMARY KEY (msg_id));`
-  )
+  await createUpdateHistoryTable(db, realmName)
   await db.run(
     `CREATE TABLE IF NOT EXISTS kv_${realmName} (
       -- Canonical dotted FOX topic text, never MQTT slash syntax.
@@ -24,7 +17,7 @@ export async function createKvTables (db: sqlite.Database, realmName: string) {
       value TEXT not null,
       will_sid TEXT not null,
       opt TEXT not null,
-      stamp TEXT,
+      updated_by_msg_id TEXT,
       PRIMARY KEY (key));`
   )
   await db.run(
@@ -44,13 +37,6 @@ export async function createKvTables (db: sqlite.Database, realmName: string) {
   )
   await db.run(
     `CREATE INDEX IF NOT EXISTS session_kv_sid_${realmName} on session_kv_${realmName} (will_sid);`
-  )
-}
-
-export async function saveUpdateHistory (db: sqlite.Database, realmName: string, id: string, origin: string, suri: string, oldv: any) {
-  return db.run(
-    `INSERT INTO update_history_${realmName} VALUES (?,?,?,?);`,
-    [id, origin, suri, JSON.stringify(oldv)]
   )
 }
 
@@ -86,12 +72,15 @@ export class SqliteKvFabric {
     }
   }
 
-  private async getStoredValue(db: sqlite.Database, realmName: string, suri: string): Promise<any> {
+  private async getStoredValue(db: sqlite.Database, realmName: string, suri: string): Promise<{value: any, updatedByMsgId: string | null}> {
     const oldRow = await db.get(
-      `SELECT value FROM kv_${realmName} WHERE key = ?`,
+      `SELECT value, updated_by_msg_id FROM kv_${realmName} WHERE key = ?`,
       [suri]
     )
-    return oldRow && oldRow.value ? unSerializeData(JSON.parse(oldRow.value)) : null
+    return {
+      value: oldRow && oldRow.value ? unSerializeData(JSON.parse(oldRow.value)) : null,
+      updatedByMsgId: oldRow ? oldRow.updated_by_msg_id : null
+    }
   }
 
   private parkActor(realmName: string, suri: string, actor: ActorPush): void {
@@ -137,7 +126,10 @@ export class SqliteKvFabric {
       `SELECT key, value FROM session_kv_${realmName} WHERE will_sid = ?`,
       [sessionId],
       (err, row) => {
-        toApply.push({key: row.key, value: unSerializeData(JSON.parse(row.value))})
+        toApply.push({
+          key: row.key,
+          value: unSerializeData(JSON.parse(row.value))
+        })
       }
     )
     for (let row of toApply) {
@@ -182,7 +174,7 @@ export class SqliteKvFabric {
     sid: string,
     actor?: ActorPush
   ): Promise<void> {
-    const oldData = await this.getStoredValue(db, realmName, suri)
+    const { value: oldData, updatedByMsgId: oldUpdatedByMsgId } = await this.getStoredValue(db, realmName, suri)
     if ('when' in opt && !isDataFit(opt.when, oldData)) {
       if (opt.watch && actor) {
         this.parkActor(realmName, suri, actor)
@@ -195,13 +187,20 @@ export class SqliteKvFabric {
     const newData = deepDataMerge(oldData, data)
     const updateHistoryId = this.makeId.generateIdStr()
 
+    let action: UpdateHistoryAction = 'update'
+    if (oldData === null) {
+      action = 'create'
+    } else if (isDataEmpty(newData)) {
+      action = 'delete'
+    }
+
     await db.run(`DELETE FROM session_kv_${realmName} WHERE key = ?`, [suri])
     if (isDataEmpty(newData)) {
       await db.run(`DELETE FROM kv_${realmName} WHERE key = ?`, [suri])
     } else {
       const willSid = ('will' in opt) ? sid : 0
       await db.run(
-        `INSERT OR REPLACE INTO kv_${realmName} (key, value, will_sid, opt, stamp) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO kv_${realmName} (key, value, will_sid, opt, updated_by_msg_id) VALUES (?, ?, ?, ?, ?)`,
         [suri, JSON.stringify(makeDataSerializable(newData)), willSid, JSON.stringify(opt), updateHistoryId]
       )
     }
@@ -211,13 +210,24 @@ export class SqliteKvFabric {
         [suri, JSON.stringify(makeDataSerializable(opt.will)), sid, origin]
       )
     }
-    await saveUpdateHistory(db, realmName, origin, updateHistoryId, suri, makeDataSerializable(oldData))
+    await saveUpdateHistory(
+      db,
+      realmName,
+      updateHistoryId,
+      oldUpdatedByMsgId,
+      'kv',
+      suri,
+      action,
+      action === 'create' ? null : makeDataSerializable(oldData),
+      action === 'delete' ? null : makeDataSerializable(newData)
+    )
     if (actor) {
       actor.confirm(actor.msg)
     }
 
     let nextActor = await this.findNextWhenActor(realmName, suri, newData)
     while (nextActor) {
+      const { updatedByMsgId: nextOldUpdatedByMsgId } = await this.getStoredValue(db, realmName, suri)
       await this.setKeyValueLocked(
         db,
         realmName,
@@ -228,7 +238,7 @@ export class SqliteKvFabric {
         nextActor.getSid(),
         nextActor
       )
-      const curData = await this.getStoredValue(db, realmName, suri)
+      const { value: curData } = await this.getStoredValue(db, realmName, suri)
       nextActor = await this.findNextWhenActor(realmName, suri, curData)
     }
   }
@@ -265,19 +275,19 @@ export class SqliteKvFabric {
   }
 
   // @uri is array of strings
-  getKey (realmName: string, uri: string[], cbRow: (key: string[], data: any, stamp: string) => void) {
+  getKey (realmName: string, uri: string[], cbRow: (key: string[], data: any, updatedByMsgId: string) => void) {
     const strUri = restoreUri(uri)
     return this.pkq.enQueue(realmName + '|' + strUri, async () => {
       const db = await this.getDb(realmName)
       // TODO: optimize search
       await db.each(
-        `SELECT key, value, opt, stamp FROM kv_${realmName}`,
+        `SELECT key, value, opt, updated_by_msg_id FROM kv_${realmName}`,
         [],
         (err, row) => {
           const aKey: string[] = defaultParse(row.key)
           if (match(aKey, uri)) {
             const rowData = JSON.parse(row.value)
-            cbRow(aKey, unSerializeData(rowData), row.stamp)
+            cbRow(aKey, unSerializeData(rowData), row.updated_by_msg_id)
           }
         }
       )
