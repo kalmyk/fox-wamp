@@ -40,6 +40,21 @@ export enum StorageStatus {
   Failed = 'failed',
 }
 
+export enum SchemaStatus {
+  Active = 'active',
+  Deprecated = 'deprecated',
+}
+
+export interface SchemaRecord {
+  schemaId: string
+  label: string
+  urlPattern: string
+  dataTable: string
+  schemaJson: string
+  status: SchemaStatus
+  createdAt: number
+}
+
 export interface StorageRecord {
   name: string
   realmName: string

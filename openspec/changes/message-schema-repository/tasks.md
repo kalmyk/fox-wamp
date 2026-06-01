@@ -1,9 +1,9 @@
 ## 1. Schema Repository Tables
 
-- [ ] 1.1 Add realm-scoped `message_schemas_${realmName}` table creation logic.
-- [ ] 1.2 Define schema record types with `schema_id`, `name`, `url_pattern`, `data_table`, `schema_json`, `status`, and `created_at`.
-- [ ] 1.3 Implement immutable schema registration that rejects in-place updates to schema body, URL pattern, or generated table.
-- [ ] 1.4 Store `url_pattern` as canonical dotted FOX topic text and parse it with `defaultParse()` when matching events.
+- [x] 1.1 Add realm-scoped `message_schemas_${realmName}` table creation logic.
+- [x] 1.2 Define schema record types with `schema_id`, `label`, `url_pattern`, `data_table`, `schema_json`, `status`, and `created_at`.
+- [x] 1.3 Implement immutable schema registration that rejects in-place updates to schema body, URL pattern, or generated table.
+- [x] 1.4 Store `url_pattern` as canonical dotted FOX topic text and parse it with `defaultParse()` when matching events.
 
 ## 2. Schema Body and Validation
 
@@ -14,8 +14,8 @@
 
 ## 3. Generated SQLite Tables
 
-- [ ] 3.1 Add a stable generated table naming helper that includes a schema hash and `${realmName}` suffix.
-- [ ] 3.2 Generate `CREATE TABLE IF NOT EXISTS` SQL from schema `properties` and `primary_key`.
+- [x] 3.1 Add a stable generated table naming helper that includes a schema hash and `${realmName}` suffix.
+- [x] 3.2 Generate `CREATE TABLE IF NOT EXISTS` SQL from schema `properties` and `primary_key`.
 - [ ] 3.3 Store the generated table name in the schema repository row.
 - [ ] 3.4 Add cleanup logic to remove obsolete generated data tables only after the old projection is deactivated.
 
@@ -35,9 +35,9 @@
 
 ## 6. Verification
 
-- [ ] 6.1 Test schema repository table creation per realm.
-- [ ] 6.2 Test registering README-style schema stores an immutable schema row and generated table name.
-- [ ] 6.3 Test generated table name includes the realm suffix and a stable hash component.
+- [x] 6.1 Test schema repository table creation per realm.
+- [x] 6.2 Test registering README-style schema stores an immutable schema row and generated table name.
+- [x] 6.3 Test generated table name includes the realm suffix and a stable hash component.
 - [ ] 6.4 Test invalid payloads for schema-mapped URLs are rejected.
 - [ ] 6.5 Test unmapped URLs still accept free-form JSON.
 - [ ] 6.6 Test retained projection writes validate against linked `schema_id`.
