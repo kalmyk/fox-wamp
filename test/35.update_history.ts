@@ -39,7 +39,6 @@ describe('35.update_history', function () {
     
     const history = await db.all(`SELECT * FROM update_history_${realmName}`)
     expect(history).to.have.lengthOf(1)
-    expect(history[0].action).to.equal('create')
     expect(history[0].entity_type).to.equal('kv')
     expect(history[0].entity_uri).to.equal('key.1')
     expect(history[0].old_updated_by_msg_id).to.be.null
@@ -58,7 +57,6 @@ describe('35.update_history', function () {
     
     const history = await db.all(`SELECT * FROM update_history_${realmName} ORDER BY msg_id ASC`)
     expect(history).to.have.lengthOf(2)
-    expect(history[1].action).to.equal('update')
     expect(history[1].old_updated_by_msg_id).to.equal(kv1.updated_by_msg_id)
     expect(JSON.parse(history[1].msg_oldv)).to.deep.equal({ kv: { a: 1 } })
     expect(JSON.parse(history[1].msg_newv)).to.deep.equal({ kv: { a: 2 } })
@@ -72,7 +70,6 @@ describe('35.update_history', function () {
     
     const history = await db.all(`SELECT * FROM update_history_${realmName} ORDER BY msg_id ASC`)
     expect(history).to.have.lengthOf(2)
-    expect(history[1].action).to.equal('delete')
     expect(history[1].old_updated_by_msg_id).to.equal(kv1.updated_by_msg_id)
     expect(JSON.parse(history[1].msg_oldv)).to.deep.equal({ kv: { a: 1 } })
     expect(history[1].msg_newv).to.be.null

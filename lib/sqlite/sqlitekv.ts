@@ -5,7 +5,7 @@ import { KPQueue } from '../masterfree/kpqueue'
 import { DbFactory } from './dbfactory'
 import { ProduceId } from '../masterfree/makeid'
 import { errorCodes } from '../realm_error'
-import { createUpdateHistoryTable, saveUpdateHistory, UpdateHistoryAction } from './update_history'
+import { createUpdateHistoryTable, saveUpdateHistory } from './update_history'
 
 export async function createKvTables (db: sqlite.Database, realmName: string) {
   await createUpdateHistoryTable(db, realmName)
@@ -186,13 +186,6 @@ export class SqliteKvFabric {
     const newData = deepDataMerge(oldData, data)
     const updateHistoryId = this.makeId.generateIdStr()
 
-    let action: UpdateHistoryAction = 'update'
-    if (oldData === null) {
-      action = 'create'
-    } else if (isDataEmpty(newData)) {
-      action = 'delete'
-    }
-
     await db.run(`DELETE FROM session_kv_${realmName} WHERE key = ?`, [suri])
     if (isDataEmpty(newData)) {
       await db.run(`DELETE FROM kv_${realmName} WHERE key = ?`, [suri])
@@ -216,9 +209,8 @@ export class SqliteKvFabric {
       oldUpdatedByMsgId,
       'kv',
       suri,
-      action,
-      action === 'create' ? null : makeDataSerializable(oldData),
-      action === 'delete' ? null : makeDataSerializable(newData)
+      oldData === null ? null : makeDataSerializable(oldData),
+      isDataEmpty(newData) ? null : makeDataSerializable(newData)
     )
     if (actor) {
       actor.confirm((actor as any).msg)

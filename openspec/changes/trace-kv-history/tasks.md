@@ -1,7 +1,7 @@
 ## 1. Unified History Table Setup
 
 - [x] 1.1 Formalize `update_history_${realmName}` table creation in `lib/sqlite/update_history.ts`.
-- [x] 1.2 Ensure the table includes `msg_id`, `old_updated_by_msg_id`, `entity_type`, `entity_uri`, `action`, `msg_oldv`, and `msg_newv`.
+- [x] 1.2 Ensure the table includes `msg_id`, `old_updated_by_msg_id`, `entity_type`, `entity_uri`, `msg_oldv`, and `msg_newv`.
 - [x] 1.3 Set the primary key to `(entity_uri, msg_id)`.
 
 ## 2. KV History Refinement
@@ -18,7 +18,8 @@
 
 ## 4. Verification
 
-- [x] 4.1 Add unit tests for `saveUpdateHistory` to verify correct SQL execution, entity/action fields, timestamps, and data serialization.
+- [x] 4.1 Add unit tests for `saveUpdateHistory` to verify correct SQL execution, entity fields, and data serialization.
+
 - [x] 4.2 Add integration tests for KV updates verifying history entries are created with correct `old_updated_by_msg_id` and `entity_uri`.
 - [x] 4.3 Add integration tests for session-persistent updates verifying origin preservation in the history chain.
 - [x] 4.4 Add integration tests for KV storage lifecycle events verifying history entries.

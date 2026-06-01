@@ -66,7 +66,6 @@ describe('56.kv_registry', function () {
 
     const history = await db.all(`SELECT * FROM update_history_realm1`)
     expect(history).to.have.lengthOf(1)
-    expect(history[0].action).to.equal('register')
     expect(history[0].entity_type).to.equal('kv_storage')
     expect(history[0].entity_uri).to.equal('sqlite:realm1:app.topic.#')
     expect(history[0].old_updated_by_msg_id).to.be.null
@@ -112,10 +111,10 @@ describe('56.kv_registry', function () {
     expect(record!.status).to.equal(StorageStatus.Refreshing)
     expect(record!.startedAt).to.equal(1234)
 
-    const history = await db.all(`SELECT * FROM update_history_realm1 WHERE action = 'status'`)
-    expect(history).to.have.lengthOf(1)
-    expect(JSON.parse(history[0].msg_oldv).status).to.equal(StorageStatus.Inactive)
-    expect(JSON.parse(history[0].msg_newv).status).to.equal(StorageStatus.Refreshing)
+    const history = await db.all(`SELECT * FROM update_history_realm1 ORDER BY msg_id ASC`)
+    expect(history).to.have.lengthOf(2) // register + status
+    expect(JSON.parse(history[1].msg_oldv).status).to.equal(StorageStatus.Inactive)
+    expect(JSON.parse(history[1].msg_newv).status).to.equal(StorageStatus.Refreshing)
   })
 
   it('starts activation and records history', async () => {
@@ -129,10 +128,10 @@ describe('56.kv_registry', function () {
 
     await registry.startActivation('sqlite:realm1:app.topic.#', 1234)
     
-    const history = await db.all(`SELECT * FROM update_history_realm1 WHERE action = 'activate'`)
-    expect(history).to.have.lengthOf(1)
-    expect(JSON.parse(history[0].msg_oldv).status).to.equal(StorageStatus.Inactive)
-    expect(JSON.parse(history[0].msg_newv).status).to.equal(StorageStatus.Refreshing)
+    const history = await db.all(`SELECT * FROM update_history_realm1 ORDER BY msg_id ASC`)
+    expect(history).to.have.lengthOf(2) // register + activate
+    expect(JSON.parse(history[1].msg_oldv).status).to.equal(StorageStatus.Inactive)
+    expect(JSON.parse(history[1].msg_newv).status).to.equal(StorageStatus.Refreshing)
   })
 
   it('resets registry metadata and records history', async () => {
@@ -148,9 +147,9 @@ describe('56.kv_registry', function () {
     const record = await registry.get('sqlite:realm1:app.topic.#')
     expect(record!.status).to.equal(StorageStatus.Inactive)
 
-    const history = await db.all(`SELECT * FROM update_history_realm1 WHERE action = 'reset'`)
-    expect(history).to.have.lengthOf(1)
-    expect(JSON.parse(history[0].msg_oldv).status).to.equal(StorageStatus.Failed)
-    expect(JSON.parse(history[0].msg_newv).status).to.equal(StorageStatus.Inactive)
+    const history = await db.all(`SELECT * FROM update_history_realm1 ORDER BY msg_id ASC`)
+    expect(history).to.have.lengthOf(3) // register + status + reset
+    expect(JSON.parse(history[2].msg_oldv).status).to.equal(StorageStatus.Failed)
+    expect(JSON.parse(history[2].msg_newv).status).to.equal(StorageStatus.Inactive)
   })
 })

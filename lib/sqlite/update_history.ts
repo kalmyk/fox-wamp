@@ -1,7 +1,6 @@
 import * as sqlite from 'sqlite'
 
 export type UpdateHistoryEntityType = 'kv' | 'schema' | 'kv_storage'
-export type UpdateHistoryAction = 'create' | 'update' | 'delete' | 'register' | 'activate' | 'deactivate' | 'reset' | 'status'
 
 export async function createUpdateHistoryTable(db: sqlite.Database, realmName: string) {
   await db.run(
@@ -10,7 +9,6 @@ export async function createUpdateHistoryTable(db: sqlite.Database, realmName: s
       old_updated_by_msg_id TEXT,
       entity_type TEXT NOT NULL CHECK(entity_type IN ('kv', 'schema', 'kv_storage')),
       entity_uri TEXT NOT NULL,
-      action TEXT NOT NULL,
       msg_oldv TEXT,
       msg_newv TEXT,
       PRIMARY KEY (entity_uri, msg_id)
@@ -25,20 +23,18 @@ export async function saveUpdateHistory(
   oldUpdatedByMsgId: string | null,
   entityType: UpdateHistoryEntityType,
   entityUri: string,
-  action: UpdateHistoryAction,
   oldv: any,
   newv: any
 ) {
   return db.run(
     `INSERT INTO update_history_${realmName} (
-      msg_id, old_updated_by_msg_id, entity_type, entity_uri, action, msg_oldv, msg_newv
-    ) VALUES (?, ?, ?, ?, ?, ?, ?);`,
+      msg_id, old_updated_by_msg_id, entity_type, entity_uri, msg_oldv, msg_newv
+    ) VALUES (?, ?, ?, ?, ?, ?);`,
     [
       id,
       oldUpdatedByMsgId,
       entityType,
       entityUri,
-      action,
       oldv === null ? null : JSON.stringify(oldv),
       newv === null ? null : JSON.stringify(newv)
     ]

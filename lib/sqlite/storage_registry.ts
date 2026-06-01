@@ -2,7 +2,7 @@ import * as sqlite from 'sqlite'
 
 import { StorageRecord, StorageStatus } from '../types'
 import { ProduceId } from '../masterfree/makeid'
-import { createUpdateHistoryTable, saveUpdateHistory, UpdateHistoryAction } from './update_history'
+import { createUpdateHistoryTable, saveUpdateHistory } from './update_history'
 
 export type StorageRegistration = {
   name: string
@@ -106,7 +106,6 @@ export class StorageRegistry {
       null,
       'kv_storage',
       storage.name,
-      'register',
       null,
       newRecord
     )
@@ -156,7 +155,6 @@ export class StorageRegistry {
       null,
       'kv_storage',
       name,
-      'status',
       oldRecord,
       newRecord
     )
@@ -212,7 +210,6 @@ export class StorageRegistry {
       null,
       'kv_storage',
       name,
-      'activate',
       record,
       newRecord
     )
@@ -242,7 +239,6 @@ export class StorageRegistry {
       null,
       'kv_storage',
       name,
-      'reset',
       oldRecord,
       newRecord
     )

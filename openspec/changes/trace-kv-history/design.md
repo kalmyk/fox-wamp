@@ -21,7 +21,6 @@ The system currently has an implementation of update history specifically for Ke
 - `old_updated_by_msg_id` (TEXT): The `msg_id` of the *previous* update to this same entity. This creates a linked-list style chain of causality.
 - `entity_type` (TEXT): The persistent entity family (`kv`, `schema`, `kv_storage`).
 - `entity_uri` (TEXT): The canonical URI/path of the entity.
-- `action` (TEXT): The lifecycle action (`create`, `update`, `delete`, etc.).
 - `msg_oldv` (TEXT): JSON-serialized prior state.
 - `msg_newv` (TEXT): JSON-serialized resulting state.
 
@@ -31,7 +30,6 @@ CREATE TABLE update_history_<realmName> (
     old_updated_by_msg_id TEXT,
     entity_type TEXT NOT NULL CHECK(entity_type IN ('kv', 'schema', 'kv_storage')),
     entity_uri TEXT NOT NULL,
-    action TEXT NOT NULL,
     msg_oldv TEXT,
     msg_newv TEXT,
     PRIMARY KEY (entity_uri, msg_id)
