@@ -39,19 +39,18 @@ describe('35.update_history', function () {
     
     const history = await db.all(`SELECT * FROM update_history_${realmName}`)
     expect(history).to.have.lengthOf(1)
-    expect(history[0].entity_type).to.equal('kv')
-    expect(history[0].entity_uri).to.equal('key.1')
+    expect(history[0].topic).to.equal('key.1')
     expect(history[0].old_updated_by_msg_id).to.be.null
     expect(history[0].msg_oldv).to.be.null
     expect(JSON.parse(history[0].msg_newv)).to.deep.equal({ kv: { a: 1 } })
 
-    const kv = await db.get(`SELECT updated_by_msg_id FROM kv_${realmName} WHERE key = 'key.1'`)
+    const kv = await db.get(`SELECT updated_by_msg_id FROM kv_${realmName} WHERE topic = 'key.1'`)
     expect(kv.updated_by_msg_id).to.equal(history[0].msg_id)
   })
 
   it('records history for KV update', async () => {
     await kvFabric.setKeyValue(realmName, 'key.1', 'msg1', { kv: { a: 1 } }, {}, 'sid1', () => {})
-    const kv1 = await db.get(`SELECT updated_by_msg_id FROM kv_${realmName} WHERE key = 'key.1'`)
+    const kv1 = await db.get(`SELECT updated_by_msg_id FROM kv_${realmName} WHERE topic = 'key.1'`)
     
     await kvFabric.setKeyValue(realmName, 'key.1', 'msg2', { kv: { a: 2 } }, {}, 'sid1', () => {})
     
@@ -64,7 +63,7 @@ describe('35.update_history', function () {
 
   it('records history for KV delete', async () => {
     await kvFabric.setKeyValue(realmName, 'key.1', 'msg1', { kv: { a: 1 } }, {}, 'sid1', () => {})
-    const kv1 = await db.get(`SELECT updated_by_msg_id FROM kv_${realmName} WHERE key = 'key.1'`)
+    const kv1 = await db.get(`SELECT updated_by_msg_id FROM kv_${realmName} WHERE topic = 'key.1'`)
     
     await kvFabric.setKeyValue(realmName, 'key.1', 'msg2', { kv: null }, {}, 'sid1', () => {})
     
@@ -77,7 +76,7 @@ describe('35.update_history', function () {
 
   it('records history for session-persistent KV updates with original msg_id', async () => {
     await kvFabric.setKeyValue(realmName, 'key.will', 'msg-orig', { kv: { a: 1 } }, { will: { kv: { a: 'will' } } }, 'sid-client', () => {})
-    const kvOrig = await db.get(`SELECT updated_by_msg_id FROM kv_${realmName} WHERE key = 'key.will'`)
+    const kvOrig = await db.get(`SELECT updated_by_msg_id FROM kv_${realmName} WHERE topic = 'key.will'`)
     
     // Clear history from initial 'create' (the 'val-orig' part)
     await db.run(`DELETE FROM update_history_${realmName}`)
@@ -100,7 +99,7 @@ describe('35.update_history', function () {
     
     const history = await db.all(`SELECT * FROM update_history_${realmName}`)
     expect(history).to.have.lengthOf(1)
-    expect(history[0].entity_uri).to.equal('key.will')
+    expect(history[0].topic).to.equal('key.will')
     expect(history[0].old_updated_by_msg_id).to.equal(kvOrig.updated_by_msg_id)
     expect(JSON.parse(history[0].msg_newv)).to.deep.equal({ kv: { a: 'will' } })
   })

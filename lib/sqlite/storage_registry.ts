@@ -104,7 +104,6 @@ export class StorageRegistry {
       this.realmName,
       this.makeId.generateIdStr(),
       null,
-      'kv_storage',
       storage.name,
       null,
       newRecord
@@ -153,7 +152,6 @@ export class StorageRegistry {
       this.realmName,
       this.makeId.generateIdStr(),
       null,
-      'kv_storage',
       name,
       oldRecord,
       newRecord
@@ -208,7 +206,6 @@ export class StorageRegistry {
       this.realmName,
       this.makeId.generateIdStr(),
       null,
-      'kv_storage',
       name,
       record,
       newRecord
@@ -237,7 +234,6 @@ export class StorageRegistry {
       this.realmName,
       this.makeId.generateIdStr(),
       null,
-      'kv_storage',
       name,
       oldRecord,
       newRecord

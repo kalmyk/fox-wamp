@@ -66,8 +66,7 @@ describe('56.kv_registry', function () {
 
     const history = await db.all(`SELECT * FROM update_history_realm1`)
     expect(history).to.have.lengthOf(1)
-    expect(history[0].entity_type).to.equal('kv_storage')
-    expect(history[0].entity_uri).to.equal('sqlite:realm1:app.topic.#')
+    expect(history[0].topic).to.equal('sqlite:realm1:app.topic.#')
     expect(history[0].old_updated_by_msg_id).to.be.null
     expect(history[0].msg_oldv).to.be.null
     expect(JSON.parse(history[0].msg_newv).status).to.equal(StorageStatus.Inactive)

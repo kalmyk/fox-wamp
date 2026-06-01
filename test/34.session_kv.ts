@@ -78,10 +78,10 @@ describe('34.session-kv-single-db', () => {
       })
 
       const row = await db.get(
-        `SELECT key, value, will_sid, msg_id FROM session_kv_${TEST_REALM_NAME} WHERE key = ?`,
+        `SELECT topic, value, will_sid, msg_id FROM session_kv_${TEST_REALM_NAME} WHERE topic = ?`,
         ['session.debug']
       )
-      expect(row.key).equal('session.debug')
+      expect(row.topic).equal('session.debug')
       expect(JSON.parse(row.value)).deep.equal({ status: 'offline' })
       expect(row.will_sid).equal(client.session().getSid())
       expect(row.msg_id).equal(eventId)
@@ -101,7 +101,7 @@ describe('34.session-kv-single-db', () => {
     await client.session().cleanup()
 
     expect(await getStoredBody(realm, ['session', 'will'])).deep.equal({ status: 'offline' })
-    const row = await db.get(`SELECT key FROM session_kv_${TEST_REALM_NAME} WHERE key = ?`, ['session.will'])
+    const row = await db.get(`SELECT topic FROM session_kv_${TEST_REALM_NAME} WHERE topic = ?`, ['session.will'])
     expect(row).equal(undefined)
   })
 
@@ -181,7 +181,7 @@ describe('34.session-kv-single-db', () => {
       const secondRealm = await makeRealm(secondRouter, secondDb, 'session-kv-second-')
 
       expect(await getStoredBody(secondRealm, ['session', 'restart'])).deep.equal({ status: 'offline-after-restart' })
-      const row = await secondDb.get(`SELECT key FROM session_kv_${TEST_REALM_NAME} WHERE key = ?`, ['session.restart'])
+      const row = await secondDb.get(`SELECT topic FROM session_kv_${TEST_REALM_NAME} WHERE topic = ?`, ['session.restart'])
       expect(row).equal(undefined)
       await secondDb.close()
     } finally {
@@ -192,7 +192,7 @@ describe('34.session-kv-single-db', () => {
   it('drops the legacy set_value table during schema initialization', async () => {
     const legacyDb = await openDb()
     try {
-      await legacyDb.run(`CREATE TABLE set_value_${TEST_REALM_NAME} (key TEXT)`)
+      await legacyDb.run(`CREATE TABLE set_value_${TEST_REALM_NAME} (topic TEXT)`)
       const legacyRouter = new Router()
       await makeRealm(legacyRouter, legacyDb)
 

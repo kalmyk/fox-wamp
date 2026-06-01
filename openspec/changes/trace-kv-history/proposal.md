@@ -7,7 +7,7 @@ Currently, update history is partially implemented for Key-Value (KV) storage, b
 - Formalize the `update_history_${realmName}` table as the single source of truth for tracking changes to persistent entities.
 - Ensure all Key-Value (KV) updates record their prior state, the originating message/event ID, and a stable update ID.
 - Extend history tracking to message schema lifecycle events (registration, activation, deactivation).
-- Standardize the `update_history` record format with explicit entity type, old value, and new value fields.
+- Standardize the `update_history` record format with explicit old value, and new value fields.
 - Provide a consistent API for querying the history of a specific entity or the entire realm.
 
 ## Capabilities
