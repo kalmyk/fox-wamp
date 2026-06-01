@@ -72,7 +72,7 @@ export class MqttSocketWriterContext extends Context {
     session.setLastPublishedId(cmd.qid);
 
     this.mqttSend({
-      topic: restoreMqttUri(cmd.uri),
+      topic: restoreMqttUri(cmd.uri || []),
       payload: toMqttPayload(cmd.data),
       qos: (cmd.opt.trace ? 1 : 0),
       messageId: customId,

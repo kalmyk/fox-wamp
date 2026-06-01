@@ -46,10 +46,6 @@ export class Actor {
     return this.ctx.session.sessionId
   }
 
-  getCustomId(): any {
-    return this.msg.id
-  }
-
   getSessionRealm(): BaseRealm | null {
     return this.ctx.session.realm || null;
   }
@@ -102,8 +98,8 @@ export class ActorCall extends Actor {
     return this.msg.data
   }
 
-  getUri(): string {
-    return this.msg.uri
+  getUri(): string[] {
+    return this.msg.uri || []
   }
 
   isActual(): boolean {
@@ -229,8 +225,8 @@ export class ActorTrace extends Actor {
     this.delayStack = []
   }
 
-  getUri(): string {
-    return this.msg.uri
+  getUri(): string[] {
+    return this.msg.uri || []
   }
 
   atSubscribe(): void {
@@ -323,7 +319,20 @@ export class ActorReg extends ActorTrace {
   }
 }
 
-export class ActorPush extends Actor {
+export interface IActorPush {
+  getUri(): string[]
+  getOpt(): any
+  getSid(): string
+  getData(): any
+  getEventId(): string | null
+  setEventId(eventId: string | null): void
+  getEvent(): HyperCommand<any>
+  confirm(cmd?: any): void
+  rejectCmd(errorCode: string, text?: string): void
+  isActive(): boolean
+}
+
+export class ActorPush extends Actor implements IActorPush {
   clientNotified: boolean
   eventId: string | null
 
@@ -364,7 +373,7 @@ export class ActorPush extends Actor {
   }
 
   getUri(): string[] {
-    return this.msg.uri
+    return this.msg.uri || []
   }
 
   needAck(): boolean {
@@ -550,23 +559,23 @@ export class BaseEngine {
     )
   }
 
-  waitForResolver(uri: string, taskD: ActorCall): void {
-    if (!this.qCall.has(uri)) {
-      this.qCall.set(uri, [])
+  waitForResolver(strUri: string, taskD: ActorCall): void {
+    if (!this.qCall.has(strUri)) {
+      this.qCall.set(strUri, [])
     }
-    this.qCall.get(uri)!.push(taskD)
+    this.qCall.get(strUri)!.push(taskD)
   }
 
-  addSub(uri: string, subD: ActorReg): void {
-    const strUri = restoreUri(uri as any)
+  addSub(uri: string[], subD: ActorReg): void {
+    const strUri = restoreUri(uri)
     if (!this.wSub.hasOwnProperty(strUri)) {
       this.wSub[strUri] = {}
     }
     this.wSub[strUri][subD.subId] = subD
   }
 
-  removeSub(uri: string, id: Id): void {
-    const strUri = restoreUri(uri as any)
+  removeSub(uri: string[], id: Id): void {
+    const strUri = restoreUri(uri)
     if (this.wSub[strUri]) {
       delete this.wSub[strUri][id]
       if (Object.keys(this.wSub[strUri]).length === 0) {
@@ -576,7 +585,7 @@ export class BaseEngine {
   }
 
   checkTasks(subD: ActorReg): boolean {
-    const strUri = restoreUri(subD.getUri() as any)
+    const strUri = restoreUri(subD.getUri())
     if (this.qCall.has(strUri)) {
       let taskD: ActorCall | undefined
       const taskList = this.qCall.get(strUri)!
@@ -602,7 +611,7 @@ export class BaseEngine {
   }
 
   doCall(taskD: ActorCall): null | undefined {
-    const strUri = restoreUri(taskD.getUri() as any)
+    const strUri = restoreUri(taskD.getUri())
     const queue = this.getSubStack(strUri)
     let subExists = false
     for (let index in queue) {
@@ -630,18 +639,18 @@ export class BaseEngine {
     return tools.randomId()
   }
 
-  matchTrace(uri: string): ActorTrace[] {
-    return this.wTrace.match(restoreUri(uri as any))
+  matchTrace(uri: string[]): ActorTrace[] {
+    return this.wTrace.match(restoreUri(uri))
   }
 
   addTrace(subD: ActorTrace): void {
-    this.wTrace.add(restoreUri(subD.getUri() as any), subD)
+    this.wTrace.add(restoreUri(subD.getUri()), subD)
   }
 
-  removeTrace(uri: string, subscription: ActorTrace): void {
+  removeTrace(uri: string[], subscription: ActorTrace): void {
     subscription.closeSubscription()
     this.cancelRetainedEventWaiters(subscription)
-    this.wTrace.remove(restoreUri(uri as any), subscription)
+    this.wTrace.remove(restoreUri(uri), subscription)
   }
 
   isRetainedEventReached(eventId: string): boolean {
@@ -713,7 +722,7 @@ export class BaseEngine {
 
   replayRetainedState(actor: ActorTrace): Promise<any[]> {
     return this.getKey(
-      actor.getUri() as any,
+      actor.getUri(),
       (key: any, data: any, eventId: any) => {
         actor.filterSendEvent({
           qid: eventId,
@@ -742,7 +751,7 @@ export class BaseEngine {
 
       return this.getHistoryAfter(
         after,
-        actor.getUri() as any,
+        actor.getUri(),
         (cmd: HyperCommand<any>) => {
           actor.filterSendEvent({
             data: cmd.data,
@@ -805,14 +814,14 @@ export class BaseEngine {
     }
   }
 
-  saveInboundHistory(actor: ActorPush): void {
+  saveInboundHistory(actor: IActorPush): void {
   }
 
-  saveChangeHistory(actor: ActorPush): void {
+  saveChangeHistory(actor: IActorPush): void {
     this.disperseToSubs(actor.getEvent())
   }
 
-  doPush(actor: ActorPush): void {
+  doPush(actor: IActorPush): void {
     this.saveInboundHistory(actor)
     this.disperseToSubs(actor.getEvent())
     if (actor.getOpt().retain) {
@@ -823,11 +832,11 @@ export class BaseEngine {
         }
       })
     } else {
-      actor.confirm(actor.msg)
+      actor.confirm((actor as any).msg)
     }
   }
 
-  updateKvFromActor(actor: ActorPush): Promise<any> {
+  updateKvFromActor(actor: IActorPush): Promise<any> {
     const uri = actor.getUri()
     for (let i = this._kvList.length - 1; i >= 0; i--) {
       const curKv = this._kvList[i]
@@ -835,7 +844,7 @@ export class BaseEngine {
         return curKv.kv.setKeyActor(actor)
       }
     }
-    throw new RealmError(actor.msg.id,
+    throw new RealmError((actor as any).msg?.id || actor.getEventId(),
       'no_storage_defined',
       'no_storage_defined'
     )
@@ -916,7 +925,7 @@ export class BaseRealm extends EventEmitter {
     }
     cmd.qid = actor.subId
 
-    this.engine.addSub(cmd.uri, actor)
+    this.engine.addSub(cmd.uri || [], actor)
     session.addSub(actor.subId, actor)
     this.emit(ON_REGISTERED, actor)
 
@@ -931,7 +940,7 @@ export class BaseRealm extends EventEmitter {
     return actor.subId
   }
 
-  cmdUnRegRpc(ctx: Context, cmd: HyperCommand<any>): string {
+  cmdUnRegRpc(ctx: Context, cmd: HyperCommand<any>): string[] {
     const session = ctx.getSession()
     const registration = session.removeSub(this.engine, cmd.unr)
     if (registration) {
@@ -952,7 +961,7 @@ export class BaseRealm extends EventEmitter {
 
   cmdCallRpc(ctx: Context, cmd: HyperCommand<any>): Id {
     if (this._dict) {
-      this._dict.validateStruct(cmd.uri, cmd.data)
+      this._dict.validateStruct(cmd.uri || [], cmd.data)
     }
     const actor = this.engine.createActorCall(ctx, cmd)
     actor.taskId = this.engine.mkDeferId()
@@ -1013,7 +1022,7 @@ export class BaseRealm extends EventEmitter {
     return cmd.qid
   }
 
-  terminateTrace(ctx: Context, id: Id): string | false {
+  terminateTrace(ctx: Context, id: Id): string[] | false {
     const session = ctx.getSession()
     const subscription = session.removeTrace(this.engine, id as string)
     if (subscription) {
@@ -1029,7 +1038,7 @@ export class BaseRealm extends EventEmitter {
     return false
   }
 
-  cmdUnTrace(ctx: Context, cmd: HyperCommand<any>): string {
+  cmdUnTrace(ctx: Context, cmd: HyperCommand<any>): string[] {
     const session = ctx.getSession()
     const subscription = session.removeTrace(this.engine, cmd.unr)
     if (subscription) {
@@ -1050,7 +1059,7 @@ export class BaseRealm extends EventEmitter {
 
   cmdPush(ctx: Context, cmd: HyperCommand<any>): void {
     if (this._dict) {
-      this._dict.validateStruct(cmd.uri, cmd.data)
+      this._dict.validateStruct(cmd.uri || [], cmd.data)
     }
     const actor = this.engine.createActorPush(ctx, cmd)
     this.engine.doPush(actor)
@@ -1129,11 +1138,11 @@ export class BaseRealm extends EventEmitter {
 
   runInboundEvent(sessionId: string, uri: string[], bodyValue: any): void {
     const actor = new ActorPushKv(
-      uri as any,
+      uri,
       { kv: bodyValue },
       { sid: sessionId, retain: true, trace: true }
     )
-    return this.engine.doPush(actor as any)
+    return this.engine.doPush(actor)
   }
 
   registerKeyValueEngine(uriPattern: string[], kv: KeyValueStorageAbstract): void {
@@ -1144,13 +1153,13 @@ export class BaseRealm extends EventEmitter {
   }
 }
 
-export class ActorPushKv {
-  uri: string
+export class ActorPushKv implements IActorPush {
+  uri: string[]
   data: any
   opt: any
   eventId: string | null
 
-  constructor(uri: string, data: any, opt: any) {
+  constructor(uri: string[], data: any, opt: any) {
     this.uri = uri
     this.data = data
     this.opt = opt
@@ -1161,7 +1170,7 @@ export class ActorPushKv {
     return Object.assign({}, this.opt)
   }
 
-  getUri(): string {
+  getUri(): string[] {
     return this.uri
   }
 
@@ -1181,7 +1190,7 @@ export class ActorPushKv {
     return this.eventId
   }
 
-  getEvent(): any {
+  getEvent(): HyperCommand<any> {
     return {
       qid: this.eventId,
       uri: this.getUri(),
@@ -1192,11 +1201,19 @@ export class ActorPushKv {
   }
 
   confirm(): void {}
+
+  rejectCmd(errorCode: string, text?: string): void {
+    console.error('ActorPushKv rejected:', errorCode, text)
+  }
+
+  isActive(): boolean {
+    return true
+  }
 }
 
 export abstract class KeyValueStorageAbstract {
   uriPattern: string[]
-  saveChangeHistory!: (actor: ActorPush) => void
+  saveChangeHistory!: (actor: IActorPush) => void
   runInboundEvent!: (sessionId: string, uri: string[], bodyValue: any) => void
 
   constructor() {
@@ -1207,7 +1224,7 @@ export abstract class KeyValueStorageAbstract {
     this.uriPattern = uriPattern
   }
 
-  setSaveChangeHistory(saveChangeHistory: (actor: ActorPush) => void): void {
+  setSaveChangeHistory(saveChangeHistory: (actor: IActorPush) => void): void {
     this.saveChangeHistory = saveChangeHistory
   }
 
@@ -1219,11 +1236,11 @@ export abstract class KeyValueStorageAbstract {
     return this.uriPattern
   }
 
-  getStrUri(actor: Actor): string {
-    return restoreUri(extract((actor as any).getUri() as any, this.getUriPattern()) as any)
+  getStrUri(actor: IActorPush): string {
+    return restoreUri(extract(actor.getUri(), this.getUriPattern()))
   }
 
-  abstract setKeyActor(actor: ActorPush): Promise<any>
+  abstract setKeyActor(actor: IActorPush): Promise<any>
   abstract getKey(uri: string[], cbRow: (aKey: string[], data: any, eventId: any) => void): Promise<void>
   abstract eraseSessionData(sessionId: string): Promise<void>
 }
@@ -1239,8 +1256,8 @@ export class TableDictionary {
     return this._tables.get(tableName)
   }
 
-  validateStruct(uri: string, data: any): void {
-    const tableName = restoreUri(uri as any)
+  validateStruct(uri: string[], data: any): void {
+    const tableName = restoreUri(uri)
     if (this._tables.has(tableName)) {
       this.getTableDef(tableName).validateStruct(getBodyValue(data))
     }

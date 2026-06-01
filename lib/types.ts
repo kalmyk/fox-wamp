@@ -15,12 +15,12 @@ TODO
 export type Id = string | number
 
 export interface HyperCommand<CommandId = Id> {
-  id?: CommandId
-  qid?: any
+  id?: CommandId   // incoming id - id of answer
+  qid?: any        // internal id created by engine
   traceId?: any
   subId?: any
   unr?: any
-  uri?: any
+  uri?: string[]
   hdr?: any
   data?: any
   opt?: any

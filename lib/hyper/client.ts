@@ -26,7 +26,7 @@ function localEvent(action: any, cmd: HyperCommand<any>): void {
   const eventOpt = {
     publisher: cmd.sid,
     publication: cmd.qid,
-    topic: restoreUri(cmd.uri),
+    topic: restoreUri(cmd.uri || []),
     // retained: false,
     headers: cmd.hdr
   };
@@ -40,7 +40,7 @@ function localEmit(action: any, cmd: HyperCommand<any>): void {
 function localInvoke(ctx: Context, realm: any, action: any, cmd: HyperCommand<any>): void {
   const callOpt = Object.assign(
     {
-      procedure: restoreUri(cmd.uri),
+      procedure: restoreUri(cmd.uri || []),
       progress: (progressBody: any, opt: any) => {
         realm.cmdYield(ctx, {
           qid: cmd.qid,

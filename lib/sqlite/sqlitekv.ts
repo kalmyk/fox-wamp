@@ -1,9 +1,8 @@
 import * as sqlite from 'sqlite'
 import { match, restoreUri, defaultParse } from '../topic_pattern'
-import { KeyValueStorageAbstract, isDataEmpty, deepDataMerge, unSerializeData, makeDataSerializable, isDataFit } from '../realm'
+import { KeyValueStorageAbstract, isDataEmpty, deepDataMerge, unSerializeData, makeDataSerializable, isDataFit, IActorPush } from '../realm'
 import { KPQueue } from '../masterfree/kpqueue'
 import { DbFactory } from './dbfactory'
-import { ActorPush } from '../realm'
 import { ProduceId } from '../masterfree/makeid'
 import { errorCodes } from '../realm_error'
 import { createUpdateHistoryTable, saveUpdateHistory, UpdateHistoryAction } from './update_history'
@@ -44,7 +43,7 @@ export class SqliteKvFabric {
   private pkq: KPQueue = new KPQueue()
   private makeId: ProduceId
   private dbFactory: DbFactory
-  private resWhen: Map<string, ActorPush[]> = new Map()
+  private resWhen: Map<string, IActorPush[]> = new Map()
 
   constructor (dbFactory: DbFactory, makeId: ProduceId) {
     this.dbFactory = dbFactory
@@ -83,7 +82,7 @@ export class SqliteKvFabric {
     }
   }
 
-  private parkActor(realmName: string, suri: string, actor: ActorPush): void {
+  private parkActor(realmName: string, suri: string, actor: IActorPush): void {
     const waitKey = this.getWaitKey(realmName, suri)
     if (!this.resWhen.has(waitKey)) {
       this.resWhen.set(waitKey, [])
@@ -91,7 +90,7 @@ export class SqliteKvFabric {
     this.resWhen.get(waitKey)!.push(actor)
   }
 
-  private async findNextWhenActor(realmName: string, suri: string, curData: any): Promise<ActorPush | false> {
+  private async findNextWhenActor(realmName: string, suri: string, curData: any): Promise<IActorPush | false> {
     const waitKey = this.getWaitKey(realmName, suri)
     const actors = this.resWhen.get(waitKey)
     if (!actors) {
@@ -172,7 +171,7 @@ export class SqliteKvFabric {
     data: any,
     opt: any,
     sid: string,
-    actor?: ActorPush
+    actor?: IActorPush
   ): Promise<void> {
     const { value: oldData, updatedByMsgId: oldUpdatedByMsgId } = await this.getStoredValue(db, realmName, suri)
     if ('when' in opt && !isDataFit(opt.when, oldData)) {
@@ -222,7 +221,7 @@ export class SqliteKvFabric {
       action === 'delete' ? null : makeDataSerializable(newData)
     )
     if (actor) {
-      actor.confirm(actor.msg)
+      actor.confirm((actor as any).msg)
     }
 
     let nextActor = await this.findNextWhenActor(realmName, suri, newData)
@@ -244,7 +243,7 @@ export class SqliteKvFabric {
   }
 
   // @return promise
-  setKeyValue (realmName: string, suri: string, origin: string, data: any, opt: any, sid: string, pubOutEvent: (kind: string, outEvent: any) => void, actor?: ActorPush) {
+  setKeyValue (realmName: string, suri: string, origin: string, data: any, opt: any, sid: string, pubOutEvent: (kind: string, outEvent: any) => void, actor?: IActorPush) {
     return this.pkq.enQueue(this.getWaitKey(realmName, suri), async () => {
       const db = await this.getDb(realmName)
       try {
@@ -310,7 +309,7 @@ export class SqliteKv extends KeyValueStorageAbstract {
   }
 
   // @result promise
-  setKeyActor (actor: ActorPush) {
+  setKeyActor (actor: IActorPush) {
     const suri = this.getStrUri(actor)
     const eventId = actor.getEventId()
     if (!eventId) {
