@@ -7,16 +7,16 @@
 
 ## 2. Schema Body and Validation
 
-- [ ] 2.1 Implement validation for the README-style schema body shape with `properties` and `primary_key`.
+- [x] 2.1 Implement validation for the README-style schema body shape with `properties` and `primary_key`.
 - [ ] 2.2 Persist optional aggregate/projection hints such as `sum` and `propagate` without requiring full aggregate behavior.
-- [ ] 2.3 Validate incoming publish payloads against the schema selected by URL pattern.
+- [x] 2.3 Validate incoming publish payloads against the schema selected by URL pattern.
 - [ ] 2.4 Validate decoded committed retained values against the KV projection's linked schema before projected storage writes.
 
 ## 3. Generated SQLite Tables
 
 - [x] 3.1 Add a stable generated table naming helper that includes a schema hash and `${realmName}` suffix.
 - [x] 3.2 Generate `CREATE TABLE IF NOT EXISTS` SQL from schema `properties` and `primary_key`.
-- [ ] 3.3 Store the generated table name in the schema repository row.
+- [x] 3.3 Store the generated table name in the schema repository row.
 - [ ] 3.4 Add cleanup logic to remove obsolete generated data tables only after the old projection is deactivated.
 
 ## 4. KV Registry Integration
@@ -38,8 +38,8 @@
 - [x] 6.1 Test schema repository table creation per realm.
 - [x] 6.2 Test registering README-style schema stores an immutable schema row and generated table name.
 - [x] 6.3 Test generated table name includes the realm suffix and a stable hash component.
-- [ ] 6.4 Test invalid payloads for schema-mapped URLs are rejected.
-- [ ] 6.5 Test unmapped URLs still accept free-form JSON.
+- [x] 6.4 Test invalid payloads for schema-mapped URLs are rejected.
+- [x] 6.5 Test unmapped URLs still accept free-form JSON.
 - [ ] 6.6 Test retained projection writes validate against linked `schema_id`.
 - [ ] 6.7 Test KV registry rows require `schema_id` and no longer use `storage_type`.
 - [ ] 6.8 Test schema replacement creates a new data table and leaves the old table untouched until cleanup.

@@ -3,11 +3,27 @@ import * as History from './history'
 import { createKvTables, SqliteKvFabric } from './sqlitekv'
 import { createStorageRegistryTables } from './storage_registry'
 import { ProduceId } from '../masterfree/makeid'
+import { 
+  SchemaRepository, 
+  createSchemaTables, 
+  validatePayload 
+} from './schema_repository'
+import { restoreUri } from '../topic_pattern'
+
+function getPayload(data: any): any {
+  if (data && typeof data === 'object' && 'args' in data && Array.isArray(data.args)) {
+    if (data.args.length === 1) return data.args[0]
+    if (data.args.length === 0) return null
+    return data.args
+  }
+  return data
+}
 
 export class DbEngine extends BaseEngine {
   private idMill: ProduceId
   private modKv: SqliteKvFabric
   private pushQueue: Promise<void> = Promise.resolve()
+  private schemaRepo?: SchemaRepository
 
   constructor (idMill: ProduceId, modKv: SqliteKvFabric) {
     super()
@@ -22,6 +38,11 @@ export class DbEngine extends BaseEngine {
     await History.createHistoryTables(db, realmName)
     await createKvTables(db, realmName)
     await createStorageRegistryTables(db, realmName)
+    await createSchemaTables(db, realmName)
+
+    this.schemaRepo = new SchemaRepository(db, realmName, this.idMill)
+    await this.schemaRepo.loadCache()
+
     await this.modKv.processStaleRecords(
       realmName,
       (sessionId: string, uri: string[], bodyValue: any) => {
@@ -37,7 +58,35 @@ export class DbEngine extends BaseEngine {
 
   // @return promise
   public override doPush (actor: ActorPush): Promise<void> {
-    const runPush = () => this.saveHistory(actor).then(() => {
+    const runPush = () => {
+      if (this.schemaRepo) {
+        const url = restoreUri(actor.getUri())
+        const schema = this.schemaRepo.findByUrl(url)
+        if (schema) {
+          try {
+            const payload = getPayload(actor.getData())
+            validatePayload(JSON.parse(schema.schemaJson), payload)
+          } catch (e) {
+            actor.rejectCmd('wamp.error.invalid_argument', (e as Error).message)
+            return Promise.resolve()
+          }
+        }
+      }
+
+      return this.doPushFinal(actor).catch(e => {
+        if (!actor.clientNotified) {
+          actor.rejectCmd('wamp.error.internal_error', (e as Error).message)
+        }
+      })
+    }
+
+    const result = this.pushQueue.then(runPush, runPush)
+    this.pushQueue = result.catch(() => {})
+    return result
+  }
+
+  private doPushFinal (actor: ActorPush): Promise<void> {
+    return this.saveHistory(actor).then(() => {
       this.disperseToSubs(actor.getEvent())
       if (actor.getOpt().retain) {
         return this.updateKvFromActor(actor).then(() => {
@@ -51,10 +100,6 @@ export class DbEngine extends BaseEngine {
         return Promise.resolve()
       }
     })
-
-    const result = this.pushQueue.then(runPush, runPush)
-    this.pushQueue = result.catch(() => {})
-    return result
   }
 
   public override async cleanupSession(sessionId: string): Promise<any[]> {

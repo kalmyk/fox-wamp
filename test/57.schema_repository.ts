@@ -6,7 +6,13 @@ chai.use(promised)
 import sqlite3 from 'sqlite3'
 import * as sqlite from 'sqlite'
 
-import { SchemaRepository, createSchemaTables, generateCreateTableSql } from '../lib/sqlite/schema_repository'
+import { 
+  SchemaRepository, 
+  createSchemaTables, 
+  generateCreateTableSql,
+  validateSchema,
+  validatePayload 
+} from '../lib/sqlite/schema_repository'
 import { ProduceId } from '../lib/masterfree/makeid'
 import { SchemaStatus } from '../lib/types'
 
@@ -27,6 +33,37 @@ describe('57.schema_repository', function () {
     
     await createSchemaTables(db, realmName)
     repo = new SchemaRepository(db, realmName, makeId)
+  })
+
+  it('validates schema structure', () => {
+    expect(() => validateSchema({})).to.throw('Schema must have a "properties" object')
+    expect(() => validateSchema({ properties: {} })).to.throw('Schema must have a non-empty "primary_key" array')
+    expect(() => validateSchema({ properties: { a: 'string' }, primary_key: ['b'] }))
+      .to.throw('Primary key "b" must be defined in properties')
+    
+    expect(() => validateSchema({ properties: { a: 'string' }, primary_key: ['a'] })).to.not.throw()
+  })
+
+  it('validates payloads against schema', () => {
+    const schema = {
+      properties: {
+        id: 'string',
+        val: 'number'
+      },
+      primary_key: ['id']
+    }
+    
+    expect(() => validatePayload(schema, { id: 'foo', val: 123 })).to.not.throw()
+    expect(() => validatePayload(schema, { val: 123 })).to.throw('Primary key field "id" is missing or null')
+    expect(() => validatePayload(schema, { id: 123, val: 123 })).to.throw('Field "id" expected type "string", got "number"')
+    expect(() => validatePayload(schema, { id: 'foo', val: 'bar' })).to.throw('Field "val" expected type "number", got "string"')
+    
+    // Optional fields
+    const schema2 = {
+      properties: { id: 'string', opt: 'number' },
+      primary_key: ['id']
+    }
+    expect(() => validatePayload(schema2, { id: 'foo' })).to.not.throw()
   })
 
   it('registers a schema and records history', async () => {
@@ -56,17 +93,19 @@ describe('57.schema_repository', function () {
   })
 
   it('finds schema by matching URL pattern', async () => {
-    const schema = { properties: { a: 'string' }, primary_key: ['a'] }
-    await repo.register('schema1', 'app.topic.*', schema)
-    await repo.register('schema2', 'other.topic.#', schema)
-    
-    const found1 = await repo.findByUrl('app.topic.foo')
+    const schema1 = { properties: { a: 'string' }, primary_key: ['a'] }
+    const schema2 = { properties: { b: 'number' }, primary_key: ['b'] }
+    await repo.register('schema1', 'app.topic.*', schema1)
+    await repo.register('schema2', 'other.topic.#', schema2)
+    await repo.loadCache()
+
+    const found1 = repo.findByUrl('app.topic.foo')
     expect(found1?.label).to.equal('schema1')
     
-    const found2 = await repo.findByUrl('other.topic.bar.baz')
+    const found2 = repo.findByUrl('other.topic.bar.baz')
     expect(found2?.label).to.equal('schema2')
     
-    const notFound = await repo.findByUrl('app.other.topic')
+    const notFound = repo.findByUrl('app.other.topic')
     expect(notFound).to.be.null
   })
 

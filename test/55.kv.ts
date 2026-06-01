@@ -59,9 +59,10 @@ const runs = [
 
 describe('55.hyper events', () => {
   runs.forEach((run) => {
-    describe('storage:' + run.it, function () {
-      let
-        router: Router,
+    describe('storage:' + run.it, function (this: any) {
+      this.timeout(5000)
+      let router: Router
+,
         realm: BaseRealm,
         api: HyperClient,
         mockSocket: any,

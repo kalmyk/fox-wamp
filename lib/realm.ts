@@ -350,6 +350,13 @@ export class ActorPush extends Actor implements IActorPush {
     return this.eventId
   }
 
+  rejectCmd(errorCode: string, text?: string): void {
+    if (!this.clientNotified) {
+      this.clientNotified = true
+      super.rejectCmd(errorCode, text)
+    }
+  }
+
   confirm(cmd: HyperCommand<any>): void {
     if (!this.clientNotified) {
       this.clientNotified = true

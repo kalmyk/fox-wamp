@@ -40,10 +40,55 @@ export function generateCreateTableSql(tableName: string, schemaJson: any): stri
   );`
 }
 
+export function validateSchema(schemaJson: any) {
+  if (!schemaJson || typeof schemaJson !== 'object') {
+    throw new Error('Schema must be an object')
+  }
+  if (!schemaJson.properties || typeof schemaJson.properties !== 'object') {
+    throw new Error('Schema must have a "properties" object')
+  }
+  if (!Array.isArray(schemaJson.primary_key) || schemaJson.primary_key.length === 0) {
+    throw new Error('Schema must have a non-empty "primary_key" array')
+  }
+  for (const key of schemaJson.primary_key) {
+    if (!schemaJson.properties[key]) {
+      throw new Error(`Primary key "${key}" must be defined in properties`)
+    }
+  }
+}
+
+export function validatePayload(schemaJson: any, payload: any) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Payload must be an object')
+  }
+  const props = schemaJson.properties
+  for (const key of Object.keys(props)) {
+    const expectedType = props[key]
+    const val = payload[key]
+    if (val === undefined || val === null) {
+      if (schemaJson.primary_key.includes(key)) {
+        throw new Error(`Primary key field "${key}" is missing or null`)
+      }
+      continue
+    }
+    const actualType = typeof val
+    if (expectedType === 'number') {
+      if (actualType !== 'number') {
+        throw new Error(`Field "${key}" expected type "number", got "${actualType}"`)
+      }
+    } else if (expectedType === 'string') {
+      if (actualType !== 'string') {
+        throw new Error(`Field "${key}" expected type "string", got "${actualType}"`)
+      }
+    }
+  }
+}
+
 export class SchemaRepository {
   private db: sqlite.Database
   private realmName: string
   private makeId: ProduceId
+  private cache: SchemaRecord[] | null = null
 
   constructor(db: sqlite.Database, realmName: string, makeId: ProduceId) {
     this.db = db
@@ -52,6 +97,7 @@ export class SchemaRepository {
   }
 
   async register(label: string, urlPattern: string, schemaJson: any): Promise<SchemaRecord> {
+    validateSchema(schemaJson)
     const schemaStr = JSON.stringify(schemaJson)
     const schemaId = this.makeId.generateIdStr()
     const dataTable = generateDataTableName(this.realmName, schemaStr)
@@ -92,6 +138,8 @@ export class SchemaRepository {
       record
     )
 
+    this.cache = null // Invalidate cache
+
     return record
   }
 
@@ -112,24 +160,36 @@ export class SchemaRepository {
     }
   }
 
-  async findByUrl(url: string): Promise<SchemaRecord | null> {
-    const rows = await this.db.all(`SELECT * FROM message_schemas_${this.realmName}`)
+  isCacheLoaded(): boolean {
+    return this.cache !== null
+  }
+
+  findByUrl(url: string): SchemaRecord | null {
+    if (this.cache === null) {
+      throw new Error('Schema cache is not ready. Call loadCache() first.')
+    }
+    if (this.cache.length === 0) return null
+
     const targetTopic = defaultParse(url)
-    
-    for (const row of rows) {
-      const pattern = defaultParse(row.url_pattern)
+    for (const record of this.cache) {
+      const pattern = defaultParse(record.urlPattern)
       if (match(targetTopic, pattern)) {
-        return {
-          schemaId: row.schema_id,
-          label: row.label,
-          urlPattern: row.url_pattern,
-          dataTable: row.data_table,
-          schemaJson: row.schema_json,
-          status: row.status as SchemaStatus,
-          createdAt: row.created_at
-        }
+        return record
       }
     }
     return null
+  }
+
+  async loadCache(): Promise<void> {
+    const rows = await this.db.all(`SELECT * FROM message_schemas_${this.realmName}`)
+    this.cache = rows.map(row => ({
+      schemaId: row.schema_id,
+      label: row.label,
+      urlPattern: row.url_pattern,
+      dataTable: row.data_table,
+      schemaJson: row.schema_json,
+      status: row.status as SchemaStatus,
+      createdAt: row.created_at
+    }))
   }
 }
