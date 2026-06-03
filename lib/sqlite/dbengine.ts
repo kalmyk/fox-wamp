@@ -9,15 +9,7 @@ import {
   validatePayload 
 } from './schema_repository'
 import { restoreUri } from '../topic_pattern'
-
-function getPayload(data: any): any {
-  if (data && typeof data === 'object' && 'args' in data && Array.isArray(data.args)) {
-    if (data.args.length === 1) return data.args[0]
-    if (data.args.length === 0) return null
-    return data.args
-  }
-  return data
-}
+import { getBodyValue } from '../tools'
 
 export class DbEngine extends BaseEngine {
   private idMill: ProduceId
@@ -64,7 +56,7 @@ export class DbEngine extends BaseEngine {
         const schema = this.schemaRepo.findByUrl(url)
         if (schema) {
           try {
-            const payload = getPayload(actor.getData())
+            const payload = getBodyValue(actor.getData())
             validatePayload(JSON.parse(schema.schemaJson), payload)
           } catch (e) {
             actor.rejectCmd('wamp.error.invalid_argument', (e as Error).message)
