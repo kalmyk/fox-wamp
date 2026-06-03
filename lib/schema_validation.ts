@@ -9,6 +9,17 @@ export function getPayload(data: any): any {
   return getBodyValue(data)
 }
 
+export function sortKeys(obj: any): any {
+  if (obj === null || typeof obj !== 'object') return obj
+  if (Array.isArray(obj)) return obj.map(sortKeys)
+  const sortedKeys = Object.keys(obj).sort()
+  const res: any = {}
+  for (const key of sortedKeys) {
+    res[key] = sortKeys(obj[key])
+  }
+  return res
+}
+
 export function validateSchema(schemaJson: any) {
   if (!schemaJson || typeof schemaJson !== 'object') {
     throw new Error('Schema must be an object')

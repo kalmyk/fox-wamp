@@ -140,7 +140,6 @@ export class NetEngineMill extends EventEmitter {
   }
 
   event_init_entry_accepted(data: BODY_INIT_ENTRY_ACCEPTED, opt: any) {
-    console.log('rx:INIT_ENTRY_ACCEPTED', data)
     this.initReceived.set(data.syncNodeId, data.lastSeenAdvanceId)
     if (!this.initReceivedDone && this.initReceived.size >= this.configQuorum) {
       this.initReceivedDone = true

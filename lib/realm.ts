@@ -5,7 +5,7 @@ import { EventEmitter } from 'events'
 import { SESSION_JOIN, SESSION_LEAVE, RESULT_EMIT, ON_SUBSCRIBED, ON_UNSUBSCRIBED,
   ON_REGISTERED, ON_UNREGISTERED } from './messages'
 
-import { match, intersect, merge, extract, restoreUri } from './topic_pattern'
+import { match, intersect, merge, extract, restoreUri, defaultParse } from './topic_pattern'
 import { getBodyValue } from './base_gate'
 import { errorCodes, RealmError } from './realm_error'
 import { HyperApiContext, HyperClient } from './hyper/client'
@@ -14,11 +14,41 @@ import * as tools from './tools'
 import { Context } from './context'
 import { Router } from './router'
 import { Session } from './session'
-import { HyperCommand, Id, SchemaRecord } from './types'
-import { getPayload, validatePayload } from './schema_validation'
+import { HyperCommand, Id, SchemaRecord, SchemaStatus } from './types'
+import { getPayload, validatePayload, validateSchema, sortKeys } from './schema_validation'
 
 export interface SchemaRepositoryLike {
   findByUrl(url: string): SchemaRecord | null;
+}
+
+export class StaticSchemaRepository implements SchemaRepositoryLike {
+  private schemas: Map<string, SchemaRecord> = new Map()
+
+  register(label: string, urlPattern: string, schemaJson: any): SchemaRecord {
+    validateSchema(schemaJson)
+    const sortedSchema = sortKeys(schemaJson)
+    const schemaStr = JSON.stringify(sortedSchema)
+    const record: SchemaRecord = {
+      schemaId: `static:${label}`,
+      label,
+      urlPattern,
+      dataTable: '', // In-memory schemas don't have a data table by default
+      schemaJson: schemaStr,
+      status: SchemaStatus.Active,
+      createdAt: Date.now()
+    }
+    this.schemas.set(urlPattern, record)
+    return record
+  }
+
+  findByUrl(url: string): SchemaRecord | null {
+    for (const [pattern, record] of this.schemas) {
+      if (match(defaultParse(url), defaultParse(pattern))) {
+        return record
+      }
+    }
+    return null
+  }
 }
 
 export class SchemaChecker {
@@ -929,6 +959,7 @@ export class BaseRealm extends EventEmitter {
   _dict!: TableDictionary
   engine: BaseEngine
   schemaChecker: SchemaChecker
+  _staticRepo: StaticSchemaRepository
 
   constructor(router: Router, engine: BaseEngine) {
     super()
@@ -936,6 +967,8 @@ export class BaseRealm extends EventEmitter {
     this._router = router
     this.engine = engine
     this.schemaChecker = new SchemaChecker()
+    this._staticRepo = new StaticSchemaRepository()
+    this.schemaChecker.addRepository(this._staticRepo)
   }
 
   getRouter(): Router {
@@ -952,6 +985,10 @@ export class BaseRealm extends EventEmitter {
 
   registerSchemaRepository(repo: SchemaRepositoryLike) {
     this.schemaChecker.addRepository(repo)
+  }
+
+  registerSchema(label: string, urlPattern: string, schemaJson: any): SchemaRecord {
+    return this._staticRepo.register(label, urlPattern, schemaJson)
   }
 
   cmdEcho(ctx: Context, cmd: HyperCommand<any>): void {

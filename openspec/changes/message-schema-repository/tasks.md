@@ -23,8 +23,8 @@
 
 - [x] 4.1 Update `kv-storage-module-registration` artifacts to replace `storage_type` with required `schema_id`.
 - [x] 4.2 Update `StorageRecord` and `StorageRegistry` code to persist `schema_id` instead of `storage_type`.
-- [ ] 4.3 Ensure every `kv_storage_${realmName}` row links to exactly one schema.
-- [ ] 4.4 Ensure the KV registry `uri_pattern` is compatible with the linked schema `url_pattern`.
+- [x] 4.3 Ensure every `kv_storage_${realmName}` row links to exactly one schema.
+- [x] 4.4 Ensure the KV registry `uri_pattern` is compatible with the linked schema `url_pattern`.
 
 ## 5. Schema Replacement Flow
 

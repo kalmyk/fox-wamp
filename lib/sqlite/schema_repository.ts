@@ -4,7 +4,7 @@ import { SchemaRecord, SchemaStatus } from '../types'
 import { ProduceId } from '../masterfree/makeid'
 import { createUpdateHistoryTable, saveUpdateHistory } from './update_history'
 import { match, defaultParse } from '../topic_pattern'
-import { validateSchema, validatePayload } from '../schema_validation'
+import { validateSchema, validatePayload, sortKeys } from '../schema_validation'
 
 export async function createSchemaTables(db: sqlite.Database, realmName: string) {
   await createUpdateHistoryTable(db, realmName)
@@ -17,20 +17,18 @@ export async function createSchemaTables(db: sqlite.Database, realmName: string)
       schema_json TEXT NOT NULL,
       status TEXT NOT NULL,
       created_at INTEGER NOT NULL,
-      UNIQUE(url_pattern),
-      UNIQUE(data_table),
       CHECK (status IN ('active', 'deprecated'))
     );`
   )
 }
 
-export function generateDataTableName(realmName: string, schemaJson: string): string {
-  const hash = crypto.createHash('sha256').update(schemaJson).digest('hex').substring(0, 12)
+export function generateDataTableName(realmName: string, urlPattern: string, schemaJson: string): string {
+  const hash = crypto.createHash('sha256').update(urlPattern + schemaJson).digest('hex').substring(0, 12)
   return `data_${realmName}_${hash}`
 }
 
-export function generateSchemaId(realmName: string, schemaJson: string): string {
-  const hash = crypto.createHash('sha256').update(schemaJson).digest('hex').substring(0, 16)
+export function generateSchemaId(realmName: string, urlPattern: string, schemaJson: string): string {
+  const hash = crypto.createHash('sha256').update(urlPattern + schemaJson).digest('hex').substring(0, 16)
   return `sch_${realmName}_${hash}`
 }
 
@@ -39,17 +37,24 @@ export function generateCreateTableSql(tableName: string, schemaJson: any): stri
   const pk = schemaJson.primary_key
 
   const columns = Object.keys(props).map(name => {
+    // Basic identifier validation and escaping
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+      throw new Error(`Invalid property name: ${name}`);
+    }
     let prop = props[name]
     if (typeof prop === 'string') {
       prop = { type: prop }
     }
     const type = prop.type === 'number' ? 'REAL' : 'TEXT'
-    return `${name} ${type}${pk.includes(name) ? ' NOT NULL' : ''}`
+    return `"${name}" ${type}${pk.includes(name) ? ' NOT NULL' : ''}`
   })
 
-  return `CREATE TABLE IF NOT EXISTS ${tableName} (
+  // Escape PK columns as well
+  const escapedPk = pk.map((name: string) => `"${name}"`)
+
+  return `CREATE TABLE IF NOT EXISTS "${tableName}" (
     ${columns.join(',\n    ')},
-    PRIMARY KEY (${pk.join(', ')})
+    PRIMARY KEY (${escapedPk.join(', ')})
   );`
 }
 
@@ -67,11 +72,31 @@ export class SchemaRepository {
 
   async register(label: string, urlPattern: string, schemaJson: any): Promise<SchemaRecord> {
     validateSchema(schemaJson)
-    const schemaStr = JSON.stringify(schemaJson)
-    const schemaId = generateSchemaId(this.realmName, schemaStr)
-    const dataTable = generateDataTableName(this.realmName, schemaStr)
+    const sortedSchema = sortKeys(schemaJson)
+    const schemaStr = JSON.stringify(sortedSchema)
+    const schemaId = generateSchemaId(this.realmName, urlPattern, schemaStr)
+    const dataTable = generateDataTableName(this.realmName, urlPattern, schemaStr)
+
+    // Check for existing schema by stable ID
+    const existing = await this.db.get(
+      `SELECT * FROM message_schemas_${this.realmName} WHERE schema_id = ?`,
+      [schemaId]
+    )
+
+    if (existing) {
+      // Schema record with this ID already exists, just return it
+      return {
+        schemaId: existing.schema_id,
+        label: existing.label,
+        urlPattern: existing.url_pattern,
+        dataTable: existing.data_table,
+        schemaJson: existing.schema_json,
+        status: existing.status as SchemaStatus,
+        createdAt: existing.created_at
+      }
+    }
+
     const createdAt = Date.now()
-    
     const record: SchemaRecord = {
       schemaId,
       label,
@@ -82,42 +107,44 @@ export class SchemaRepository {
       createdAt
     }
 
-    // Auto-provision data table
-    const createTableSql = generateCreateTableSql(dataTable, schemaJson)
-    await this.db.run(createTableSql)
+    // Provision data table within a transaction
+    const createTableSql = generateCreateTableSql(dataTable, sortedSchema)
+    
+    await this.db.run('BEGIN TRANSACTION')
+    try {
+      await this.db.run(createTableSql)
+      await this.db.run(
+        `INSERT INTO message_schemas_${this.realmName} (
+          schema_id, label, url_pattern, data_table, schema_json, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          record.schemaId,
+          record.label,
+          record.urlPattern,
+          record.dataTable,
+          record.schemaJson,
+          record.status,
+          record.createdAt
+        ]
+      )
 
-    await this.db.run(
-      `INSERT INTO message_schemas_${this.realmName} (
-        schema_id, label, url_pattern, data_table, schema_json, status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(url_pattern) DO UPDATE SET
-        label = excluded.label,
-        data_table = excluded.data_table,
-        schema_json = excluded.schema_json,
-        status = excluded.status`,
-      [
-        record.schemaId,
-        record.label,
-        record.urlPattern,
-        record.dataTable,
-        record.schemaJson,
-        record.status,
-        record.createdAt
-      ]
-    )
-
-    await saveUpdateHistory(
-      this.db,
-      this.realmName,
-      this.makeId.generateIdStr(),
-      null,
-      `schema:${schemaId}`,
-      null,
-      record
-    )
+      await saveUpdateHistory(
+        this.db,
+        this.realmName,
+        this.makeId.generateIdStr(),
+        null,
+        `schema:${schemaId}`,
+        null,
+        record
+      )
+      await this.db.run('COMMIT')
+    } catch (e) {
+      await this.db.run('ROLLBACK')
+      throw e
+    }
 
     this.cache = null
-    await this.loadCache() // Reload cache
+    await this.loadCache()
 
     return record
   }

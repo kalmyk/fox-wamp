@@ -117,12 +117,12 @@ describe('57.schema_repository', function () {
       },
       primary_key: ['id']
     }
-    
     const sql = generateCreateTableSql('my_table', schema)
-    expect(sql).to.contain('CREATE TABLE IF NOT EXISTS my_table')
-    expect(sql).to.contain('id TEXT NOT NULL')
-    expect(sql).to.contain('count REAL')
-    expect(sql).to.contain('tags TEXT')
-    expect(sql).to.contain('PRIMARY KEY (id)')
+    expect(sql).to.contain('CREATE TABLE IF NOT EXISTS "my_table"')
+    expect(sql).to.contain('"id" TEXT NOT NULL')
+    expect(sql).to.contain('"count" REAL')
+    expect(sql).to.contain('"tags" TEXT')
+    expect(sql).to.contain('PRIMARY KEY ("id")')
   })
+
 })

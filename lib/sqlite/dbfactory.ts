@@ -20,6 +20,7 @@ export class DbFactory {
       filename: filename,
       driver: sqlite3.Database
     })
+    await db.run('PRAGMA foreign_keys = ON;')
     this.activeDbs.set(path.basename(filename), db)
     return db
   }
@@ -29,6 +30,7 @@ export class DbFactory {
       filename: filename,
       driver: sqlite3.Database
     })
+    await db.run('PRAGMA foreign_keys = ON;')
     this.mainDb = db
     return db
   }

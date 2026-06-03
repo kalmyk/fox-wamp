@@ -10,7 +10,7 @@ import * as sqlite from 'sqlite'
 import { Router } from '../lib/router'
 import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
 import { DbEngine } from '../lib/sqlite/dbengine'
-import { BaseRealm } from '../lib/realm'
+import { BaseRealm, StaticSchemaRepository } from '../lib/realm'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { ProduceId } from '../lib/masterfree/makeid'
 import { Session } from '../lib/session'
@@ -183,6 +183,35 @@ describe('58.schema_payload_validation', function () {
     expect(msg).to.not.be.null
     expect(msg[0]).to.equal(17) // PUBLISHED
     expect(msg[1]).to.equal(id)
+  })
+
+  it('validates using in-memory StaticSchemaRepository', async () => {
+    const staticRepo = new StaticSchemaRepository()
+    staticRepo.register('static-test', 'static.topic.#', {
+      properties: {
+        code: 'string'
+      },
+      primary_key: ['code']
+    })
+    
+    realm.registerSchemaRepository(staticRepo)
+    
+    const id = 200
+    wampGate.handle(ctx, cli, [
+      16, // PUBLISH
+      id,
+      { acknowledge: true },
+      'static.topic.foo',
+      [{ code: 123 }] // Should be string
+    ])
+
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    const msg = mockSocket.lastMsg
+    expect(msg).to.not.be.null
+    expect(msg[0]).to.equal(8) // ERROR
+    expect(msg[4]).to.equal('wamp.error.invalid_argument')
+    expect(msg[5][0]).to.contain('Field "code" expected type "string"')
   })
 
   it('accepts free-form publish if no schema matches', async () => {

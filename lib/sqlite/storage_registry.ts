@@ -60,7 +60,8 @@ export async function createStorageRegistryTables(db: sqlite.Database, realmName
       started_at INTEGER,
       status TEXT NOT NULL CHECK(status IN ('inactive', 'refreshing', 'online', 'failed')) DEFAULT 'inactive',
       current_position TEXT,
-      last_error TEXT
+      last_error TEXT,
+      FOREIGN KEY(schema_id) REFERENCES message_schemas_${realmName}(schema_id)
     );`
   )
 }

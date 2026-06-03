@@ -59,7 +59,6 @@ export class StageOneTask {
       advanceOwner: entryId,
       lastSeenAdvanceId: this.getRecentAdvanceSegment(entryId)
     }
-    console.log('tx:INIT_ENTRY_ACCEPTED', entryId, acceptBody)
     await entry.publish(Event.INIT_ENTRY_ACCEPTED + '.' + entryId, acceptBody, { exclude_me: false })
   }
 
