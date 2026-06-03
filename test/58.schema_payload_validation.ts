@@ -54,10 +54,74 @@ describe('58.schema_payload_validation', function () {
     realm.joinSession(cli)
   })
 
-  it('rejects publish if payload does not match schema', async () => {
-    console.log('[Test58] Starting rejects test')
+  it('rejects publish if payload does not match schema (using property objects)', async () => {
     const engine = realm.getEngine() as DbEngine
-    const repo = (engine as any).schemaRepo as SchemaRepository
+    const repo = realm.engine.getSchemaRepository() as SchemaRepository
+    
+    const schema = {
+      properties: {
+        id: { type: 'string' },
+        val: { type: 'number' }
+      },
+      primary_key: ['id']
+    }
+    
+    await repo.register('test-schema-obj', 'app.topic.obj.#', schema)
+    
+    const id = 126
+    wampGate.handle(ctx, cli, [
+      16, // PUBLISH
+      id,
+      { acknowledge: true },
+      'app.topic.obj.foo',
+      [{ id: 'foo', val: 'not-a-number' }]
+    ])
+
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    const msg = mockSocket.lastMsg
+    expect(msg).to.not.be.null
+    expect(msg[0]).to.equal(8) // ERROR
+    expect(msg[4]).to.equal('wamp.error.invalid_argument')
+    expect(msg[5][0]).to.contain('Field "val" expected type "number"')
+  })
+
+  it('rejects call if payload does not match schema', async () => {
+    const engine = realm.getEngine() as DbEngine
+    const repo = realm.engine.getSchemaRepository() as SchemaRepository
+    
+    const schema = {
+      properties: {
+        id: 'string'
+      },
+      primary_key: ['id']
+    }
+    
+    await repo.register('call-schema', 'proc.test', schema)
+    
+    const id = 127
+    wampGate.handle(ctx, cli, [
+      48, // CALL
+      id,
+      {},
+      'proc.test',
+      [{ id: 123 }] // id should be string
+    ])
+
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    const msg = mockSocket.lastMsg
+    expect(msg).to.not.be.null
+    expect(msg[0]).to.equal(8) // ERROR
+    expect(msg[1]).to.equal(48) // CALL
+    expect(msg[2]).to.equal(id)
+    expect(msg[4]).to.equal('wamp.error.invalid_argument')
+    expect(msg[5][0]).to.contain('Field "id" expected type "string"')
+  })
+
+  it('rejects publish if payload does not match schema', async () => {
+    const engine = realm.getEngine() as DbEngine
+    const repo = realm.engine.getSchemaRepository() as SchemaRepository
     
     const schema = {
       properties: {
@@ -68,7 +132,6 @@ describe('58.schema_payload_validation', function () {
     }
     
     await repo.register('test-schema', 'app.topic.#', schema)
-    await repo.loadCache()
     
     const id = 123
     wampGate.handle(ctx, cli, [
@@ -93,7 +156,7 @@ describe('58.schema_payload_validation', function () {
 
   it('accepts publish if payload matches schema', async () => {
     const engine = realm.getEngine() as DbEngine
-    const repo = (engine as any).schemaRepo as SchemaRepository
+    const repo = realm.engine.getSchemaRepository() as SchemaRepository
     
     const schema = {
       properties: {
@@ -103,15 +166,14 @@ describe('58.schema_payload_validation', function () {
       primary_key: ['id']
     }
     
-    await repo.register('test-schema', 'app.topic.#', schema)
-    await repo.loadCache()
+    await repo.register('test-schema-2', 'app.topic.ok.#', schema)
     
     const id = 124
     wampGate.handle(ctx, cli, [
       16, // PUBLISH
       id,
       { acknowledge: true },
-      'app.topic.foo',
+      'app.topic.ok.foo',
       [{ id: 'foo', val: 123 }]
     ])
 

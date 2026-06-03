@@ -9,10 +9,9 @@ import * as sqlite from 'sqlite'
 import { 
   SchemaRepository, 
   createSchemaTables, 
-  generateCreateTableSql,
-  validateSchema,
-  validatePayload 
+  generateCreateTableSql
 } from '../lib/sqlite/schema_repository'
+import { validateSchema, validatePayload } from '../lib/schema_validation'
 import { ProduceId } from '../lib/masterfree/makeid'
 import { SchemaStatus } from '../lib/types'
 
@@ -77,7 +76,7 @@ describe('57.schema_repository', function () {
     
     const record = await repo.register('test-schema', 'app.topic.#', schema)
     
-    expect(record.schemaId).to.match(/^msg123[a-z0-9]+$/)
+    expect(record.schemaId).to.match(/^sch_testrealm_[a-f0-9]{16}$/)
     expect(record.label).to.equal('test-schema')
     expect(record.urlPattern).to.equal('app.topic.#')
     expect(record.status).to.equal(SchemaStatus.Active)

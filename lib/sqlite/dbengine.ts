@@ -1,15 +1,12 @@
-import { makeDataSerializable, unSerializeData, BaseEngine, ActorPush, ActorPushKv } from '../realm'
+import { makeDataSerializable, unSerializeData, BaseEngine, ActorPush, ActorPushKv, SchemaRepositoryLike } from '../realm'
 import * as History from './history'
 import { createKvTables, SqliteKvFabric } from './sqlitekv'
 import { createStorageRegistryTables } from './storage_registry'
 import { ProduceId } from '../masterfree/makeid'
 import { 
   SchemaRepository, 
-  createSchemaTables, 
-  validatePayload 
+  createSchemaTables
 } from './schema_repository'
-import { restoreUri } from '../topic_pattern'
-import { getBodyValue } from '../tools'
 
 export class DbEngine extends BaseEngine {
   private idMill: ProduceId
@@ -48,23 +45,13 @@ export class DbEngine extends BaseEngine {
     )
   }
 
+  public override getSchemaRepository(): SchemaRepositoryLike | undefined {
+    return this.schemaRepo
+  }
+
   // @return promise
   public override doPush (actor: ActorPush): Promise<void> {
     const runPush = () => {
-      if (this.schemaRepo) {
-        const url = restoreUri(actor.getUri())
-        const schema = this.schemaRepo.findByUrl(url)
-        if (schema) {
-          try {
-            const payload = getBodyValue(actor.getData())
-            validatePayload(JSON.parse(schema.schemaJson), payload)
-          } catch (e) {
-            actor.rejectCmd('wamp.error.invalid_argument', (e as Error).message)
-            return Promise.resolve()
-          }
-        }
-      }
-
       return this.doPushFinal(actor).catch(e => {
         if (!actor.clientNotified) {
           actor.rejectCmd('wamp.error.internal_error', (e as Error).message)

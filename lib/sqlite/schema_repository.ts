@@ -4,6 +4,7 @@ import { SchemaRecord, SchemaStatus } from '../types'
 import { ProduceId } from '../masterfree/makeid'
 import { createUpdateHistoryTable, saveUpdateHistory } from './update_history'
 import { match, defaultParse } from '../topic_pattern'
+import { validateSchema, validatePayload } from '../schema_validation'
 
 export async function createSchemaTables(db: sqlite.Database, realmName: string) {
   await createUpdateHistoryTable(db, realmName)
@@ -15,7 +16,10 @@ export async function createSchemaTables(db: sqlite.Database, realmName: string)
       data_table TEXT NOT NULL,
       schema_json TEXT NOT NULL,
       status TEXT NOT NULL,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      UNIQUE(url_pattern),
+      UNIQUE(data_table),
+      CHECK (status IN ('active', 'deprecated'))
     );`
   )
 }
@@ -25,12 +29,21 @@ export function generateDataTableName(realmName: string, schemaJson: string): st
   return `data_${realmName}_${hash}`
 }
 
+export function generateSchemaId(realmName: string, schemaJson: string): string {
+  const hash = crypto.createHash('sha256').update(schemaJson).digest('hex').substring(0, 16)
+  return `sch_${realmName}_${hash}`
+}
+
 export function generateCreateTableSql(tableName: string, schemaJson: any): string {
   const props = schemaJson.properties
   const pk = schemaJson.primary_key
 
   const columns = Object.keys(props).map(name => {
-    const type = props[name] === 'number' ? 'REAL' : 'TEXT'
+    let prop = props[name]
+    if (typeof prop === 'string') {
+      prop = { type: prop }
+    }
+    const type = prop.type === 'number' ? 'REAL' : 'TEXT'
     return `${name} ${type}${pk.includes(name) ? ' NOT NULL' : ''}`
   })
 
@@ -38,50 +51,6 @@ export function generateCreateTableSql(tableName: string, schemaJson: any): stri
     ${columns.join(',\n    ')},
     PRIMARY KEY (${pk.join(', ')})
   );`
-}
-
-export function validateSchema(schemaJson: any) {
-  if (!schemaJson || typeof schemaJson !== 'object') {
-    throw new Error('Schema must be an object')
-  }
-  if (!schemaJson.properties || typeof schemaJson.properties !== 'object') {
-    throw new Error('Schema must have a "properties" object')
-  }
-  if (!Array.isArray(schemaJson.primary_key) || schemaJson.primary_key.length === 0) {
-    throw new Error('Schema must have a non-empty "primary_key" array')
-  }
-  for (const key of schemaJson.primary_key) {
-    if (!schemaJson.properties[key]) {
-      throw new Error(`Primary key "${key}" must be defined in properties`)
-    }
-  }
-}
-
-export function validatePayload(schemaJson: any, payload: any) {
-  if (!payload || typeof payload !== 'object') {
-    throw new Error('Payload must be an object')
-  }
-  const props = schemaJson.properties
-  for (const key of Object.keys(props)) {
-    const expectedType = props[key]
-    const val = payload[key]
-    if (val === undefined || val === null) {
-      if (schemaJson.primary_key.includes(key)) {
-        throw new Error(`Primary key field "${key}" is missing or null`)
-      }
-      continue
-    }
-    const actualType = typeof val
-    if (expectedType === 'number') {
-      if (actualType !== 'number') {
-        throw new Error(`Field "${key}" expected type "number", got "${actualType}"`)
-      }
-    } else if (expectedType === 'string') {
-      if (actualType !== 'string') {
-        throw new Error(`Field "${key}" expected type "string", got "${actualType}"`)
-      }
-    }
-  }
 }
 
 export class SchemaRepository {
@@ -99,7 +68,7 @@ export class SchemaRepository {
   async register(label: string, urlPattern: string, schemaJson: any): Promise<SchemaRecord> {
     validateSchema(schemaJson)
     const schemaStr = JSON.stringify(schemaJson)
-    const schemaId = this.makeId.generateIdStr()
+    const schemaId = generateSchemaId(this.realmName, schemaStr)
     const dataTable = generateDataTableName(this.realmName, schemaStr)
     const createdAt = Date.now()
     
@@ -113,10 +82,19 @@ export class SchemaRepository {
       createdAt
     }
 
+    // Auto-provision data table
+    const createTableSql = generateCreateTableSql(dataTable, schemaJson)
+    await this.db.run(createTableSql)
+
     await this.db.run(
       `INSERT INTO message_schemas_${this.realmName} (
         schema_id, label, url_pattern, data_table, schema_json, status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(url_pattern) DO UPDATE SET
+        label = excluded.label,
+        data_table = excluded.data_table,
+        schema_json = excluded.schema_json,
+        status = excluded.status`,
       [
         record.schemaId,
         record.label,
@@ -138,7 +116,8 @@ export class SchemaRepository {
       record
     )
 
-    this.cache = null // Invalidate cache
+    this.cache = null
+    await this.loadCache() // Reload cache
 
     return record
   }

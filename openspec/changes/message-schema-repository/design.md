@@ -32,14 +32,14 @@ CREATE TABLE message_schemas_<realmName> (
     url_pattern TEXT NOT NULL UNIQUE,
     data_table TEXT NOT NULL UNIQUE,
     schema_json TEXT NOT NULL,
-    status TEXT NOT NULL CHECK(status IN ('inactive', 'active', 'deprecated')) DEFAULT 'inactive',
+    status TEXT NOT NULL CHECK(status IN ('active', 'deprecated')),
     created_at INTEGER NOT NULL
 );
 ```
 
 `url_pattern` is canonical dotted FOX topic text and is parsed with `defaultParse()` for matching. It is not MQTT slash syntax.
 
-`schema_id` is stable and may be a hash of the canonical schema definition. `data_table` is the generated SQLite table name and should include the realm suffix, for example `kvp_<schemaHash>_<realmName>`. Hash-derived names avoid coupling physical table names to mutable labels or long URL patterns.
+`schema_id` is stable and is a hash of the canonical schema definition (`sch_<realmName>_<hash>`). `data_table` is the generated SQLite table name and includes the realm suffix (`data_<realmName>_<hash>`). Hash-derived names avoid coupling physical table names to mutable labels or long URL patterns.
 
 Schema rows are immutable. There is no update-in-place path for `schema_json`, `url_pattern`, or `data_table`.
 

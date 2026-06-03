@@ -14,7 +14,33 @@ import * as tools from './tools'
 import { Context } from './context'
 import { Router } from './router'
 import { Session } from './session'
-import { HyperCommand, Id } from './types'
+import { HyperCommand, Id, SchemaRecord } from './types'
+import { getPayload, validatePayload } from './schema_validation'
+
+export interface SchemaRepositoryLike {
+  findByUrl(url: string): SchemaRecord | null;
+}
+
+export class SchemaChecker {
+  private repositories: SchemaRepositoryLike[] = []
+
+  addRepository(repo: SchemaRepositoryLike) {
+    this.repositories.push(repo)
+  }
+
+  validate(url: string, data: any): void {
+    if (this.repositories.length === 0) return
+
+    for (const repo of this.repositories) {
+      const schema = repo.findByUrl(url)
+      if (schema) {
+        const payload = getPayload(data)
+        validatePayload(JSON.parse(schema.schemaJson), payload)
+        return
+      }
+    }
+  }
+}
 
 export class Actor {
   ctx: Context
@@ -889,6 +915,10 @@ export class BaseEngine {
   getHistoryAfter(after: any, uri: string[], cbRow: (cmd: HyperCommand<any>) => void): Promise<void> {
     return new Promise((resolve) => { resolve(); })
   }
+
+  getSchemaRepository(): SchemaRepositoryLike | undefined {
+    return undefined
+  }
 }
 
 export class BaseRealm extends EventEmitter {
@@ -898,12 +928,14 @@ export class BaseRealm extends EventEmitter {
   _router: Router
   _dict!: TableDictionary
   engine: BaseEngine
+  schemaChecker: SchemaChecker
 
   constructor(router: Router, engine: BaseEngine) {
     super()
     this._sessions = new Map()
     this._router = router
     this.engine = engine
+    this.schemaChecker = new SchemaChecker()
   }
 
   getRouter(): Router {
@@ -916,6 +948,10 @@ export class BaseRealm extends EventEmitter {
 
   setDict(dict: TableDictionary): void {
     this._dict = dict
+  }
+
+  registerSchemaRepository(repo: SchemaRepositoryLike) {
+    this.schemaChecker.addRepository(repo)
   }
 
   cmdEcho(ctx: Context, cmd: HyperCommand<any>): void {
@@ -969,6 +1005,12 @@ export class BaseRealm extends EventEmitter {
   cmdCallRpc(ctx: Context, cmd: HyperCommand<any>): Id {
     if (this._dict) {
       this._dict.validateStruct(cmd.uri || [], cmd.data)
+    }
+    const url = restoreUri(cmd.uri || [])
+    try {
+      this.schemaChecker.validate(url, cmd.data)
+    } catch (e) {
+      throw new RealmError(cmd.id, errorCodes.ERROR_INVALID_ARGUMENT, (e as Error).message)
     }
     const actor = this.engine.createActorCall(ctx, cmd)
     actor.taskId = this.engine.mkDeferId()
@@ -1067,6 +1109,14 @@ export class BaseRealm extends EventEmitter {
   cmdPush(ctx: Context, cmd: HyperCommand<any>): void {
     if (this._dict) {
       this._dict.validateStruct(cmd.uri || [], cmd.data)
+    }
+    const url = restoreUri(cmd.uri || [])
+    try {
+      this.schemaChecker.validate(url, cmd.data)
+    } catch (e) {
+      const actor = this.engine.createActorPush(ctx, cmd)
+      actor.rejectCmd('wamp.error.invalid_argument', (e as Error).message)
+      return
     }
     const actor = this.engine.createActorPush(ctx, cmd)
     this.engine.doPush(actor)
