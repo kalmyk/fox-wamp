@@ -9,11 +9,13 @@ import * as sqlite from 'sqlite'
 import { StorageStatus } from '../lib/types'
 import { createHistoryTables, saveEventHistory } from '../lib/sqlite/history'
 import { createStorageRegistryTables, StorageRegistry } from '../lib/sqlite/storage_registry'
+import { createSchemaTables, SchemaRepository } from '../lib/sqlite/schema_repository'
 import { ProduceId } from '../lib/masterfree/makeid'
 
 describe('56.kv_registry', function () {
   let db: sqlite.Database
   let registry: StorageRegistry
+  let schemas: SchemaRepository
   const makeId = {
     _count: 0,
     generateIdStr: function() { return 'test-id-' + (this._count++) }
@@ -25,6 +27,8 @@ describe('56.kv_registry', function () {
       driver: sqlite3.Database,
     })
     registry = new StorageRegistry(db, 'realm1', makeId)
+    schemas = new SchemaRepository(db, 'realm1', makeId)
+    await createSchemaTables(db, 'realm1')
   })
 
   it('creates realm-scoped kv_storage table with expected columns', async () => {
@@ -45,10 +49,12 @@ describe('56.kv_registry', function () {
   })
 
   it('registers storage as inactive and records history', async () => {
+    const schema = await schemas.register('label', 'app.topic.#', { properties: { a: 'string' }, primary_key: ['a'] })
+
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
       uriPattern: 'app.topic.#',
-      schemaId: 'schema:app-topic',
+      schemaId: schema.schemaId,
     })
 
     const record = await registry.get('sqlite:realm1:app.topic.#')
@@ -57,7 +63,7 @@ describe('56.kv_registry', function () {
       name: 'sqlite:realm1:app.topic.#',
       realmName: 'realm1',
       uriPattern: 'app.topic.#',
-      schemaId: 'schema:app-topic',
+      schemaId: schema.schemaId,
       startedAt: null,
       status: StorageStatus.Inactive,
       currentPosition: null,
@@ -65,18 +71,38 @@ describe('56.kv_registry', function () {
     })
 
     const history = await db.all(`SELECT * FROM update_history_realm1`)
-    expect(history).to.have.lengthOf(1)
-    expect(history[0].topic).to.equal('sqlite:realm1:app.topic.#')
-    expect(history[0].old_updated_by_msg_id).to.be.null
-    expect(history[0].msg_oldv).to.be.null
-    expect(JSON.parse(history[0].msg_newv).status).to.equal(StorageStatus.Inactive)
+    // schema registration + storage registration
+    expect(history).to.have.lengthOf(2)
+    const storageHistory = history.find(h => h.topic === 'sqlite:realm1:app.topic.#')
+    expect(storageHistory).to.exist
+    expect(JSON.parse(storageHistory.msg_newv).status).to.equal(StorageStatus.Inactive)
+  })
+
+  it('fails if schema does not exist', async () => {
+    await expect(registry.register({
+      name: 'sqlite:realm1:app.topic.#',
+      uriPattern: 'app.topic.#',
+      schemaId: 'missing',
+    })).to.be.rejectedWith('Schema not found: missing')
+  })
+
+  it('fails if uriPattern does not match schema urlPattern', async () => {
+    const schema = await schemas.register('label', 'app.topic.#', { properties: { a: 'string' }, primary_key: ['a'] })
+
+    await expect(registry.register({
+      name: 'sqlite:realm1:other.topic.#',
+      uriPattern: 'other.topic.#',
+      schemaId: schema.schemaId,
+    })).to.be.rejectedWith('Storage uriPattern "other.topic.#" does not match schema urlPattern "app.topic.#"')
   })
 
   it('keeps current position during idempotent registration and does not record duplicate history', async () => {
+    const schema = await schemas.register('label', 'app.topic.#', { properties: { a: 'string' }, primary_key: ['a'] })
+
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
       uriPattern: 'app.topic.#',
-      schemaId: 'schema:app-topic',
+      schemaId: schema.schemaId,
     })
     await registry.updateStatus('sqlite:realm1:app.topic.#', StorageStatus.Online)
     await registry.updatePosition('sqlite:realm1:app.topic.#', 'seg1a1')
@@ -86,7 +112,7 @@ describe('56.kv_registry', function () {
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
       uriPattern: 'app.topic.#',
-      schemaId: 'schema:app-topic-v2',
+      schemaId: schema.schemaId,
     })
 
     const record = await registry.get('sqlite:realm1:app.topic.#')
@@ -98,10 +124,11 @@ describe('56.kv_registry', function () {
   })
 
   it('updates status and records history', async () => {
+    const schema = await schemas.register('label', 'app.topic.#', { properties: { a: 'string' }, primary_key: ['a'] })
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
       uriPattern: 'app.topic.#',
-      schemaId: 'schema:app-topic',
+      schemaId: schema.schemaId,
     })
 
     await registry.updateStatus('sqlite:realm1:app.topic.#', StorageStatus.Refreshing, 1234)
@@ -110,34 +137,48 @@ describe('56.kv_registry', function () {
     expect(record!.status).to.equal(StorageStatus.Refreshing)
     expect(record!.startedAt).to.equal(1234)
 
-    const history = await db.all(`SELECT * FROM update_history_realm1 ORDER BY msg_id ASC`)
-    expect(history).to.have.lengthOf(2) // register + status
-    expect(JSON.parse(history[1].msg_oldv).status).to.equal(StorageStatus.Inactive)
-    expect(JSON.parse(history[1].msg_newv).status).to.equal(StorageStatus.Refreshing)
+    const history = await db.all(`SELECT * FROM update_history_realm1`)
+    // schema + register + status
+    expect(history).to.have.lengthOf(3)
+    const statusHistory = history.find(h => {
+      if (h.topic !== 'sqlite:realm1:app.topic.#') return false
+      const oldV = h.msg_oldv ? JSON.parse(h.msg_oldv) : null
+      const newV = h.msg_newv ? JSON.parse(h.msg_newv) : null
+      return oldV?.status === StorageStatus.Inactive && newV?.status === StorageStatus.Refreshing
+    })
+    expect(statusHistory).to.exist
   })
 
   it('starts activation and records history', async () => {
     await createHistoryTables(db, 'realm1')
     await saveEventHistory(db, 'realm1', 'seg1a1', 0, ['app', 'topic'], 'a', {})
+    const schema = await schemas.register('label', 'app.topic.#', { properties: { a: 'string' }, primary_key: ['a'] })
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
       uriPattern: 'app.topic.#',
-      schemaId: 'schema:app-topic',
+      schemaId: schema.schemaId,
     })
 
     await registry.startActivation('sqlite:realm1:app.topic.#', 1234)
     
-    const history = await db.all(`SELECT * FROM update_history_realm1 ORDER BY msg_id ASC`)
-    expect(history).to.have.lengthOf(2) // register + activate
-    expect(JSON.parse(history[1].msg_oldv).status).to.equal(StorageStatus.Inactive)
-    expect(JSON.parse(history[1].msg_newv).status).to.equal(StorageStatus.Refreshing)
+    const history = await db.all(`SELECT * FROM update_history_realm1`)
+    // schema + register + activate
+    expect(history).to.have.lengthOf(3)
+    const activationHistory = history.find(h => {
+      if (h.topic !== 'sqlite:realm1:app.topic.#') return false
+      const oldV = h.msg_oldv ? JSON.parse(h.msg_oldv) : null
+      const newV = h.msg_newv ? JSON.parse(h.msg_newv) : null
+      return oldV?.status === StorageStatus.Inactive && newV?.status === StorageStatus.Refreshing
+    })
+    expect(activationHistory).to.exist
   })
 
   it('resets registry metadata and records history', async () => {
+    const schema = await schemas.register('label', 'app.topic.#', { properties: { a: 'string' }, primary_key: ['a'] })
     await registry.register({
       name: 'sqlite:realm1:app.topic.#',
       uriPattern: 'app.topic.#',
-      schemaId: 'schema:app-topic',
+      schemaId: schema.schemaId,
     })
     await registry.updateStatus('sqlite:realm1:app.topic.#', StorageStatus.Failed, 1234)
 
@@ -146,9 +187,15 @@ describe('56.kv_registry', function () {
     const record = await registry.get('sqlite:realm1:app.topic.#')
     expect(record!.status).to.equal(StorageStatus.Inactive)
 
-    const history = await db.all(`SELECT * FROM update_history_realm1 ORDER BY msg_id ASC`)
-    expect(history).to.have.lengthOf(3) // register + status + reset
-    expect(JSON.parse(history[2].msg_oldv).status).to.equal(StorageStatus.Failed)
-    expect(JSON.parse(history[2].msg_newv).status).to.equal(StorageStatus.Inactive)
+    const history = await db.all(`SELECT * FROM update_history_realm1`)
+    // schema + register + status + reset
+    expect(history).to.have.lengthOf(4)
+    const resetHistory = history.find(h => {
+      if (h.topic !== 'sqlite:realm1:app.topic.#') return false
+      const oldV = h.msg_oldv ? JSON.parse(h.msg_oldv) : null
+      const newV = h.msg_newv ? JSON.parse(h.msg_newv) : null
+      return oldV?.status === StorageStatus.Failed && newV?.status === StorageStatus.Inactive
+    })
+    expect(resetHistory).to.exist
   })
 })

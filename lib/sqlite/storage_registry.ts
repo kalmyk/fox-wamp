@@ -87,6 +87,18 @@ export class StorageRegistry {
     const oldRecord = await this.get(storage.name)
     if (oldRecord) return
 
+    // Verify schema existence and pattern compatibility
+    const schemaRow = await this.db.get(
+      `SELECT url_pattern FROM message_schemas_${this.realmName} WHERE schema_id = ?`,
+      [storage.schemaId]
+    )
+    if (!schemaRow) {
+      throw new Error(`Schema not found: ${storage.schemaId}`)
+    }
+    if (schemaRow.url_pattern !== storage.uriPattern) {
+      throw new Error(`Storage uriPattern "${storage.uriPattern}" does not match schema urlPattern "${schemaRow.url_pattern}"`)
+    }
+
     await this.db.run(
       `INSERT OR IGNORE INTO ${this.tableName}
         (name, schema_id, uri_pattern, started_at, status, current_position, last_error)

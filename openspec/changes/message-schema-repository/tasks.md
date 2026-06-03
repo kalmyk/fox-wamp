@@ -8,7 +8,7 @@
 ## 2. Schema Body and Validation
 
 - [x] 2.1 Implement validation for the README-style schema body shape with `properties` and `primary_key`.
-- [ ] 2.2 Persist optional aggregate/projection hints such as `sum` and `propagate` without requiring full aggregate behavior.
+- [x] 2.2 Persist optional aggregate/projection hints such as `sum` and `propagate` without requiring full aggregate behavior.
 - [x] 2.3 Validate incoming publish payloads against the schema selected by URL pattern.
 - [ ] 2.4 Validate decoded committed retained values against the KV projection's linked schema before projected storage writes.
 
@@ -21,8 +21,8 @@
 
 ## 4. KV Registry Integration
 
-- [ ] 4.1 Update `kv-storage-module-registration` artifacts to replace `storage_type` with required `schema_id`.
-- [ ] 4.2 Update `StorageRecord` and `StorageRegistry` code to persist `schema_id` instead of `storage_type`.
+- [x] 4.1 Update `kv-storage-module-registration` artifacts to replace `storage_type` with required `schema_id`.
+- [x] 4.2 Update `StorageRecord` and `StorageRegistry` code to persist `schema_id` instead of `storage_type`.
 - [ ] 4.3 Ensure every `kv_storage_${realmName}` row links to exactly one schema.
 - [ ] 4.4 Ensure the KV registry `uri_pattern` is compatible with the linked schema `url_pattern`.
 

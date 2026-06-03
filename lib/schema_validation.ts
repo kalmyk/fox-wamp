@@ -24,6 +24,48 @@ export function validateSchema(schemaJson: any) {
       throw new Error(`Primary key "${key}" must be defined in properties`)
     }
   }
+
+  // Optional sum validation
+  if (schemaJson.sum !== undefined) {
+    if (typeof schemaJson.sum !== 'object' || schemaJson.sum === null) {
+      throw new Error('Schema "sum" must be an object')
+    }
+    for (const key of Object.keys(schemaJson.sum)) {
+      const field = schemaJson.sum[key]
+      if (typeof field !== 'string') {
+        throw new Error(`Schema sum field "${key}" must be a string (source field name)`)
+      }
+      if (!schemaJson.properties[field]) {
+        throw new Error(`Schema sum source field "${field}" must be defined in properties`)
+      }
+    }
+  }
+
+  // Optional propagate validation
+  if (schemaJson.propagate !== undefined) {
+    if (typeof schemaJson.propagate !== 'object' || schemaJson.propagate === null) {
+      throw new Error('Schema "propagate" must be an object')
+    }
+    for (const target of Object.keys(schemaJson.propagate)) {
+      const rules = schemaJson.propagate[target]
+      if (!Array.isArray(rules)) {
+        throw new Error(`Schema propagate rules for "${target}" must be an array`)
+      }
+      for (const rule of rules) {
+        if (typeof rule !== 'object' || rule === null) {
+          throw new Error(`Schema propagate rule in "${target}" must be an object`)
+        }
+        if (!Array.isArray(rule.key) || rule.key.length === 0) {
+          throw new Error(`Schema propagate rule in "${target}" must have a non-empty "key" array`)
+        }
+        if (rule.fields !== undefined) {
+          if (typeof rule.fields !== 'object' || rule.fields === null) {
+            throw new Error(`Schema propagate rule "fields" in "${target}" must be an object`)
+          }
+        }
+      }
+    }
+  }
 }
 
 export function validatePayload(schemaJson: any, payload: any) {
