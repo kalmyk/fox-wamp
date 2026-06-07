@@ -30,3 +30,40 @@ The current KV registry has a `storage_type` placeholder, but persistent KV proj
 - Updates to `kv-storage-module-registration` schema/tasks to replace `storage_type` with `schema_id`.
 - Updates to retained projection activation/listener code so projected values are validated against the linked schema before writes.
 - Future `foxctl` commands need schema registration, activation/deactivation flow, and cleanup for obsolete generated data tables.
+
+## Open Questions
+
+### Retained Delete Key Source
+
+The current design says an empty retained value deletes the projected row, including MQTT empty-payload publishes mapped to `null`. For generated schema tables, the delete path still needs enough information to identify the row key.
+
+- Are retained delete events required to include all generated table primary-key fields in the event body?
+- If not, are primary-key values derived from URI segments?
+- If primary-key values are URI-derived, how does the schema declare that mapping?
+
+Possible schema extension:
+
+```json
+{
+  "primary_key": ["customer"],
+  "key_from_uri": { "customer": 2 }
+}
+```
+
+### Schema Replacement Lifecycle
+
+Schema replacement currently creates a new immutable schema row/table, activates a new projection, deactivates the old projection, and later cleans up the old generated table. The lookup and lifecycle details still need a precise contract.
+
+- Can two active schemas share the same `url_pattern` during transition?
+- If two schema rows can temporarily share a URL pattern, how does schema lookup choose old versus new?
+- What field or status marks the old schema/projection as deprecated or inactive for lookup?
+- Is cleanup of obsolete generated tables manual only, or can it be triggered automatically after deactivation?
+
+### Primary Key and Table Projection Model
+
+Generated table creation defines columns from schema `properties`, but projection write behavior needs an exact rule.
+
+- Does the projection always upsert by the generated table `primary_key`?
+- Must every primary-key field come from the decoded event body unless `key_from_uri` or an equivalent mapping is defined?
+- What happens when a retained event matches the schema URL pattern but does not provide all required primary-key values?
+- Is the retained topic URI stored as projection metadata, or is the generated table key the only row identity?

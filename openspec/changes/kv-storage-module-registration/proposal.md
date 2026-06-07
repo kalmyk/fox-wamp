@@ -34,3 +34,31 @@ The system currently has an outdated key-value storage registration path tied to
 - Metadata management for KV projections.
 - Potential updates to `lib/types.ts` for storage status enums.
 - Existing in-memory `Realm.registerKeyValueEngine()` usage remains for local/in-memory compatibility but is not the persistent distributed KV registration mechanism.
+
+## Open Questions
+
+### Activation, Reset, and Deactivate Command Surface
+
+The design names implementation-shaped operations such as `activateProjection()` and `resetProjection()`, but the externally visible administrative contract still needs to be defined.
+
+- What are the Hyper/FOX topics or command names for activation, reset, deactivate, status, and list operations?
+- What request payload does each command accept?
+- What success and error result shape does each command return?
+- Are these commands internal-only, or are they exposed through `foxctl`?
+
+### Projection Position After Matching Mutations
+
+The design states that matching KV mutations advance with event IDs and idle segments advance with the segment ID. The exact algorithm still needs to be written down.
+
+- Within a committed segment containing multiple matching retained mutations, does `current_position` advance after each applied event or only once at the end?
+- If a segment has retained events for other realms or non-matching URI patterns, should the projection advance to the committed segment ID after inspecting the segment?
+- If a segment has both matching and non-matching retained events, is the final position the last matching event ID or the committed segment ID?
+- What happens to `current_position` when the projection is `inactive`, `refreshing`, or `failed` while new segments commit?
+
+### `Realm.registerKeyValueEngine()` Compatibility Boundary
+
+Task 4.11 remains open and should explicitly describe the compatibility boundary between the old local path and the new distributed projection path.
+
+- In-memory/local KV remains supported for compatibility and tests.
+- Persistent distributed projection uses the schema repository plus `kv_storage_${realmName}` only.
+- The old local path and the persistent distributed path must not both write the same retained projection in distributed mode.

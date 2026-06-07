@@ -48,3 +48,27 @@ All list commands will default to a table-formatted output for optimal readabili
     - **Mitigation**: The administrative operations must be restricted. This can be achieved by requiring strong authentication within the `fox-api` connection or restricting caller permissions for administrative URIs.
 - **[Risk] Server Dependency** → Since `foxctl` relies on `fox-api`, the FOX-WAMP server must be online for the utility to function.
     - **Mitigation**: This is considered an acceptable trade-off for the consistency guarantees it provides. Administrators who need offline recovery tools may still use standard `sqlite3` CLI tools directly on the database file in emergency scenarios.
+
+## Open Questions
+
+### Command Alignment
+
+`foxctl` command names and tasks should align with the final Hyper/FOX administrative command surface defined by the schema repository and KV storage registry proposals.
+
+- What exact server command backs schema registration?
+- What exact server command backs schema deactivation?
+- What exact server command backs generated table cleanup?
+- What exact server command backs KV projection activation?
+- What exact server command backs KV projection reset?
+- What exact server command backs KV projection status/list?
+
+### Pending Tasks
+
+Once command names, payloads, and result shapes are clarified, add concrete implementation tasks for:
+
+- `schema register`
+- `schema deactivate`
+- `schema cleanup`
+- `kv activate`
+- `kv reset`
+- `kv status/list`

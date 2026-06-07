@@ -28,3 +28,14 @@ When a client publishes an event and immediately subscribes to the same topic wi
 
 - **Network retained state path**: Confirm that retained key-value lookup in network mode reads from the local KV projection updated from committed segments.
 - **Network event ID comparator**: Align distributed retained `after` comparisons with the string-comparable event/segment watermark defined by `kv-storage-module-registration`.
+
+## Open Questions
+
+### Distributed Retained Sync Dependency
+
+Distributed retained subscription delay still depends on visibility into the local KV projection watermark.
+
+- Which table and field does retained lookup check for the local projection watermark?
+- Does retained lookup require all projections for a realm to reach `after`, or only projections matching the subscription URI?
+- What happens when a matching projection status is `inactive`, `refreshing`, or `failed`?
+- If no projection is registered for the subscription URI, does distributed `after` fail, time out, or fall back to immediate retained lookup?
