@@ -57,29 +57,38 @@ export async function scanMaxId (db: sqlite.Database) {
   return maxId
 }
 
-export async function getEventHistory (db: sqlite.Database, realmName: string, range:any, rowcb:any) {
+export async function getEventHistory (db: sqlite.Database, realmName: string, range: { fromId?: string, toId?: string, uri?: string[] }, rowcb: (event: any) => Promise<void>) {
   let sql = `SELECT msg_id, msg_shard, msg_uri, msg_body, msg_opt FROM event_history_${realmName}`
   let where = []
+  let params: any[] = []
+  
   if (range.fromId) {
-    where.push('msg_id > "' + range.fromId + '"')
+    where.push('msg_id > ?')
+    params.push(range.fromId)
   }
   if (range.toId) {
-    where.push('msg_id <= "' + range.toId + '"')
+    where.push('msg_id <= ?')
+    params.push(range.toId)
   }
-  where.push('msg_uri = ?')
-  sql += ' WHERE ' + where.join(' AND ') + ' ORDER BY msg_id'
+  if (range.uri) {
+    where.push('msg_uri = ?')
+    params.push(restoreUri(range.uri))
+  }
+  
+  if (where.length > 0) {
+    sql += ' WHERE ' + where.join(' AND ')
+  }
+  sql += ' ORDER BY msg_id'
 
-  return db.each(
-    sql,
-    [restoreUri(range.uri)],
-    (err, row) => {
-      rowcb({
-        id: row.msg_id,
-        shard: row.msg_shard,
-        uri: defaultParse(row.msg_uri),
-        body: JSON.parse(row.msg_body),
-        opt: JSON.parse(row.msg_opt)
-      })
-    }
-  )
+  const rows = await db.all(sql, params)
+  for (const row of rows) {
+    await rowcb({
+      id: row.msg_id,
+      shard: row.msg_shard,
+      uri: defaultParse(row.msg_uri),
+      body: JSON.parse(row.msg_body),
+      opt: JSON.parse(row.msg_opt)
+    })
+  }
+  return rows.length
 }

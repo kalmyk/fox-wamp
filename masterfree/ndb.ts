@@ -6,6 +6,7 @@ const conf_config_file = process.env.CONFIG
 
 import { keyDate, ProduceId } from '../lib/masterfree/makeid'
 import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
+import { ProjectionListener } from '../lib/sqlite/projection_listener'
 import { Router } from '../lib/router'
 import { getConfigInstance } from '../lib/masterfree/config'
 import { DbFactory } from '../lib/sqlite/dbfactory'
@@ -55,6 +56,8 @@ async function main () {
   const stageTwoTask: StageTwoTask = new StageTwoTask(sysRealm, config.getSyncQuorum())
 
   const makeId: ProduceId = new ProduceId(() => keyDate(new Date()))
+  new ProjectionListener(storageTask, db, makeId)
+  
   const modKv: SqliteKvFabric = new SqliteKvFabric(dbFactory, makeId)
 
   const syncNodes = config.getSyncNodes()

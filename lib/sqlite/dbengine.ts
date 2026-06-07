@@ -3,6 +3,7 @@ import * as History from './history'
 import { createKvTables, SqliteKvFabric } from './sqlitekv'
 import { createStorageRegistryTables } from './storage_registry'
 import { ProduceId } from '../masterfree/makeid'
+import { StorageTask } from '../masterfree/storage'
 import { 
   SchemaRepository, 
   createSchemaTables
@@ -13,11 +14,16 @@ export class DbEngine extends BaseEngine {
   private modKv: SqliteKvFabric
   private pushQueue: Promise<void> = Promise.resolve()
   private schemaRepo?: SchemaRepository
+  private storageTask?: StorageTask
 
   constructor (idMill: ProduceId, modKv: SqliteKvFabric) {
     super()
     this.idMill = idMill
     this.modKv = modKv
+  }
+
+  public setStorageTask (storageTask: StorageTask): void {
+    this.storageTask = storageTask
   }
 
   public override async launchEngine (realmName: string): Promise<void> {
@@ -92,7 +98,7 @@ export class DbEngine extends BaseEngine {
 
     if (actor.getOpt().trace) {
       const db = await this.modKv.getDb(this.getRealmName())
-      return History.saveEventHistory(
+      await History.saveEventHistory(
         db,
         this.getRealmName(),
         id,
@@ -100,6 +106,17 @@ export class DbEngine extends BaseEngine {
         actor.getUri(),
         makeDataSerializable(actor.getData()),
         actor.getOpt()
+      )
+    }
+
+    if (this.storageTask) {
+      this.storageTask.pushLocalEvent(
+        this.getRealmName(),
+        actor.getUri(),
+        actor.getData(),
+        actor.getOpt(),
+        actor.getSid(),
+        id
       )
     }
   }
@@ -110,7 +127,7 @@ export class DbEngine extends BaseEngine {
       db,
       this.getRealmName(),
       { fromId: after, uri },
-      (event: any) => {
+      async (event: any) => {
         cbRow({
           qid: event.id,
           uri: event.uri,

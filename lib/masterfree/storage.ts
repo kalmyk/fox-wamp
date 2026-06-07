@@ -204,4 +204,21 @@ export class StorageTask extends EventEmitter {
     }
     return result
   }
+
+  pushLocalEvent(realm: string, uri: string[], data: any, opt: any, sid: string, eventId: string) {
+    this.emit(SEGMENT_COMMITTED, {
+      advanceOwner: 'local',
+      advanceSegment: 0,
+      segment: eventId,
+      events: [{
+        eventId,
+        realm,
+        uri,
+        data,
+        opt,
+        sid,
+        shard: 0
+      }]
+    })
+  }
 }

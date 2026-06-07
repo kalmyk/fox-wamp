@@ -1,11 +1,6 @@
-import { getBodyValue } from './base_gate'
+import { getMergedBody, getBodyValue } from './tools'
 
 export function getPayload(data: any): any {
-  if (data && typeof data === 'object' && 'args' in data && Array.isArray(data.args)) {
-    if (data.args.length === 1) return data.args[0]
-    if (data.args.length === 0) return null
-    return data.args
-  }
   return getBodyValue(data)
 }
 

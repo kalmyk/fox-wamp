@@ -28,3 +28,21 @@ export function getBodyValue(body: any): any {
   const bodyStr = (body && typeof body === 'object' && !Buffer.isBuffer(body)) ? JSON.stringify(body) : String(body)
   throw new Error('unknown body `' + bodyStr + '`')
 }
+
+export function getMergedBody(body: any): any {
+  if (body === null || body === undefined) return null
+  if (typeof body === 'object') {
+    if ('args' in body || 'kwargs' in body) {
+      let res: any = {}
+      if (body.kwargs && typeof body.kwargs === 'object') {
+        Object.assign(res, body.kwargs)
+      }
+      if (Array.isArray(body.args) && body.args.length > 0 && typeof body.args[0] === 'object' && body.args[0] !== null) {
+        Object.assign(res, body.args[0])
+      }
+      if (Object.keys(res).length > 0) return res
+    }
+    return getBodyValue(body)
+  }
+  return body
+}

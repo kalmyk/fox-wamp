@@ -26,21 +26,21 @@
 
 - [x] 4.1 Add a dedicated activation command for a registered persistent KV projection.
 - [x] 4.2 Activation sets status to `refreshing`, clears `last_error`, records `started_at`, and captures the latest committed event ID for the projection realm as the activation target.
-- [ ] 4.3 Activation applies matching retained KV mutations in committed event order and persists `current_position` as events are inspected.
-- [ ] 4.4 Activation sets status to `failed` and writes `last_error` if historical apply fails.
-- [ ] 4.5 Activation sets status to `online` only after refresh reaches the realm-scoped activation target.
+- [x] 4.3 Activation applies matching retained KV mutations in committed event order and persists `current_position` as events are inspected.
+- [x] 4.4 Activation sets status to `failed` and writes `last_error` if historical apply fails.
+- [x] 4.5 Activation sets status to `online` only after refresh reaches the realm-scoped activation target.
 - [x] 4.6 Allow activation from `inactive` and `failed`; reject activation from `refreshing` as already running; return no-op success from `online`.
-- [ ] 4.7 Add a persistent KV projection listener that subscribes to `SEGMENT_COMMITTED` after the projection is online.
-- [ ] 4.8 Apply retained KV mutations from committed event records only after the segment commit completes.
-- [ ] 4.9 Ignore non-retained events for KV projection updates.
-- [ ] 4.10 Persist `current_position` after each committed event is inspected or applied during activation.
+- [x] 4.7 Add a persistent KV projection listener that subscribes to `SEGMENT_COMMITTED` after the projection is online.
+- [x] 4.8 Apply retained KV mutations from committed event records only after the segment commit completes.
+- [x] 4.9 Ignore non-retained events for KV projection updates.
+- [x] 4.10 Persist `current_position` after each committed event is inspected or applied during activation.
 - [ ] 4.11 Keep `Realm.registerKeyValueEngine()` as the local/in-memory compatibility path, not the persistent distributed KV registration mechanism.
-- [ ] 4.12 Add a reset command that clears projected KV data, sets `current_position = NULL`, clears `last_error`, and sets status to `inactive`.
-- [ ] 4.13 Advance `current_position` for every online KV projection on each `SEGMENT_COMMITTED`, using the committed segment ID when no later matching event ID is applied.
-- [ ] 4.14 Select projection targets by `opt.retain === true`, the event realm's registry table, and matching `uri_pattern`.
-- [ ] 4.15 Apply one retained event to every matching projection, not just the first match.
-- [ ] 4.16 Validate projected values against the matching schema when a schema exists for the accepted URL.
-- [ ] 4.17 Delete projected retained rows when `isDataEmpty(event.data)` is true, including MQTT empty-payload publishes mapped to `null`.
+- [x] 4.12 Add a reset command that clears projected KV data, sets `current_position = NULL`, clears `last_error`, and sets status to `inactive`.
+- [x] 4.13 Advance `current_position` for every online KV projection on each `SEGMENT_COMMITTED`, using the committed segment ID when no later matching event ID is applied.
+- [x] 4.14 Select projection targets by `opt.retain === true`, the event realm's registry table, and matching `uri_pattern`.
+- [x] 4.15 Apply one retained event to every matching projection, not just the first match.
+- [x] 4.16 Validate projected values against the matching schema when a schema exists for the accepted URL.
+- [x] 4.17 Delete projected retained rows when `isDataEmpty(event.data)` is true, including MQTT empty-payload publishes mapped to `null`.
 
 ## 5. Verification
 
