@@ -8,10 +8,12 @@ The current KV registry has a `storage_type` placeholder, but persistent KV proj
 
 - Add a realm-scoped schema repository table that stores immutable schema records.
 - Use the README information-schema shape as the initial schema body format: `properties`, `primary_key`, optional aggregate/projection fields such as `sum` and `propagate`.
-- Bind each schema record to an accepted URL pattern stored as canonical dotted FOX topic text.
+- Bind each schema record to an accepted URL prefix/pattern stored as canonical dotted FOX topic text.
+- Require schema registration inputs to use canonical dotted FOX topic prefixes/patterns only. Protocol gates normalize MQTT slash topics and WAMP dotted topics into this same canonical dotted FOX topic form before schema lookup.
 - Generate a related SQLite data table for each schema, with a `${realmName}` suffix and a stable hash-derived table name.
 - Link each `kv_storage_${realmName}` row to exactly one schema via `schema_id`; this replaces the current `storage_type` placeholder in the KV registry proposal.
-- Validate incoming committed retained events against the schema selected by URL before storing projected data.
+- Validate incoming committed retained events against every matching schema before storing projected data. MQTT and WAMP follow the same schema-selection rules after protocol-boundary parsing.
+- Apply each matching schema's projection rules independently. A schema owns its generated projection table set, so overlapping schema URL prefixes/patterns are allowed and are not inherently dangerous.
 - Treat schemas and generated data tables as immutable for now. To modify a schema, create a new schema record, create a new generated table, activate the new KV projection, deactivate the old one, and then remove the old generated data table when it is no longer needed.
 
 ## Capabilities
@@ -52,10 +54,10 @@ Possible schema extension:
 
 ### Schema Replacement Lifecycle
 
-Schema replacement currently creates a new immutable schema row/table, activates a new projection, deactivates the old projection, and later cleans up the old generated table. The lookup and lifecycle details still need a precise contract.
+Schema replacement currently creates a new immutable schema row/table, activates a new projection, deactivates the old projection, and later cleans up the old generated table. Overlapping schemas are allowed because each matching schema validates/applies its own projection rules independently and owns its generated projection table set. The remaining lookup and lifecycle details still need a precise contract.
 
-- Can two active schemas share the same `url_pattern` during transition?
-- If two schema rows can temporarily share a URL pattern, how does schema lookup choose old versus new?
+- Can two active schemas share the exact same `url_pattern` during transition, or is overlap allowed only between different prefixes/patterns?
+- If two schema rows share the exact same URL pattern, does lookup apply both independently or does replacement require one to be deprecated first?
 - What field or status marks the old schema/projection as deprecated or inactive for lookup?
 - Is cleanup of obsolete generated tables manual only, or can it be triggered automatically after deactivation?
 

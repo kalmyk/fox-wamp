@@ -29,7 +29,7 @@ The CLI will utilize subcommands to categorize operations logically:
 **Schema Management (`foxctl schema`)**
 - `foxctl schema add <name> <file.json>`: Uploads a new JSON schema or updates an existing one.
 - `foxctl schema list`: Outputs a table of all registered schemas and their associated IDs.
-- `foxctl schema bind <name> <url_pattern>`: Binds an existing schema to a specific URL pattern.
+- `foxctl schema bind <name> <url_pattern>`: Binds an existing schema to a canonical dotted FOX topic prefix/pattern. MQTT slash topics and WAMP dotted topics are normalized by protocol gates before they reach schema selection, so `foxctl` does not accept protocol-specific topic syntax here.
 - `foxctl schema unbind <url_pattern>`: Removes the schema binding for a URL.
 - `foxctl schema delete <name>`: Deletes a schema (must be unbound first).
 

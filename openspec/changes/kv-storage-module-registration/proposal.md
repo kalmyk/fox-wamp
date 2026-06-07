@@ -8,7 +8,7 @@ The system currently has an outdated key-value storage registration path tied to
 - **Storage Fields**:
     - `name`: Unique identifier for the storage instance.
     - Realm is selected by table name, not by a row column.
-    - `uri_pattern`: Canonical dotted FOX topic pattern this storage is responsible for, such as `app.topic.#`.
+    - `uri_pattern`: Canonical dotted FOX topic prefix/pattern this storage is responsible for, such as `app.topic.#`.
     - `schema_id`: Required link to exactly one message schema that owns validation and the generated projection table.
     - `started_at`: Timestamp when the storage was last started.
     - `status`: Lifecycle state (`inactive`, `refreshing`, `online`, `failed`).
@@ -16,7 +16,7 @@ The system currently has an outdated key-value storage registration path tied to
     - `last_error`: Text description of the last activation or refresh failure.
 - **Activation Command**: Add a dedicated command to activate a registered projection. Activation reads historical events matching the projection, applies them, and catches up to the realm-scoped activation target.
 - **Committed Segment Signal**: Extend the storage commit path so `SEGMENT_COMMITTED` emits a payload containing the resolved segment and the committed event records.
-- **KV Projection Listener**: Move persistent KV updates from old save/update hooks to a listener that applies retained KV mutations after `SEGMENT_COMMITTED`.
+- **KV Projection Listener**: Move persistent KV updates from old save/update hooks to a listener that applies retained KV mutations after `SEGMENT_COMMITTED`. Protocol gates normalize MQTT slash topics and WAMP dotted topics into canonical dotted FOX topics before matching, so both protocols use the same projection-selection rules. Each matching schema/projection applies independently to its own generated projection table set.
 - **Status Management**: Logic to update projection status during initialization, refresh, and normal operation.
 
 ## Capabilities
