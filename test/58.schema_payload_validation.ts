@@ -56,7 +56,7 @@ describe('58.schema_payload_validation', function () {
 
   it('rejects publish if payload does not match schema (using property objects)', async () => {
     const engine = realm.getEngine() as DbEngine
-    const repo = realm.engine.getSchemaRepository() as SchemaRepository
+    const repo = realm.engine.getSchemaRepository() as unknown as SchemaRepository
     
     const schema = {
       properties: {
@@ -88,7 +88,7 @@ describe('58.schema_payload_validation', function () {
 
   it('rejects call if payload does not match schema', async () => {
     const engine = realm.getEngine() as DbEngine
-    const repo = realm.engine.getSchemaRepository() as SchemaRepository
+    const repo = realm.engine.getSchemaRepository() as unknown as SchemaRepository
     
     const schema = {
       properties: {
@@ -121,7 +121,7 @@ describe('58.schema_payload_validation', function () {
 
   it('rejects publish if payload does not match schema', async () => {
     const engine = realm.getEngine() as DbEngine
-    const repo = realm.engine.getSchemaRepository() as SchemaRepository
+    const repo = realm.engine.getSchemaRepository() as unknown as SchemaRepository
     
     const schema = {
       properties: {
@@ -156,7 +156,7 @@ describe('58.schema_payload_validation', function () {
 
   it('accepts publish if payload matches schema', async () => {
     const engine = realm.getEngine() as DbEngine
-    const repo = realm.engine.getSchemaRepository() as SchemaRepository
+    const repo = realm.engine.getSchemaRepository() as unknown as SchemaRepository
     
     const schema = {
       properties: {
@@ -230,5 +230,77 @@ describe('58.schema_payload_validation', function () {
     expect(msg).to.not.be.null
     expect(msg[0]).to.equal(17) // PUBLISHED
     expect(msg[1]).to.equal(id)
+  })
+
+  it('accepts publish if primary key is found in URI', async () => {
+    const repo = realm.engine.getSchemaRepository() as unknown as SchemaRepository
+    
+    const schema = {
+      properties: {
+        user_id: 'string',
+        username: 'string',
+        email: 'string'
+      },
+      primary_key: ['user_id'],
+      key_from_uri: {
+        user_id: 3
+      }
+    }
+    
+    await repo.register('uri-pk-schema', 'app.topic.user.#', schema)
+    
+    const id = 300
+    wampGate.handle(ctx, cli, [
+      16, // PUBLISH
+      id,
+      { acknowledge: true },
+      'app.topic.user.123', // Index 3 is '123'
+      [{ username: 'jdoe', email: 'j@example.com' }]
+    ])
+    
+    await new Promise(resolve => setTimeout(resolve, 50))
+    
+    const msg = mockSocket.lastMsg
+    if (msg && msg[0] === 8) {
+      console.log('Error message:', msg[5])
+    }
+    expect(msg).to.not.be.null
+    expect(msg[0]).to.equal(17) // PUBLISHED
+    expect(msg[1]).to.equal(id)
+  })
+
+  it('rejects publish if primary key is missing from URI', async () => {
+    const repo = realm.engine.getSchemaRepository() as unknown as SchemaRepository
+    
+    const schema = {
+      properties: {
+        user_id: 'string',
+        username: 'string',
+        email: 'string'
+      },
+      primary_key: ['user_id'],
+      key_from_uri: {
+        user_id: 3 // Out of bounds for 'app.topic.user'
+      }
+    }
+    
+    await repo.register('uri-pk-missing', 'app.topic.user', schema)
+    
+    const id = 301
+    wampGate.handle(ctx, cli, [
+      16, // PUBLISH
+      id,
+      { acknowledge: true },
+      'app.topic.user', 
+      [{ username: 'jdoe', email: 'j@example.com' }]
+    ])
+    
+    await new Promise(resolve => setTimeout(resolve, 50))
+    
+    const msg = mockSocket.lastMsg
+    expect(msg).to.not.be.null
+    expect(msg[0]).to.equal(8) // ERROR
+    expect(msg[4]).to.equal('wamp.error.invalid_argument')
+    expect(msg[5][0]).to.contain('Primary key field "user_id" is missing or null')
   })
 })

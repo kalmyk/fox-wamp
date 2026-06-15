@@ -170,16 +170,15 @@ export class SchemaRepository {
     return this.cache !== null
   }
 
-  findByUrl(url: string): SchemaRecord | null {
+  findByUrl(url: string[]): SchemaRecord | null {
     if (this.cache === null) {
       throw new Error('Schema cache is not ready. Call loadCache() first.')
     }
     if (this.cache.length === 0) return null
 
-    const targetTopic = defaultParse(url)
     for (const record of this.cache) {
       const pattern = defaultParse(record.urlPattern)
-      if (match(targetTopic, pattern)) {
+      if (match(url, pattern)) {
         return record
       }
     }

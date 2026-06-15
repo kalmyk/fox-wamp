@@ -74,7 +74,7 @@ export function validateSchema(schemaJson: any) {
   }
 }
 
-export function validatePayload(schemaJson: any, payload: any) {
+export function validatePayload(schemaJson: any, payload: any, uri?: string[]): any {
   if (!payload || typeof payload !== 'object') {
     throw new Error('Payload must be an object')
   }
@@ -87,6 +87,13 @@ export function validatePayload(schemaJson: any, payload: any) {
     const val = payload[key]
     if (val === undefined || val === null) {
       if (schemaJson.primary_key.includes(key)) {
+        if (schemaJson.key_from_uri && schemaJson.key_from_uri[key] !== undefined) {
+          const index = schemaJson.key_from_uri[key]
+          if (uri && uri[index] !== undefined) {
+            // Value found in URI
+            continue
+          }
+        }
         throw new Error(`Primary key field "${key}" is missing or null`)
       }
       continue

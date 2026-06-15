@@ -2,8 +2,10 @@
 import { Qlobber } from 'qlobber'
 import { EventEmitter } from 'events'
 
-import { SESSION_JOIN, SESSION_LEAVE, RESULT_EMIT, ON_SUBSCRIBED, ON_UNSUBSCRIBED,
-  ON_REGISTERED, ON_UNREGISTERED } from './messages'
+import {
+  SESSION_JOIN, SESSION_LEAVE, RESULT_EMIT, ON_SUBSCRIBED, ON_UNSUBSCRIBED,
+  ON_REGISTERED, ON_UNREGISTERED
+} from './messages'
 
 import { match, intersect, merge, extract, restoreUri, defaultParse } from './topic_pattern'
 import { getBodyValue } from './base_gate'
@@ -18,7 +20,7 @@ import { HyperCommand, Id, SchemaRecord, SchemaStatus } from './types'
 import { getPayload, validatePayload, validateSchema, sortKeys } from './schema_validation'
 
 export interface SchemaRepositoryLike {
-  findByUrl(url: string): SchemaRecord | null;
+  findByUrl(url: string[]): SchemaRecord | null;
 }
 
 export class StaticSchemaRepository implements SchemaRepositoryLike {
@@ -41,9 +43,9 @@ export class StaticSchemaRepository implements SchemaRepositoryLike {
     return record
   }
 
-  findByUrl(url: string): SchemaRecord | null {
+  findByUrl(url: string[]): SchemaRecord | null {
     for (const [pattern, record] of this.schemas) {
-      if (match(defaultParse(url), defaultParse(pattern))) {
+      if (match(url, defaultParse(pattern))) {
         return record
       }
     }
@@ -58,14 +60,14 @@ export class SchemaChecker {
     this.repositories.push(repo)
   }
 
-  validate(url: string, data: any): void {
+  validate(url: string[], data: any): void {
     if (this.repositories.length === 0) return
 
     for (const repo of this.repositories) {
       const schema = repo.findByUrl(url)
       if (schema) {
         const payload = getPayload(data)
-        validatePayload(JSON.parse(schema.schemaJson), payload)
+        validatePayload(JSON.parse(schema.schemaJson), payload, url)
         return
       }
     }
@@ -418,7 +420,7 @@ export class ActorPush extends Actor implements IActorPush {
       this.clientNotified = true
       if (this.needAck()) {
         try {
-          this.ctx.sendPublished!({id: this.msg.id, qid: this.eventId})
+          this.ctx.sendPublished!({ id: this.msg.id, qid: this.eventId })
         } catch (e) {
           this.ctx.setSendFailed(e as Error)
           throw e
@@ -1043,9 +1045,8 @@ export class BaseRealm extends EventEmitter {
     if (this._dict) {
       this._dict.validateStruct(cmd.uri || [], cmd.data)
     }
-    const url = restoreUri(cmd.uri || [])
     try {
-      this.schemaChecker.validate(url, cmd.data)
+      this.schemaChecker.validate(cmd.uri || [], cmd.data)
     } catch (e) {
       throw new RealmError(cmd.id, errorCodes.ERROR_INVALID_ARGUMENT, (e as Error).message)
     }
@@ -1068,7 +1069,7 @@ export class BaseRealm extends EventEmitter {
     }
   }
 
-  cmdConfirm(ctx: Context, cmd: HyperCommand<any>): void {}
+  cmdConfirm(ctx: Context, cmd: HyperCommand<any>): void { }
 
   cmdTrace(ctx: Context, cmd: HyperCommand<any>): Id {
     cmd.opt = cmd.opt || {}
@@ -1147,9 +1148,8 @@ export class BaseRealm extends EventEmitter {
     if (this._dict) {
       this._dict.validateStruct(cmd.uri || [], cmd.data)
     }
-    const url = restoreUri(cmd.uri || [])
     try {
-      this.schemaChecker.validate(url, cmd.data)
+      this.schemaChecker.validate(cmd.uri || [], cmd.data)
     } catch (e) {
       const actor = this.engine.createActorPush(ctx, cmd)
       actor.rejectCmd('wamp.error.invalid_argument', (e as Error).message)
@@ -1205,7 +1205,7 @@ export class BaseRealm extends EventEmitter {
     const session = this.getRouter().createSession()
     this.joinSession(session)
     session.setGateProtocol('internal.hyper.api')
-    
+
     const api = new HyperClient(this, new HyperApiContext(this.getRouter(), session, this));
     api.setSession(session);
     return api
@@ -1294,7 +1294,7 @@ export class ActorPushKv implements IActorPush {
     }
   }
 
-  confirm(): void {}
+  confirm(): void { }
 
   rejectCmd(errorCode: string, text?: string): void {
     console.error('ActorPushKv rejected:', errorCode, text)
@@ -1345,7 +1345,7 @@ export class TableDictionary {
   constructor() {
     this._tables = new Map()
   }
-    
+
   getTableDef(tableName: string): any {
     return this._tables.get(tableName)
   }

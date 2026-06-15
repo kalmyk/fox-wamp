@@ -14,6 +14,7 @@ import {
 import { validateSchema, validatePayload } from '../lib/schema_validation'
 import { ProduceId } from '../lib/masterfree/makeid'
 import { SchemaStatus } from '../lib/types'
+import { defaultParse } from '../lib/topic_pattern'
 
 describe('57.schema_repository', function () {
   let db: sqlite.Database
@@ -98,13 +99,13 @@ describe('57.schema_repository', function () {
     await repo.register('schema2', 'other.topic.#', schema2)
     await repo.loadCache()
 
-    const found1 = repo.findByUrl('app.topic.foo')
+    const found1 = repo.findByUrl(defaultParse('app.topic.foo'))
     expect(found1?.label).to.equal('schema1')
     
-    const found2 = repo.findByUrl('other.topic.bar.baz')
+    const found2 = repo.findByUrl(defaultParse('other.topic.bar.baz'))
     expect(found2?.label).to.equal('schema2')
     
-    const notFound = repo.findByUrl('app.other.topic')
+    const notFound = repo.findByUrl(defaultParse('app.other.topic'))
     expect(notFound).to.be.null
   })
 

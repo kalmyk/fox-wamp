@@ -38,12 +38,22 @@ export class KvProjection {
       if (this.schemaJson) {
         const pk = this.schemaJson.primary_key
         const where = pk.map((k: string) => `"${k}" = ?`).join(' AND ')
-        // Search for PK in merged allData
-        if (allData && typeof allData === 'object' && !Array.isArray(allData)) {
-           const values = pk.map((k: string) => allData[k])
-           if (values.every((v: any) => v !== undefined && v !== null)) {
-             await this.db.run(`DELETE FROM "${this.dataTable}" WHERE ${where}`, values)
-           }
+        
+        // Use URI-derived primary keys if mapping exists
+        let values = pk.map((k: string) => allData ? allData[k] : undefined)
+        
+        if (this.schemaJson.key_from_uri) {
+          const uriParts = defaultParse(record.uri.join('.'))
+          for (const key of pk) {
+            const uriIndex = this.schemaJson.key_from_uri[key]
+            if (uriIndex !== undefined && uriParts[uriIndex] !== undefined) {
+              values[pk.indexOf(key)] = uriParts[uriIndex]
+            }
+          }
+        }
+
+        if (values.every((v: any) => v !== undefined && v !== null)) {
+          await this.db.run(`DELETE FROM "${this.dataTable}" WHERE ${where}`, values)
         }
       }
       return record.eventId
@@ -51,7 +61,7 @@ export class KvProjection {
 
     // Validate payload against schema if present
     if (this.schemaJson) {
-      validatePayload(this.schemaJson, payload)
+      validatePayload(this.schemaJson, payload, defaultParse(record.uri.join('.')))
     }
 
     // Apply to generated table

@@ -37,20 +37,25 @@ The current KV registry has a `storage_type` placeholder, but persistent KV proj
 
 ### Retained Delete Key Source
 
-The current design says an empty retained value deletes the projected row, including MQTT empty-payload publishes mapped to `null`. For generated schema tables, the delete path still needs enough information to identify the row key.
+The system will support URI-derived primary keys. If a retained delete event (empty payload) is received, the primary key values will be extracted from the topic URI based on a mapping defined in the schema.
 
-- Are retained delete events required to include all generated table primary-key fields in the event body?
-- If not, are primary-key values derived from URI segments?
-- If primary-key values are URI-derived, how does the schema declare that mapping?
+The schema must include a `key_from_uri` object mapping primary key fields to their respective indices in the canonical dotted FOX topic path.
 
-Possible schema extension:
-
+Example:
 ```json
 {
-  "primary_key": ["customer"],
-  "key_from_uri": { "customer": 2 }
+  "properties": {
+    "user_id": "string",
+    "username": "string",
+    "email": "string"
+  },
+  "primary_key": ["user_id"],
+  "key_from_uri": {
+    "user_id": 2
+  }
 }
 ```
+In the topic `profiles/123`, the value `123` at index 2 is mapped to `user_id`, allowing the system to identify and delete the correct row.
 
 ### Schema Replacement Lifecycle
 
