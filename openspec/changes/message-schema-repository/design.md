@@ -43,7 +43,7 @@ CREATE TABLE message_schemas_<realmName> (
 
 Schema rows are immutable. There is no update-in-place path for `schema_json`, `url_pattern`, or `data_table`.
 
-### 2. Schema Body
+### 2. Schema Body and URL Field Extraction
 The initial schema body follows the README information-schema shape:
 
 ```json
@@ -63,6 +63,19 @@ The initial schema body follows the README information-schema shape:
   }
 }
 ```
+
+**Constraint:** Every field in `primary_key` MUST be present in the `url_pattern` as a named placeholder. This ensures all primary keys have authoritative values bound to the URL structure.
+
+The `url_pattern` uses named field placeholders in curly braces within dotted canonical FOX topic text:
+- Example: `sales.{customer}.{date}` or `revenue.{region}.{year}.detail`
+- Fields wrapped in `{...}` are extracted from the actual URL/topic and merged with the body payload.
+- Fields NOT in the pattern must come from the body payload.
+
+**Validation order:**
+1. Extract field values from the URL using the `url_pattern` placeholder positions.
+2. Merge URL-extracted values with the body payload (URL values take precedence).
+3. Validate that all fields in `properties` have the correct type.
+4. Validate that all fields in `primary_key` are non-null and present (after merge).
 
 For the first implementation, `properties` and `primary_key` define validation and generated table columns. Aggregate features such as `sum` and `propagate` may be stored and validated structurally, but full aggregate behavior can remain a later implementation task unless explicitly required by a projection.
 

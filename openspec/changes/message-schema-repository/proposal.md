@@ -8,12 +8,13 @@ The current KV registry has a `storage_type` placeholder, but persistent KV proj
 
 - Add a realm-scoped schema repository table that stores immutable schema records.
 - Use the README information-schema shape as the initial schema body format: `properties`, `primary_key`, optional aggregate/projection fields such as `sum` and `propagate`.
-- Bind each schema record to an accepted URL prefix/pattern stored as canonical dotted FOX topic text.
-- Require schema registration inputs to use canonical dotted FOX topic prefixes/patterns only. Protocol gates normalize MQTT slash topics and WAMP dotted topics into this same canonical dotted FOX topic form before schema lookup.
+- Bind each schema record to an accepted URL pattern with field placeholders stored as canonical dotted FOX topic text (e.g., `sales.{customer}.{date}`).
+- Require schema registration inputs to use canonical dotted FOX topic patterns only. Protocol gates normalize MQTT slash topics and WAMP dotted topics into this same canonical dotted FOX topic form before schema lookup.
+- **Primary key fields MUST be present in the URL pattern** as required placeholders; extract their values from the URL and merge with the body payload before validation.
 - Generate a related SQLite data table for each schema, with a `${realmName}` suffix and a stable hash-derived table name.
 - Link each `kv_storage_${realmName}` row to exactly one schema via `schema_id`; this replaces the current `storage_type` placeholder in the KV registry proposal.
-- Validate incoming committed retained events against every matching schema before storing projected data. MQTT and WAMP follow the same schema-selection rules after protocol-boundary parsing.
-- Apply each matching schema's projection rules independently. A schema owns its generated projection table set, so overlapping schema URL prefixes/patterns are allowed and are not inherently dangerous.
+- Validate incoming committed retained events against the schema selected by URL; ensure all primary key values (from URL) and other required fields (from body) are present before storing projected data. MQTT and WAMP follow the same schema-selection rules after protocol-boundary parsing.
+- Apply each matching schema's projection rules independently. A schema owns its generated projection table set, so overlapping schema URL patterns are allowed and are not inherently dangerous.
 - Treat schemas and generated data tables as immutable for now. To modify a schema, create a new schema record, create a new generated table, activate the new KV projection, deactivate the old one, and then remove the old generated data table when it is no longer needed.
 
 ## Capabilities

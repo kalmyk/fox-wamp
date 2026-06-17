@@ -74,12 +74,12 @@ describe('57.schema_repository', function () {
       },
       primary_key: ['id']
     }
-    
-    const record = await repo.register('test-schema', 'app.topic.#', schema)
-    
+
+    const record = await repo.register('test-schema', 'app.{id}.data', schema)
+
     expect(record.schemaId).to.match(/^sch_testrealm_[a-f0-9]{16}$/)
     expect(record.label).to.equal('test-schema')
-    expect(record.urlPattern).to.equal('app.topic.#')
+    expect(record.urlPattern).to.equal('app.{id}.data')
     expect(record.status).to.equal(SchemaStatus.Active)
     expect(record.dataTable).to.match(/^data_testrealm_[a-f0-9]{12}$/)
 
@@ -95,17 +95,17 @@ describe('57.schema_repository', function () {
   it('finds schema by matching URL pattern', async () => {
     const schema1 = { properties: { a: 'string' }, primary_key: ['a'] }
     const schema2 = { properties: { b: 'number' }, primary_key: ['b'] }
-    await repo.register('schema1', 'app.topic.*', schema1)
-    await repo.register('schema2', 'other.topic.#', schema2)
+    await repo.register('schema1', 'app.{a}.topic', schema1)
+    await repo.register('schema2', 'other.{b}.data', schema2)
     await repo.loadCache()
 
-    const found1 = repo.findByUrl(defaultParse('app.topic.foo'))
+    const found1 = repo.findByUrl(defaultParse('app.foo.topic'))
     expect(found1?.label).to.equal('schema1')
-    
-    const found2 = repo.findByUrl(defaultParse('other.topic.bar.baz'))
+
+    const found2 = repo.findByUrl(defaultParse('other.bar.data'))
     expect(found2?.label).to.equal('schema2')
     
-    const notFound = repo.findByUrl(defaultParse('app.other.topic'))
+    const notFound = repo.findByUrl(defaultParse('unmatched.path.pattern'))
     expect(notFound).to.be.null
   })
 

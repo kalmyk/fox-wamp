@@ -5,12 +5,16 @@
 - [x] 1.3 Implement immutable schema registration that rejects in-place updates to schema body, URL pattern, or generated table.
 - [x] 1.4 Store `url_pattern` as canonical dotted FOX topic text and parse it with `defaultParse()` when matching events.
 
-## 2. Schema Body and Validation
+## 2. Schema Body and URL Field Extraction
 
 - [x] 2.1 Implement validation for the README-style schema body shape with `properties` and `primary_key`.
 - [x] 2.2 Persist optional aggregate/projection hints such as `sum` and `propagate` without requiring full aggregate behavior.
 - [x] 2.3 Validate incoming publish payloads against the schema selected by URL pattern.
-- [x] 2.4 Validate decoded committed retained values against the KV projection's linked schema before projected storage writes, supporting URI-derived primary keys via `key_from_uri`.
+- [ ] 2.4 Validate decoded committed retained values against the KV projection's linked schema before projected storage writes.
+- [x] 2.5 Parse `url_pattern` to extract named field placeholders (e.g., `{customer}`, `{date}` in `sales.{customer}.{date}`).
+- [x] 2.6 Validate that all `primary_key` fields are present as named placeholders in the `url_pattern`.
+- [x] 2.7 Extract field values from the actual URL using the pattern placeholders and merge with body payload.
+- [x] 2.8 Enforce that merged payload contains all `primary_key` fields non-null before schema validation.
 
 ## 3. Generated SQLite Tables
 

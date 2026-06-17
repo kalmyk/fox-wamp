@@ -4,7 +4,7 @@ import { SchemaRecord, SchemaStatus } from '../types'
 import { ProduceId } from '../masterfree/makeid'
 import { createUpdateHistoryTable, saveUpdateHistory } from './update_history'
 import { match, defaultParse } from '../topic_pattern'
-import { validateSchema, validatePayload, sortKeys } from '../schema_validation'
+import { validateSchema as baseValidateSchema, sortKeys } from '../schema_validation'
 
 export async function createSchemaTables(db: sqlite.Database, realmName: string) {
   await createUpdateHistoryTable(db, realmName)
@@ -58,6 +58,69 @@ export function generateCreateTableSql(tableName: string, schemaJson: any): stri
   );`
 }
 
+export function parseUrlPatternFields(urlPattern: string): string[] {
+  const fieldNames: string[] = [];
+  const regex = /\{([^}]+)\}/g;
+  let match;
+  while ((match = regex.exec(urlPattern)) !== null) {
+    fieldNames.push(match[1]);
+  }
+  return fieldNames;
+}
+
+export function extractUrlValues(urlString: string, urlPattern: string): Record<string, string> | null {
+  const urlParts = defaultParse(urlString);
+  const patternParts = defaultParse(urlPattern);
+
+  if (urlParts.length !== patternParts.length) {
+    return null;
+  }
+
+  const values: Record<string, string> = {};
+
+  for (let i = 0; i < patternParts.length; i++) {
+    const patternPart = patternParts[i];
+    const fieldMatch = patternPart.match(/^\{([^}]+)\}$/);
+
+    if (fieldMatch) {
+      const fieldName = fieldMatch[1];
+      values[fieldName] = urlParts[i];
+    } else if (patternPart !== urlParts[i]) {
+      return null;
+    }
+  }
+
+  return values;
+}
+
+export function mergeUrlAndBodyPayload(urlValues: Record<string, string>, bodyPayload: any): any {
+  if (!bodyPayload || typeof bodyPayload !== 'object') {
+    bodyPayload = {};
+  }
+  return { ...bodyPayload, ...urlValues };
+}
+
+export function matchUrlPattern(urlParts: string[], patternParts: string[]): boolean {
+  if (urlParts.length !== patternParts.length) {
+    return false;
+  }
+
+  for (let i = 0; i < patternParts.length; i++) {
+    const pattern = patternParts[i];
+    const fieldMatch = pattern.match(/^\{([^}]+)\}$/);
+
+    if (fieldMatch) {
+      // {field} placeholder matches any value
+      continue;
+    } else if (pattern !== urlParts[i]) {
+      // Literal match required
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export class SchemaRepository {
   private db: sqlite.Database
   private realmName: string
@@ -70,8 +133,19 @@ export class SchemaRepository {
     this.makeId = makeId
   }
 
+  private validateUrlPattern(schemaJson: any, urlPattern: string): void {
+    const patternFields = parseUrlPatternFields(urlPattern)
+    for (const pkKey of schemaJson.primary_key) {
+      if (!patternFields.includes(pkKey)) {
+        throw new Error(`Primary key "${pkKey}" must be present in url_pattern as a placeholder like {${pkKey}}`)
+      }
+    }
+  }
+
   async register(label: string, urlPattern: string, schemaJson: any): Promise<SchemaRecord> {
-    validateSchema(schemaJson)
+    baseValidateSchema(schemaJson)
+    this.validateUrlPattern(schemaJson, urlPattern)
+
     const sortedSchema = sortKeys(schemaJson)
     const schemaStr = JSON.stringify(sortedSchema)
     const schemaId = generateSchemaId(this.realmName, urlPattern, schemaStr)
@@ -109,7 +183,7 @@ export class SchemaRepository {
 
     // Provision data table within a transaction
     const createTableSql = generateCreateTableSql(dataTable, sortedSchema)
-    
+
     await this.db.run('BEGIN TRANSACTION')
     try {
       await this.db.run(createTableSql)
@@ -178,7 +252,7 @@ export class SchemaRepository {
 
     for (const record of this.cache) {
       const pattern = defaultParse(record.urlPattern)
-      if (match(url, pattern)) {
+      if (matchUrlPattern(url, pattern)) {
         return record
       }
     }

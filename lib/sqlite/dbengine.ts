@@ -4,10 +4,15 @@ import { createKvTables, SqliteKvFabric } from './sqlitekv'
 import { createStorageRegistryTables } from './storage_registry'
 import { ProduceId } from '../masterfree/makeid'
 import { StorageTask } from '../masterfree/storage'
-import { 
-  SchemaRepository, 
-  createSchemaTables
+import {
+  SchemaRepository,
+  createSchemaTables,
+  extractUrlValues,
+  mergeUrlAndBodyPayload
 } from './schema_repository'
+import { validatePayload } from '../schema_validation'
+import { restoreUri } from '../topic_pattern'
+import { getBodyValue } from '../tools'
 
 export class DbEngine extends BaseEngine {
   private idMill: ProduceId
@@ -58,6 +63,27 @@ export class DbEngine extends BaseEngine {
   // @return promise
   public override doPush (actor: ActorPush): Promise<void> {
     const runPush = () => {
+      if (this.schemaRepo) {
+        const uri = actor.getUri()
+        const url = restoreUri(uri)
+        const schema = this.schemaRepo.findByUrl(uri)
+        if (schema) {
+          try {
+            const bodyPayload = getBodyValue(actor.getData())
+            const urlValues = extractUrlValues(url, schema.urlPattern)
+            if (!urlValues) {
+              actor.rejectCmd('wamp.error.invalid_argument', `URL "${url}" does not match schema pattern "${schema.urlPattern}"`)
+              return Promise.resolve()
+            }
+            const mergedPayload = mergeUrlAndBodyPayload(urlValues, bodyPayload)
+            validatePayload(JSON.parse(schema.schemaJson), mergedPayload, actor.getUri())
+          } catch (e) {
+            actor.rejectCmd('wamp.error.invalid_argument', (e as Error).message)
+            return Promise.resolve()
+          }
+        }
+      }
+
       return this.doPushFinal(actor).catch(e => {
         if (!actor.clientNotified) {
           actor.rejectCmd('wamp.error.internal_error', (e as Error).message)
