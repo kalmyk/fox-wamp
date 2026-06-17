@@ -10,7 +10,7 @@
 - [x] 2.1 Implement validation for the README-style schema body shape with `properties` and `primary_key`.
 - [x] 2.2 Persist optional aggregate/projection hints such as `sum` and `propagate` without requiring full aggregate behavior.
 - [x] 2.3 Validate incoming publish payloads against the schema selected by URL pattern.
-- [ ] 2.4 Validate decoded committed retained values against the KV projection's linked schema before projected storage writes.
+- [x] 2.4 Validate decoded committed retained values against the KV projection's linked schema before projected storage writes.
 - [x] 2.5 Match `*` wildcards in `url_pattern` against primary key field count and order.
 - [x] 2.6 Validate that the number of `*` wildcards matches the number of `primary_key` fields.
 - [x] 2.7 Extract field values from the actual URL by matching `*` wildcard positions to primary_key field order.
@@ -46,4 +46,4 @@
 - [x] 6.5 Test unmapped URLs still accept free-form JSON.
 - [x] 6.6 Test retained projection writes validate against linked `schema_id` and handle `key_from_uri`.
 - [x] 6.7 Test KV registry rows require `schema_id` and no longer use `storage_type`.
-- [ ] 6.8 Test schema replacement creates a new data table and leaves the old table untouched until cleanup.
+- [x] 6.8 Test schema replacement creates a new data table and leaves the old table untouched until cleanup.
