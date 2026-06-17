@@ -8,9 +8,9 @@ The current KV registry has a `storage_type` placeholder, but persistent KV proj
 
 - Add a realm-scoped schema repository table that stores immutable schema records.
 - Use the README information-schema shape as the initial schema body format: `properties`, `primary_key`, optional aggregate/projection fields such as `sum` and `propagate`.
-- Bind each schema record to an accepted URL pattern with field placeholders stored as canonical dotted FOX topic text (e.g., `sales.{customer}.{date}`).
+- Bind each schema record to an accepted URL pattern with wildcard placeholders stored as canonical dotted FOX topic text (e.g., `sales.*.*.data` for customer and date primary keys).
 - Require schema registration inputs to use canonical dotted FOX topic patterns only. Protocol gates normalize MQTT slash topics and WAMP dotted topics into this same canonical dotted FOX topic form before schema lookup.
-- **Primary key fields MUST be present in the URL pattern** as required placeholders; extract their values from the URL and merge with the body payload before validation.
+- **Primary key fields MUST be extracted from the URL by position**, matching the order of `*` wildcards in the URL pattern; the `primary_key` array order defines which wildcard position corresponds to which field.
 - Generate a related SQLite data table for each schema, with a `${realmName}` suffix and a stable hash-derived table name.
 - Link each `kv_storage_${realmName}` row to exactly one schema via `schema_id`; this replaces the current `storage_type` placeholder in the KV registry proposal.
 - Validate incoming committed retained events against the schema selected by URL; ensure all primary key values (from URL) and other required fields (from body) are present before storing projected data. MQTT and WAMP follow the same schema-selection rules after protocol-boundary parsing.

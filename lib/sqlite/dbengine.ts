@@ -70,13 +70,14 @@ export class DbEngine extends BaseEngine {
         if (schema) {
           try {
             const bodyPayload = getBodyValue(actor.getData())
-            const urlValues = extractUrlValues(url, schema.urlPattern)
+            const schemaJson = JSON.parse(schema.schemaJson)
+            const urlValues = extractUrlValues(url, schema.urlPattern, schemaJson.primary_key)
             if (!urlValues) {
               actor.rejectCmd('wamp.error.invalid_argument', `URL "${url}" does not match schema pattern "${schema.urlPattern}"`)
               return Promise.resolve()
             }
             const mergedPayload = mergeUrlAndBodyPayload(urlValues, bodyPayload)
-            validatePayload(JSON.parse(schema.schemaJson), mergedPayload, actor.getUri())
+            validatePayload(schemaJson, mergedPayload, actor.getUri())
           } catch (e) {
             actor.rejectCmd('wamp.error.invalid_argument', (e as Error).message)
             return Promise.resolve()

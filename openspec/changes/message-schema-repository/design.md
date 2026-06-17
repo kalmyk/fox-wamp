@@ -49,11 +49,11 @@ The initial schema body follows the README information-schema shape:
 ```json
 {
   "properties": {
-    "date": { "type": "string" },
     "customer": { "type": "string" },
+    "date": { "type": "string" },
     "amount": { "type": "string" }
   },
-  "primary_key": ["date", "customer"],
+  "primary_key": ["customer", "date"],
   "propagate": {
     "detail": [{
       "key": ["customer"],
@@ -64,15 +64,16 @@ The initial schema body follows the README information-schema shape:
 }
 ```
 
-**Constraint:** Every field in `primary_key` MUST be present in the `url_pattern` as a named placeholder. This ensures all primary keys have authoritative values bound to the URL structure.
+**Constraint:** Primary keys are extracted from the URL by **position**, not by name. The count and order of `primary_key` fields must match the `*` wildcards in the `url_pattern`.
 
-The `url_pattern` uses named field placeholders in curly braces within dotted canonical FOX topic text:
-- Example: `sales.{customer}.{date}` or `revenue.{region}.{year}.detail`
-- Fields wrapped in `{...}` are extracted from the actual URL/topic and merged with the body payload.
-- Fields NOT in the pattern must come from the body payload.
+The `url_pattern` uses MQTT/WAMP standard wildcard (`*`) placeholders within dotted canonical FOX topic text:
+- Example: `sales.*.*.data` matches URLs like `sales.acme.2026-06-16.data`
+- Each `*` matches exactly one topic part and represents one primary key field in order
+- The `primary_key` array order defines which wildcard corresponds to which field: 1st `*` = 1st primary key, 2nd `*` = 2nd primary key, etc.
+- Fields NOT in the URL pattern must come from the body payload.
 
 **Validation order:**
-1. Extract field values from the URL using the `url_pattern` placeholder positions.
+1. Extract field values from the URL by matching `*` wildcard positions against the `primary_key` order.
 2. Merge URL-extracted values with the body payload (URL values take precedence).
 3. Validate that all fields in `properties` have the correct type.
 4. Validate that all fields in `primary_key` are non-null and present (after merge).

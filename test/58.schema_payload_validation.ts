@@ -66,7 +66,7 @@ describe('58.schema_payload_validation', function () {
       primary_key: ['id']
     }
     
-    await repo.register('test-schema-obj', 'app.{id}.topic.obj', schema)
+    await repo.register('test-schema-obj', 'app.*.topic.obj', schema)
     
     const id = 126
     wampGate.handle(ctx, cli, [
@@ -97,7 +97,7 @@ describe('58.schema_payload_validation', function () {
       primary_key: ['id']
     }
     
-    await repo.register('call-schema', 'proc.{id}.test', schema)
+    await repo.register('call-schema', 'proc.*.test', schema)
     
     const id = 127
     wampGate.handle(ctx, cli, [
@@ -131,7 +131,7 @@ describe('58.schema_payload_validation', function () {
       primary_key: ['id']
     }
     
-    await repo.register('test-schema', 'app.{id}.topic', schema)
+    await repo.register('test-schema', 'app.*.topic', schema)
     
     const id = 123
     wampGate.handle(ctx, cli, [
@@ -166,7 +166,7 @@ describe('58.schema_payload_validation', function () {
       primary_key: ['id']
     }
     
-    await repo.register('test-schema-2', 'app.{id}.topic.ok', schema)
+    await repo.register('test-schema-2', 'app.*.topic.ok', schema)
     
     const id = 124
     wampGate.handle(ctx, cli, [
@@ -247,7 +247,7 @@ describe('58.schema_payload_validation', function () {
       }
     }
     
-    await repo.register('uri-pk-schema', 'app.topic.user.{user_id}', schema)
+    await repo.register('uri-pk-schema', 'app.topic.user.*', schema)
     
     const id = 300
     wampGate.handle(ctx, cli, [
@@ -281,7 +281,7 @@ describe('58.schema_payload_validation', function () {
       primary_key: ['user_id']
     }
 
-    await repo.register('uri-pk-missing', 'app.topic.{user_id}', schema)
+    await repo.register('uri-pk-missing', 'app.topic.*', schema)
 
     const id = 301
     wampGate.handle(ctx, cli, [

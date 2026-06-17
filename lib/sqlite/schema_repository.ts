@@ -58,17 +58,12 @@ export function generateCreateTableSql(tableName: string, schemaJson: any): stri
   );`
 }
 
-export function parseUrlPatternFields(urlPattern: string): string[] {
-  const fieldNames: string[] = [];
-  const regex = /\{([^}]+)\}/g;
-  let match;
-  while ((match = regex.exec(urlPattern)) !== null) {
-    fieldNames.push(match[1]);
-  }
-  return fieldNames;
+export function countWildcards(urlPattern: string): number {
+  const parts = defaultParse(urlPattern);
+  return parts.filter(part => part === '*').length;
 }
 
-export function extractUrlValues(urlString: string, urlPattern: string): Record<string, string> | null {
+export function extractUrlValues(urlString: string, urlPattern: string, primaryKeyFields: string[]): Record<string, string> | null {
   const urlParts = defaultParse(urlString);
   const patternParts = defaultParse(urlPattern);
 
@@ -77,15 +72,22 @@ export function extractUrlValues(urlString: string, urlPattern: string): Record<
   }
 
   const values: Record<string, string> = {};
+  let wildcardIndex = 0;
 
   for (let i = 0; i < patternParts.length; i++) {
     const patternPart = patternParts[i];
-    const fieldMatch = patternPart.match(/^\{([^}]+)\}$/);
 
-    if (fieldMatch) {
-      const fieldName = fieldMatch[1];
-      values[fieldName] = urlParts[i];
+    if (patternPart === '*') {
+      // This wildcard position corresponds to a primary key field
+      if (wildcardIndex < primaryKeyFields.length) {
+        values[primaryKeyFields[wildcardIndex]] = urlParts[i];
+        wildcardIndex++;
+      }
+    } else if (patternPart === '#') {
+      // '#' matches rest - not supported for primary key extraction
+      return null;
     } else if (patternPart !== urlParts[i]) {
+      // Literal part must match exactly
       return null;
     }
   }
@@ -98,27 +100,6 @@ export function mergeUrlAndBodyPayload(urlValues: Record<string, string>, bodyPa
     bodyPayload = {};
   }
   return { ...bodyPayload, ...urlValues };
-}
-
-export function matchUrlPattern(urlParts: string[], patternParts: string[]): boolean {
-  if (urlParts.length !== patternParts.length) {
-    return false;
-  }
-
-  for (let i = 0; i < patternParts.length; i++) {
-    const pattern = patternParts[i];
-    const fieldMatch = pattern.match(/^\{([^}]+)\}$/);
-
-    if (fieldMatch) {
-      // {field} placeholder matches any value
-      continue;
-    } else if (pattern !== urlParts[i]) {
-      // Literal match required
-      return false;
-    }
-  }
-
-  return true;
 }
 
 export class SchemaRepository {
@@ -134,11 +115,10 @@ export class SchemaRepository {
   }
 
   private validateUrlPattern(schemaJson: any, urlPattern: string): void {
-    const patternFields = parseUrlPatternFields(urlPattern)
-    for (const pkKey of schemaJson.primary_key) {
-      if (!patternFields.includes(pkKey)) {
-        throw new Error(`Primary key "${pkKey}" must be present in url_pattern as a placeholder like {${pkKey}}`)
-      }
+    const wildcardCount = countWildcards(urlPattern)
+    const primaryKeyCount = schemaJson.primary_key.length
+    if (wildcardCount !== primaryKeyCount) {
+      throw new Error(`URL pattern has ${wildcardCount} wildcards (*) but schema has ${primaryKeyCount} primary keys. They must match in count.`)
     }
   }
 
@@ -252,7 +232,7 @@ export class SchemaRepository {
 
     for (const record of this.cache) {
       const pattern = defaultParse(record.urlPattern)
-      if (matchUrlPattern(url, pattern)) {
+      if (match(url, pattern)) {
         return record
       }
     }

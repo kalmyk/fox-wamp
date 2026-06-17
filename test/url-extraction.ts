@@ -2,63 +2,71 @@ import * as chai from 'chai'
 const { expect } = chai
 
 import {
-  parseUrlPatternFields,
+  countWildcards,
   extractUrlValues,
-  mergeUrlAndBodyPayload,
-  matchUrlPattern
+  mergeUrlAndBodyPayload
 } from '../lib/sqlite/schema_repository'
-import { defaultParse } from '../lib/topic_pattern'
 
 describe('URL Field Extraction', function () {
-  describe('parseUrlPatternFields', () => {
-    it('extracts field names from URL pattern', () => {
-      const fields = parseUrlPatternFields('app.{customer}.data')
-      expect(fields).to.deep.equal(['customer'])
+  describe('countWildcards', () => {
+    it('counts single wildcard in pattern', () => {
+      const count = countWildcards('app.*.data')
+      expect(count).to.equal(1)
     })
 
-    it('extracts multiple field names in order', () => {
-      const fields = parseUrlPatternFields('sales.{region}.{date}.reports')
-      expect(fields).to.deep.equal(['region', 'date'])
+    it('counts multiple wildcards in order', () => {
+      const count = countWildcards('sales.*.*.reports')
+      expect(count).to.equal(2)
     })
 
-    it('returns empty array if no placeholders', () => {
-      const fields = parseUrlPatternFields('app.data.reports')
-      expect(fields).to.deep.equal([])
+    it('returns zero if no wildcards', () => {
+      const count = countWildcards('app.data.reports')
+      expect(count).to.equal(0)
     })
 
-    it('ignores malformed placeholders', () => {
-      const fields = parseUrlPatternFields('app.{customer}.data.invalid{order')
-      expect(fields).to.deep.equal(['customer'])
+    it('does not count # as a primary key wildcard', () => {
+      const count = countWildcards('app.*.data.#')
+      expect(count).to.equal(1)
     })
   })
 
   describe('extractUrlValues', () => {
-    it('extracts values from URL using pattern placeholders', () => {
-      const values = extractUrlValues('app.acme.data', 'app.{customer}.data')
+    it('extracts values from URL using wildcard positions', () => {
+      const values = extractUrlValues('app.acme.data', 'app.*.data', ['customer'])
       expect(values).to.deep.equal({ customer: 'acme' })
     })
 
-    it('extracts multiple values from URL', () => {
+    it('extracts multiple values from URL by wildcard order', () => {
       const values = extractUrlValues(
         'sales.us.2026-06-16.reports',
-        'sales.{region}.{date}.reports'
+        'sales.*.*.reports',
+        ['region', 'date']
       )
       expect(values).to.deep.equal({ region: 'us', date: '2026-06-16' })
     })
 
     it('returns null if URL length does not match pattern', () => {
-      const values = extractUrlValues('app.data', 'app.{customer}.data.detail')
+      const values = extractUrlValues('app.data', 'app.*.data.detail', ['customer'])
       expect(values).to.be.null
     })
 
     it('returns null if literal parts do not match', () => {
-      const values = extractUrlValues('app.acme.detail', 'app.{customer}.data')
+      const values = extractUrlValues('app.acme.detail', 'app.*.data', ['customer'])
       expect(values).to.be.null
     })
 
-    it('handles literal matches correctly', () => {
-      const values = extractUrlValues('app.acme.sales', 'app.{customer}.sales')
+    it('handles literal matches correctly with wildcards', () => {
+      const values = extractUrlValues('app.acme.sales', 'app.*.sales', ['customer'])
       expect(values).to.deep.equal({ customer: 'acme' })
+    })
+
+    it('preserves field names from primary_key array order', () => {
+      const values = extractUrlValues(
+        'x.first.second.y',
+        'x.*.*.y',
+        ['fieldOne', 'fieldTwo']
+      )
+      expect(values).to.deep.equal({ fieldOne: 'first', fieldTwo: 'second' })
     })
   })
 
@@ -94,44 +102,6 @@ describe('URL Field Extraction', function () {
       const urlValues = { customer: 'acme' }
       const merged = mergeUrlAndBodyPayload(urlValues, null)
       expect(merged).to.deep.equal({ customer: 'acme' })
-    })
-  })
-
-  describe('matchUrlPattern', () => {
-    it('matches URL against pattern with placeholders', () => {
-      const url = defaultParse('app.acme.data')
-      const pattern = defaultParse('app.{customer}.data')
-      expect(matchUrlPattern(url, pattern)).to.be.true
-    })
-
-    it('matches multiple placeholders', () => {
-      const url = defaultParse('sales.us.2026-06-16.reports')
-      const pattern = defaultParse('sales.{region}.{date}.reports')
-      expect(matchUrlPattern(url, pattern)).to.be.true
-    })
-
-    it('rejects URL with wrong length', () => {
-      const url = defaultParse('app.data')
-      const pattern = defaultParse('app.{customer}.data.detail')
-      expect(matchUrlPattern(url, pattern)).to.be.false
-    })
-
-    it('rejects URL with mismatched literals', () => {
-      const url = defaultParse('app.acme.detail')
-      const pattern = defaultParse('app.{customer}.data')
-      expect(matchUrlPattern(url, pattern)).to.be.false
-    })
-
-    it('matches when all parts are placeholders', () => {
-      const url = defaultParse('acme.value1.value2')
-      const pattern = defaultParse('{a}.{b}.{c}')
-      expect(matchUrlPattern(url, pattern)).to.be.true
-    })
-
-    it('rejects when no placeholders and values differ', () => {
-      const url = defaultParse('app.data.reports')
-      const pattern = defaultParse('app.data.different')
-      expect(matchUrlPattern(url, pattern)).to.be.false
     })
   })
 })
