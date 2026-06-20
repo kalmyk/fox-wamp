@@ -34,7 +34,7 @@
 - [x] 4.8 Apply retained KV mutations from committed event records only after the segment commit completes.
 - [x] 4.9 Ignore non-retained events for KV projection updates.
 - [x] 4.10 Persist `current_position` after each committed event is inspected or applied during activation.
-- [ ] 4.11 Keep `Realm.registerKeyValueEngine()` as the local/in-memory compatibility path, not the persistent distributed KV registration mechanism.
+- [x] 4.11 Keep `Realm.registerKeyValueEngine()` as the local/in-memory compatibility path, not the persistent distributed KV registration mechanism.
 - [x] 4.12 Add a reset command that clears projected KV data, sets `current_position = NULL`, clears `last_error`, and sets status to `inactive`.
 - [x] 4.13 Advance `current_position` for every online KV projection on each `SEGMENT_COMMITTED`, using the committed segment ID when no later matching event ID is applied.
 - [x] 4.14 Select projection targets by `opt.retain === true`, the event realm's registry table, and matching `uri_pattern`.
@@ -47,19 +47,19 @@
 - [x] 5.1 Create `test/56.kv_registry.ts` to test registration and lifecycle.
 - [x] 5.2 Verify that `current_position` stores text event/segment watermarks and tracks the last inspected or reached committed position.
 - [x] 5.3 Verify that `SEGMENT_COMMITTED` includes committed event records with assigned event IDs.
-- [ ] 5.4 Verify retained KV state is updated by the committed-segment listener, not by pre-commit save/update hooks.
-- [ ] 5.5 Verify non-retained events do not change projected KV state, while committed segments may still advance the projection `current_position` watermark.
+- [x] 5.4 Verify retained KV state is updated by the committed-segment listener, not by pre-commit save/update hooks.
+- [x] 5.5 Verify non-retained events do not change projected KV state, while committed segments may still advance the projection `current_position` watermark.
 - [x] 5.6 Verify a newly registered projection remains `inactive` until the activation command runs.
-- [ ] 5.7 Verify activation moves through `refreshing` to `online` after historical catch-up reaches the realm-scoped activation target.
-- [ ] 5.8 Verify activation failure sets `failed` and records `last_error`.
-- [ ] 5.9 Verify activation target selection uses the latest committed event ID for the projection realm when a segment contains events for multiple realms.
+- [x] 5.7 Verify activation moves through `refreshing` to `online` after historical catch-up reaches the realm-scoped activation target.
+- [x] 5.8 Verify activation failure sets `failed` and records `last_error`.
+- [x] 5.9 Verify activation target selection uses the latest committed event ID for the projection realm when a segment contains events for multiple realms.
 - [x] 5.10 Verify committed event IDs are built as `<string-segment-id><string-event-offset>`, where `<string-event-offset>` is produced by `keyId(id: number)`.
-- [ ] 5.11 Verify activation and catch-up compare event IDs with string comparison, without parsing event IDs into segment and offset parts.
-- [ ] 5.12 Verify reset clears projected KV data, clears `current_position` and `last_error`, and leaves the projection `inactive` until activation is requested.
+- [x] 5.11 Verify activation and catch-up compare event IDs with string comparison, without parsing event IDs into segment and offset parts.
+- [x] 5.12 Verify reset clears projected KV data, clears `current_position` and `last_error`, and leaves the projection `inactive` until activation is requested.
 - [x] 5.13 Verify activation status handling: `inactive` and `failed` start refresh, `refreshing` rejects as already running, and `online` returns no-op success.
-- [ ] 5.14 Verify empty-realm activation sets status to `online` with `current_position = NULL`.
-- [ ] 5.15 Verify each `SEGMENT_COMMITTED` advances `current_position` for all online KV projections, even when a projection has no matching KV mutation in that segment.
-- [ ] 5.16 Verify committed segment IDs compare greater than previous message IDs and segment IDs by string comparison.
-- [ ] 5.17 Verify a retained event is stored in all matching projections and no non-matching projections.
-- [ ] 5.18 Verify schema validation runs before projected retained values are stored.
-- [ ] 5.19 Verify `null` from MQTT empty retained payload deletes the projected retained row.
+- [x] 5.14 Verify empty-realm activation sets status to `online` with `current_position = NULL`.
+- [x] 5.15 Verify each `SEGMENT_COMMITTED` advances `current_position` for all online KV projections, even when a projection has no matching KV mutation in that segment.
+- [x] 5.16 Verify committed segment IDs compare greater than previous message IDs and segment IDs by string comparison.
+- [x] 5.17 Verify a retained event is stored in all matching projections and no non-matching projections.
+- [x] 5.18 Verify schema validation runs before projected retained values are stored.
+- [x] 5.19 Verify `null` from MQTT empty retained payload deletes the projected retained row.

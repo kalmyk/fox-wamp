@@ -189,7 +189,7 @@ export class ProjectionListener {
     return repo
   }
 
-  private async handleSegmentCommitted(event: CommittedSegmentEvent): Promise<void> {
+  public async handleSegmentCommitted(event: CommittedSegmentEvent): Promise<void> {
     const realmEvents = new Map<string, CommittedSegmentRecord[]>()
     for (const record of event.events) {
       let list = realmEvents.get(record.realm)
