@@ -139,7 +139,7 @@ All operations are explicit commands; no automatic migration of data between old
 
 **Input:**
 ```
-storage_name: string (e.g., "sqlite:realm1:customer.*")
+storage_name: string (e.g., "customer_data")
 ```
 
 **Output:**

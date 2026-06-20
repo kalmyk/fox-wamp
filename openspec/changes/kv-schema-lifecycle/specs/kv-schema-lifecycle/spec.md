@@ -35,7 +35,7 @@ Inactive ──Activate──> Refreshing ──(complete)──> Online
 **Input**:
 ```json
 {
-  "storage_name": "sqlite:realm1:customer.*",
+  "storage_name": "customer_data",
   "timeout_ms": 60000
 }
 ```
@@ -57,7 +57,7 @@ Inactive ──Activate──> Refreshing ──(complete)──> Online
 **Output** (Success):
 ```json
 {
-  "storage_name": "sqlite:realm1:customer.*",
+  "storage_name": "customer_data",
   "status": "Refreshing",
   "started_at": 1718664000000,
   "current_position": null
@@ -68,7 +68,7 @@ Inactive ──Activate──> Refreshing ──(complete)──> Online
 ```json
 {
   "error": "Activation timed out after 60000ms",
-  "storage_name": "sqlite:realm1:customer.*",
+  "storage_name": "customer_data",
   "status": "Failed"
 }
 ```
@@ -87,7 +87,7 @@ Inactive ──Activate──> Refreshing ──(complete)──> Online
 **Input**:
 ```json
 {
-  "storage_name": "sqlite:realm1:customer.*"
+  "storage_name": "customer_data"
 }
 ```
 
@@ -99,7 +99,7 @@ Inactive ──Activate──> Refreshing ──(complete)──> Online
 **Output**:
 ```json
 {
-  "storage_name": "sqlite:realm1:customer.*",
+  "storage_name": "customer_data",
   "status": "deactivated"
 }
 ```
@@ -115,7 +115,7 @@ Inactive ──Activate──> Refreshing ──(complete)──> Online
 **Input**:
 ```json
 {
-  "storage_name": "sqlite:realm1:customer.*",
+  "storage_name": "customer_data",
   "timeout_ms": 60000
 }
 ```
@@ -137,7 +137,7 @@ Inactive ──Activate──> Refreshing ──(complete)──> Online
 **Input**:
 ```json
 {
-  "storage_name": "sqlite:realm1:customer.*"
+  "storage_name": "customer_data"
 }
 ```
 
@@ -150,7 +150,7 @@ Inactive ──Activate──> Refreshing ──(complete)──> Online
 ```json
 {
   "success": true,
-  "storage_name": "sqlite:realm1:customer.*"
+  "storage_name": "customer_data"
 }
 ```
 
