@@ -126,4 +126,70 @@ describe('57.schema_repository', function () {
     expect(sql).to.contain('PRIMARY KEY ("id")')
   })
 
+  it('list returns all registered schemas', async () => {
+    const schema1 = { properties: { a: 'string' }, primary_key: ['a'] }
+    const schema2 = { properties: { b: 'string' }, primary_key: ['b'] }
+    const r1 = await repo.register('s1', 'app.*.one', schema1)
+    const r2 = await repo.register('s2', 'app.*.two', schema2)
+
+    const all = await repo.list()
+    expect(all).to.have.lengthOf(2)
+    expect(all.map(s => s.schemaId)).to.include.members([r1.schemaId, r2.schemaId])
+  })
+
+  it('deprecate drops data table and marks schema deprecated', async () => {
+    const schema = { properties: { id: 'string' }, primary_key: ['id'] }
+    const record = await repo.register('to-deprecate', 'app.*.dep', schema)
+
+    const tablesBefore = await db.all(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [record.dataTable])
+    expect(tablesBefore).to.have.lengthOf(1)
+
+    await repo.deprecate(record.schemaId)
+
+    const saved = await repo.get(record.schemaId)
+    expect(saved!.status).to.equal(SchemaStatus.Deprecated)
+
+    const tablesAfter = await db.all(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [record.dataTable])
+    expect(tablesAfter).to.have.lengthOf(0)
+  })
+
+  it('deprecate is a no-op when schema is already deprecated', async () => {
+    const schema = { properties: { id: 'string' }, primary_key: ['id'] }
+    const record = await repo.register('already-dep', 'app.*.dep2', schema)
+
+    await repo.deprecate(record.schemaId)
+    await repo.deprecate(record.schemaId) // should not throw
+
+    const saved = await repo.get(record.schemaId)
+    expect(saved!.status).to.equal(SchemaStatus.Deprecated)
+  })
+
+  it('deprecate throws when schema not found', async () => {
+    await expect(repo.deprecate('sch_testrealm_nonexistent')).to.be.rejectedWith('Schema not found')
+  })
+
+  it('schema replacement leaves new schema untouched after old is deprecated', async () => {
+    const schemaV1 = { properties: { id: 'string', val: 'string' }, primary_key: ['id'] }
+    const schemaV2 = { properties: { id: 'string', val: 'string', extra: 'string' }, primary_key: ['id'] }
+
+    const v1 = await repo.register('myschema-v1', 'app.*.data', schemaV1)
+    const v2 = await repo.register('myschema-v2', 'app.*.v2', schemaV2)
+
+    expect(v1.dataTable).to.not.equal(v2.dataTable)
+
+    await repo.deprecate(v1.schemaId)
+
+    // v1 deprecated and table dropped
+    const v1After = await repo.get(v1.schemaId)
+    expect(v1After!.status).to.equal(SchemaStatus.Deprecated)
+    const v1Table = await db.all(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [v1.dataTable])
+    expect(v1Table).to.have.lengthOf(0)
+
+    // v2 untouched
+    const v2After = await repo.get(v2.schemaId)
+    expect(v2After!.status).to.equal(SchemaStatus.Active)
+    const v2Table = await db.all(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [v2.dataTable])
+    expect(v2Table).to.have.lengthOf(1)
+  })
+
 })

@@ -21,7 +21,7 @@
 - [x] 3.1 Add a stable generated table naming helper that includes a schema hash and `${realmName}` suffix.
 - [x] 3.2 Generate `CREATE TABLE IF NOT EXISTS` SQL from schema `properties` and `primary_key`.
 - [x] 3.3 Store the generated table name in the schema repository row.
-- [ ] 3.4 Add cleanup logic to remove obsolete generated data tables only after the old projection is deactivated.
+- [x] 3.4 Add cleanup logic to remove obsolete generated data tables only after the old projection is deactivated.
 
 ## 4. KV Registry Integration
 
@@ -32,10 +32,10 @@
 
 ## 5. Schema Replacement Flow
 
-- [ ] 5.1 Add command/API path to register a new schema and generated table for a modified schema.
-- [ ] 5.2 Add command/API path to activate the new KV projection.
-- [ ] 5.3 Add command/API path to deactivate or reset the old KV projection.
-- [ ] 5.4 Add command/API path to remove the old generated table after deactivation.
+- [x] 5.1 Add command/API path to register a new schema and generated table for a modified schema. (covered by fox.admin.schema.add in foxctl)
+- [x] 5.2 Add command/API path to activate the new KV projection. (covered by fox.admin.kv.activate in foxctl)
+- [x] 5.3 Add command/API path to deactivate or reset the old KV projection. (covered by fox.admin.kv.reset in foxctl)
+- [x] 5.4 Add command/API path to remove the old generated table after deactivation. (covered by fox.admin.schema.drop in foxctl)
 
 ## 6. Verification
 

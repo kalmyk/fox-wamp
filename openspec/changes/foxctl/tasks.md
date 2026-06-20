@@ -2,7 +2,7 @@
 
 - [ ] 1.1 Add `AdminEvent` namespace to `lib/masterfree/hyper.h.ts` with admin URI constants:
   `fox.admin.kv.list`, `fox.admin.kv.activate`, `fox.admin.kv.reset`,
-  `fox.admin.schema.list`, `fox.admin.schema.add`.
+  `fox.admin.schema.list`, `fox.admin.schema.add`, `fox.admin.schema.drop`.
   Keep separate from cluster `Event` enum — different semantics, different callers.
 - [ ] 1.2 Define request/response body types for each admin RPC:
   - `AdminKvListRequest { realm: string }`, `AdminKvListResponse { storages: StorageRecord[] }`
@@ -10,6 +10,7 @@
   - `AdminKvResetRequest { realm: string, name: string }`, `AdminKvResetResponse { status: StorageStatus }`
   - `AdminSchemaListRequest { realm: string }`, `AdminSchemaListResponse { schemas: SchemaRecord[] }`
   - `AdminSchemaAddRequest { realm: string, label: string, urlPattern: string, schema: object }`, `AdminSchemaAddResponse { schemaId: string, dataTable: string }`
+  - `AdminSchemaDropRequest { realm: string, schemaId: string }`, `AdminSchemaDropResponse { status: 'deprecated' }`
 
 ## 2. Server-side: AdminApiServer and Async Activation
 
@@ -29,6 +30,7 @@
 - [ ] 2.5 Register `fox.admin.kv.reset` handler: reads `{ realm, name }`, calls `ProjectionListener.resetProjection(realm, name)`, returns `{ status: 'inactive' }`.
 - [ ] 2.6 Register `fox.admin.schema.list` handler: reads `{ realm }`, returns `SchemaRepository.list()` for that realm.
 - [ ] 2.7 Register `fox.admin.schema.add` handler: reads `{ realm, label, urlPattern, schema }`, calls `SchemaRepository.register(label, urlPattern, schemaJson)`, creates the generated data table, returns `{ schemaId, dataTable }`.
+- [ ] 2.8b Register `fox.admin.schema.drop` handler: reads `{ realm, schemaId }`. Guard: list KV projections for realm, reject if any with matching `schema_id` are `online` or `refreshing`. Then call `SchemaRepository.deprecate(schemaId)`. Returns `{ status: 'deprecated' }`.
 - [ ] 2.8 Wire `AdminApiServer` into `bin/singledb.js` startup: construct after `ProjectionListener`, call `adminApi.init()` before the server starts listening.
 
 ## 3. CLI: Entry Point and Connection
@@ -64,6 +66,11 @@
   Extracts `url_pattern` from schema body field or `--url-pattern` flag override.
   Calls `fox.admin.schema.add { realm, label, urlPattern, schema }`.
   Output: `Registered: <schema_id> → table <data_table>`.
+- [ ] 5.3 Implement `foxctl schema drop <schema-id>`:
+  Calls `fox.admin.schema.drop { realm, schemaId }`.
+  Server guards: rejects if any KV projection linked to this schema is `online` or `refreshing`.
+  On success: drops data table, marks schema row as `deprecated`.
+  Output: `<schema_id> deprecated, data table dropped`.
 
 ## 6. Output Formatting
 

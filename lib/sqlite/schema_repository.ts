@@ -239,6 +239,19 @@ export class SchemaRepository {
     return null
   }
 
+  async list(): Promise<SchemaRecord[]> {
+    const rows = await this.db.all(`SELECT * FROM message_schemas_${this.realmName}`)
+    return rows.map(row => ({
+      schemaId: row.schema_id,
+      label: row.label,
+      urlPattern: row.url_pattern,
+      dataTable: row.data_table,
+      schemaJson: row.schema_json,
+      status: row.status as SchemaStatus,
+      createdAt: row.created_at
+    }))
+  }
+
   async loadCache(): Promise<void> {
     const rows = await this.db.all(`SELECT * FROM message_schemas_${this.realmName}`)
     this.cache = rows.map(row => ({
@@ -250,5 +263,27 @@ export class SchemaRepository {
       status: row.status as SchemaStatus,
       createdAt: row.created_at
     }))
+  }
+
+  async deprecate(schemaId: string): Promise<void> {
+    const schema = await this.get(schemaId)
+    if (!schema) throw new Error(`Schema not found: ${schemaId}`)
+    if (schema.status === SchemaStatus.Deprecated) return
+
+    await this.db.run('BEGIN TRANSACTION')
+    try {
+      await this.db.run(`DROP TABLE IF EXISTS "${schema.dataTable}"`)
+      await this.db.run(
+        `UPDATE message_schemas_${this.realmName} SET status = ? WHERE schema_id = ?`,
+        [SchemaStatus.Deprecated, schemaId]
+      )
+      await this.db.run('COMMIT')
+    } catch (e) {
+      await this.db.run('ROLLBACK')
+      throw e
+    }
+
+    this.cache = null
+    await this.loadCache()
   }
 }
