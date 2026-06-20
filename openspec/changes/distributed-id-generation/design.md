@@ -37,7 +37,7 @@ private draftHeap: Map<string, string[]> = new Map() // draftOwner -> array of d
 
 **New Approach:**
 
-For each `advanceId` (`advanceOwner:advanceSegment`), maintain only:
+For each `advanceId` (`advanceOwner:advanceStamp`), maintain only:
 - The **minimum draft ID** seen so far (current best)
 - The **set of voters who have voted** (to count quorum)
 - The **timestamp** when the entry was created (for timeout)

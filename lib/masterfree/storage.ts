@@ -68,18 +68,18 @@ export class StorageTask extends EventEmitter {
 
     this.api.subscribe(Event.BEGIN_ADVANCE_SEGMENT, (args: BODY_BEGIN_ADVANCE_SEGMENT) => {
       const msg: BODY_TRIM_ADVANCE_SEGMENT = {
-        advanceSegment: args.advanceSegment,
+        advanceStamp: args.advanceStamp,
         advanceOwner: args.advanceOwner
       }
       this.api.publish(Event.TRIM_ADVANCE_SEGMENT + '.' + args.advanceOwner, msg, {exclude_me: false})
-      console.log("PING: BEGIN_ADVANCE_SEGMENT => TRIM_ADVANCE_SEGMENT", args.advanceSegment)
+      console.log("PING: BEGIN_ADVANCE_SEGMENT => TRIM_ADVANCE_SEGMENT", args.advanceStamp)
     })
 
     this.api.subscribe(Event.KEEP_ADVANCE_HISTORY, this.event_keep_advance_history.bind(this))
 
     this.api.subscribe(Event.ADVANCE_SEGMENT_OVER, (body: BODY_ADVANCE_SEGMENT_OVER) => {
       const msg: BODY_GENERATE_DRAFT = {
-        advanceSegment: body.advanceSegment,
+        advanceStamp: body.advanceStamp,
         advanceOwner: body.advanceOwner,
         shardTag: body.shardTag,
       }
@@ -87,7 +87,7 @@ export class StorageTask extends EventEmitter {
     })
 
     this.api.subscribe(Event.ADVANCE_SEGMENT_RESOLVED, (body: BODY_ADVANCE_SEGMENT_RESOLVED) => {
-      this.commit_segment(body.advanceOwner, body.advanceSegment, body.segment).then((result) => {
+      this.commit_segment(body.advanceOwner, body.advanceStamp, body.segment).then((result) => {
         this.emit(SEGMENT_COMMITTED, result)
       }).catch((err) => {
         console.error("Error in commit_segment:", err)
@@ -163,17 +163,17 @@ export class StorageTask extends EventEmitter {
     }
   }
 
-  async commit_segment (advanceOwner: string, advanceSegment: number, segment: string): Promise<CommittedSegmentEvent> {
-    const key = advanceOwner + ':' + advanceSegment
+  async commit_segment (advanceOwner: string, advanceStamp: number, segment: string): Promise<CommittedSegmentEvent> {
+    const key = advanceOwner + ':' + advanceStamp
     let buffer = this.bufferToWrite.get(key)
     let events: CommittedSegmentRecord[] = []
     if (buffer) {
       events = await this.dbSaveSegment(buffer, segment)
       this.bufferToWrite.delete(key)
     } else {
-      console.error("advanceSegment not found in segments [", key, "]")
+      console.error("advanceStamp not found in segments [", key, "]")
     }
-    return { advanceOwner, advanceSegment, segment, events }
+    return { advanceOwner, advanceStamp, segment, events }
   }
 
   async dbSaveSegment (historyBuffer: HistoryBuffer, segment: string): Promise<CommittedSegmentRecord[]> {
@@ -208,7 +208,7 @@ export class StorageTask extends EventEmitter {
   pushLocalEvent(realm: string, uri: string[], data: any, opt: any, sid: string, eventId: string) {
     this.emit(SEGMENT_COMMITTED, {
       advanceOwner: 'local',
-      advanceSegment: 0,
+      advanceStamp: 0,
       segment: eventId,
       events: [{
         eventId,

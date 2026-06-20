@@ -10,7 +10,7 @@ This specification defines the stateless voting protocol and data structures for
 
 ```typescript
 type StageOneVotingEntry = {
-  advanceId: string,              // "advanceOwner:advanceSegment"
+  advanceId: string,              // "advanceOwner:advanceStamp"
   minDraftId: string,             // minimum draft ID seen from all voters
   voters: Set<string>,            // set of node IDs that voted
   createdAt: number,              // timestamp when entry created (ms since epoch)
@@ -23,7 +23,7 @@ type StageOneVotingEntry = {
 
 ```typescript
 type StageTwoVotingEntry = {
-  advanceId: string,              // "advanceOwner:advanceSegment"
+  advanceId: string,              // "advanceOwner:advanceStamp"
   maxChallenger: string,          // maximum challenger seen from all voters
   voters: Set<string>,            // set of node IDs that voted
   createdAt: number,              // timestamp when entry created (ms since epoch)
@@ -53,7 +53,7 @@ type ResolutionCache = {
 ```json
 {
   "advanceOwner": "entry1",
-  "advanceSegment": 12345,
+  "advanceStamp": 12345,
   "shardTag": "shard-0",
   "draftOwner": "sync-node-2",
   "draftId": {
@@ -67,7 +67,7 @@ type ResolutionCache = {
 
 1. **Extract advanceId:**
    ```
-   advanceId = advanceOwner + ':' + advanceSegment
+   advanceId = advanceOwner + ':' + advanceStamp
    ```
 
 2. **Check resolution cache:**
@@ -126,7 +126,7 @@ type ResolutionCache = {
      // Publish to StageTwo
      publish ELECT_SEGMENT with {
        advanceOwner,
-       advanceSegment,
+       advanceStamp,
        shardTag,
        voter: myId,
        challenger: entry.minDraftId
@@ -141,7 +141,7 @@ type ResolutionCache = {
 ```json
 {
   "advanceOwner": "entry1",
-  "advanceSegment": 12345,
+  "advanceStamp": 12345,
   "shardTag": "shard-0",
   "voter": "sync-node-1",
   "challenger": "260616~"  // the minimum draft ID
@@ -160,7 +160,7 @@ type ResolutionCache = {
 
 1. **Extract advanceId:**
    ```
-   advanceId = advanceOwner + ':' + advanceSegment
+   advanceId = advanceOwner + ':' + advanceStamp
    ```
 
 2. **Check resolution cache:**
@@ -209,7 +209,7 @@ type ResolutionCache = {
      // Publish error back to entry node
      publish ADVANCE_SEGMENT_FAILED with {
        advanceOwner,
-       advanceSegment,
+       advanceStamp,
        reason: "Timeout at StageTwo"
      }
      return  // discard entry
@@ -236,7 +236,7 @@ type ResolutionCache = {
      // Publish resolution back to entry node
      publish ADVANCE_SEGMENT_RESOLVED with {
        advanceOwner,
-       advanceSegment,
+       advanceStamp,
        segment: entry.maxChallenger
      }
    ```
@@ -249,7 +249,7 @@ type ResolutionCache = {
 ```json
 {
   "advanceOwner": "entry1",
-  "advanceSegment": 12345,
+  "advanceStamp": 12345,
   "segment": "260616~"  // the final ID to use
 }
 ```

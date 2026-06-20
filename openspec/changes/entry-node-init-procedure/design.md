@@ -25,7 +25,7 @@ Entry nodes currently start serving queries immediately upon startup, without en
   - Start the FOX server (passive listener) *before* entering the initialization wait state in `masterfree/entry.ts`.
   - `NetEngineMill.initHandshake` subscribes to `INIT_ENTRY_ACCEPTED.<myNodeId>` and waits until `syncQuorum` responses are received.
 - **Quorum Tracking**: Entry node maintains a set of responding Sync nodes and a list of received `advance-ids`. Once the set size reaches `syncQuorum`, it calculates the `maxAdvanceId` and transitions to ready.
- - **ID Format**: `advanceSegment` is a number (timestamp in msec). Uniqueness in shared components (Sync/Storage) is maintained by using a composite key `advanceOwner:advanceSegment`.
+ - **ID Format**: `advanceStamp` is a number (timestamp in msec). Uniqueness in shared components (Sync/Storage) is maintained by using a composite key `advanceOwner:advanceStamp`.
  - **Timeout**: `NetEngineMill` should implement a timeout (default 30s) for the handshake to prevent the entry node from hanging indefinitely if quorum cannot be reached.
 
 ## Risks / Trade-offs

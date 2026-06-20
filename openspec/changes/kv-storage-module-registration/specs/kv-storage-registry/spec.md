@@ -105,7 +105,7 @@ The system SHALL update persistent KV projections only from committed segment vi
 
 #### Scenario: Emitting committed segment records
 - **WHEN** a storage node commits a resolved segment to history
-- **THEN** `SEGMENT_COMMITTED` SHALL emit `advanceOwner`, `advanceSegment`, `segment`, and the committed event records with their assigned `eventId`, `realm`, `uri`, `data`, `opt`, `sid`, and `shard`.
+- **THEN** `SEGMENT_COMMITTED` SHALL emit `advanceOwner`, `advanceStamp`, `segment`, and the committed event records with their assigned `eventId`, `realm`, `uri`, `data`, `opt`, `sid`, and `shard`.
 - **AND** each committed event `uri` SHALL use the internal `string[]` topic representation.
 
 #### Scenario: Advancing online projection position on segment commit

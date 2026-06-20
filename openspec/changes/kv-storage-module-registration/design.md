@@ -85,7 +85,7 @@ KEEP_ADVANCE_HISTORY
 ```ts
 type CommittedSegmentEvent = {
   advanceOwner: string
-  advanceSegment: number
+  advanceStamp: number
   segment: string
   events: Array<{
     eventId: string

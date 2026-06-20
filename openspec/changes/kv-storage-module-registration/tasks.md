@@ -17,7 +17,7 @@
 
 ## 3. Committed Segment Payload
 
-- [x] 3.1 Define a committed-segment payload type containing `advanceOwner`, `advanceSegment`, `segment`, and committed event records.
+- [x] 3.1 Define a committed-segment payload type containing `advanceOwner`, `advanceStamp`, `segment`, and committed event records.
 - [x] 3.2 Update `StorageTask.dbSaveSegment` to return committed event records with assigned event IDs.
 - [x] 3.3 Update `StorageTask.commit_segment` and the `SEGMENT_COMMITTED` emitter to emit the full committed-segment payload.
 - [x] 3.4 Update existing storage tests that listen for `SEGMENT_COMMITTED`.

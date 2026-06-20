@@ -2,23 +2,46 @@ import { BaseRealm } from '../realm'
 import { HyperClient } from '../hyper/client'
 import { keyDate, ProduceId, keyComplexId } from './makeid'
 import { ComplexId } from './makeid'
-import { Event, BODY_PICK_CHALLENGER, BODY_GENERATE_DRAFT, BODY_ELECT_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_INIT_ENTRY_ACCEPTED } from './hyper.h'
+import {
+  Event,
+  BODY_PICK_CHALLENGER,
+  BODY_GENERATE_DRAFT,
+  BODY_ELECT_SEGMENT,
+  BODY_ADVANCE_SEGMENT_RESOLVED,
+  BODY_ADVANCE_SEGMENT_FAILED,
+  BODY_INIT_ENTRY_ACCEPTED,
+} from './hyper.h'
 import { SESSION_JOIN, SESSION_LEAVE } from '../messages'
 
+const STAGE_TWO_TIMEOUT_MS = 30000
+
 type AdvanceOwnerStateNode = {
-  recentAdvanceSegment: number
+  recentAdvanceStamp: number
+}
+
+// Per-advanceId voting state — deleted immediately on quorum.
+// Stale entries (quorum never reached) are pruned when the same entry owner
+// advances to the next segment, which is guaranteed to happen once the
+// previous segment resolves.
+type StageOneVotingEntry = {
+  minDraftId: string
+  voters: Set<string>
+}
+
+type StageTwoVotingEntry = {
+  maxChallenger: string
+  voters: Set<string>
+  createdAt: number
 }
 
 export class StageOneTask {
   private realm: BaseRealm
   private syncQuorum: number
   private myId: string
-  private advanceOwnerState: Map<string, AdvanceOwnerStateNode> = new Map() // advanceOwner -> OwnerStateNode
+  private advanceOwnerState: Map<string, AdvanceOwnerStateNode> = new Map()
   private makeId: ProduceId
   private recentValue: string = ''
-  private advanceIdHeap: Map<string, Set<string>> = new Map() // advanceId ->
-  private doneHeap: Map<string, Set<string>> = new Map() // advanceId ->
-  private draftHeap: Map<string, string[]> = new Map() // draftOwner -> set of draftId
+  private votingEntries: Map<string, StageOneVotingEntry> = new Map()
   private api: HyperClient
   private syncNodeIds: string[]
 
@@ -41,7 +64,7 @@ export class StageOneTask {
 
   getAdvanceOwnerState(owner: string): AdvanceOwnerStateNode {
     if (!this.advanceOwnerState.has(owner)) {
-      this.advanceOwnerState.set(owner, {recentAdvanceSegment: 0})
+      this.advanceOwnerState.set(owner, {recentAdvanceStamp: 0})
     }
     return this.advanceOwnerState.get(owner)!
   }
@@ -50,7 +73,7 @@ export class StageOneTask {
     if (!this.advanceOwnerState.has(owner)) {
       return 0
     }
-    return this.advanceOwnerState.get(owner)!.recentAdvanceSegment
+    return this.advanceOwnerState.get(owner)!.recentAdvanceStamp
   }
 
   async listenEntry(entry: HyperClient, entryId: string) {
@@ -68,23 +91,29 @@ export class StageOneTask {
 
   // generate new segment id for each advanceId
   // if advanceId is duplicated new segment is not generated
-  // input headers: advanceOwner, advanceSegment
   event_generate_draft(body: BODY_GENERATE_DRAFT) {
     const ownerState = this.getAdvanceOwnerState(body.advanceOwner)
-    if (ownerState.recentAdvanceSegment >= body.advanceSegment) {
+    const prevSegment = ownerState.recentAdvanceStamp
+    if (prevSegment >= body.advanceStamp) {
       return
     }
-    ownerState.recentAdvanceSegment = body.advanceSegment
+    // The previous segment is now resolved (entry only advances after receiving ADVANCE_SEGMENT_RESOLVED).
+    // Clean up any leftover voting state for it.
+    if (prevSegment > 0) {
+      this.votingEntries.delete(body.advanceOwner + ':' + prevSegment)
+    }
+    ownerState.recentAdvanceStamp = body.advanceStamp
+
     const draftId: ComplexId = this.makeId.generateIdRec()
     const draftOwner: string = this.myId
     const draftSegment: BODY_PICK_CHALLENGER = {
       advanceOwner: body.advanceOwner,
-      advanceSegment: body.advanceSegment,
+      advanceStamp: body.advanceStamp,
       shardTag: body.shardTag,
       draftOwner,
       draftId
     }
-    console.log('Event.GENERATE_DRAFT: draftSegment:', draftSegment);
+    console.log('Event.GENERATE_DRAFT: draftSegment:', draftSegment)
     for (const syncNodeId of this.syncNodeIds) {
       this.api.publish(Event.PICK_CHALLENGER + '.' + syncNodeId, draftSegment, {exclude_me: false, headers: {owner: this.myId}})
     }
@@ -92,44 +121,47 @@ export class StageOneTask {
     this.event_pick_challenger(draftSegment)
   }
 
-  // when another generator made draft shift my generator
+  // Collect draft IDs from all sync nodes, select minimum when quorum reached.
+  // Late votes for segments below recentAdvanceStamp are discarded — the entry
+  // has already moved on, proving that segment is fully resolved.
   event_pick_challenger(body: BODY_PICK_CHALLENGER) {
     this.makeId.reconcilePos(body.draftId.dt, body.draftId.id)
 
     const draftOwner = body.draftOwner
     const advanceOwner = body.advanceOwner
-    const advanceSegment = body.advanceSegment
-    const advanceId = advanceOwner + ':' + advanceSegment
+    const advanceStamp = body.advanceStamp
+    const advanceId = advanceOwner + ':' + advanceStamp
     const draftId = keyComplexId(body.draftId)
 
-    if (!this.draftHeap.has(draftOwner)) {
-      this.draftHeap.set(draftOwner, [])
-    }
-    const draftStack = this.draftHeap.get(draftOwner)!
-    draftStack.push(draftId)
-
-    // ELECT_SEGMENT is already generated, just add vote to existed advanceId
-    if (this.doneHeap.has(advanceId)) {
-      const vouterSet = this.doneHeap.get(advanceId)!
-      vouterSet.add(draftOwner)
+    // Skip segments already surpassed: entry advances segment only after resolution,
+    // so recentAdvanceStamp > advanceStamp proves this segment is done.
+    const ownerState = this.advanceOwnerState.get(advanceOwner)
+    if (ownerState && ownerState.recentAdvanceStamp > advanceStamp) {
       return
     }
 
-    if (!this.advanceIdHeap.has(advanceId)) {
-      this.advanceIdHeap.set(advanceId, new Set())
+    let entry = this.votingEntries.get(advanceId)
+    if (!entry) {
+      entry = { minDraftId: draftId, voters: new Set() }
+      this.votingEntries.set(advanceId, entry)
     }
-    const vouterSet = this.advanceIdHeap.get(advanceId)!
-    vouterSet.add(draftOwner)
 
-    if (vouterSet.size >= this.syncQuorum) {
-      this.advanceIdHeap.delete(advanceId)
-      this.doneHeap.set(advanceId, vouterSet)
+    if (draftId < entry.minDraftId) {
+      entry.minDraftId = draftId
+    }
+    entry.voters.add(draftOwner)
+
+    if (entry.voters.size >= this.syncQuorum) {
+      const minDraftId = entry.minDraftId
+      this.votingEntries.delete(advanceId)
+      this.setRecentValue(minDraftId)
+
       const challengerBody: BODY_ELECT_SEGMENT = {
         advanceOwner,
-        advanceSegment,
+        advanceStamp,
         shardTag: body.shardTag,
         voter: this.myId,
-        challenger: this.extractDraft(vouterSet)
+        challenger: minDraftId
       }
       this.api.publish(Event.ELECT_SEGMENT, challengerBody, {exclude_me: false})
     }
@@ -156,45 +188,20 @@ export class StageOneTask {
     }
     this.recentValue = newRecentValue
   }
-
-  // extract minimal from draftHeap and save it to recentValue
-  extractDraft(vouters: Set<string>): string {
-    let minValue: string | undefined
-    for (const curVouter of vouters.values()) {
-      const stack: string[] = this.draftHeap.get(curVouter)!
-      const cur = stack[0]
-      minValue = (minValue && minValue < cur) ? minValue : cur
-    }
-    if (!minValue) {
-      throw Error('No draft found in draftHeap for vouters: ' + Array.from(vouters).join(', '))
-    }
-    for (const curHeap of this.draftHeap.values()) {
-      // remove all less or equal values
-      while (curHeap.length > 0 && curHeap[0] <= minValue) {
-        curHeap.shift()
-      }
-    }
-    this.setRecentValue(minValue)
-    return minValue
-  }
-}
-
-class ReadyVouterChallenger {
-  public vouters: Set<string> = new Set()
-  public challengers: Set<string> = new Set()
 }
 
 export class StageTwoTask {
-
   private realm: BaseRealm
   private syncQuorum: number
   private api: HyperClient
-  private readyQuorum: Map<string, ReadyVouterChallenger> = new Map() // advanceOwner:advanceSegment -> {vouter, challenger}
+  private votingEntries: Map<string, StageTwoVotingEntry> = new Map()
   private recentValue: string = ''
+  private timeoutMs: number
 
-  constructor(sysRealm: BaseRealm, syncQuorum: number) {
+  constructor(sysRealm: BaseRealm, syncQuorum: number, options?: { timeoutMs?: number }) {
     this.realm = sysRealm
     this.syncQuorum = syncQuorum
+    this.timeoutMs = options?.timeoutMs ?? STAGE_TWO_TIMEOUT_MS
     this.api = sysRealm.buildApi()
 
     this.api.subscribe(Event.ELECT_SEGMENT, this.event_elect_segment.bind(this))
@@ -204,38 +211,61 @@ export class StageTwoTask {
     client.pipe(this.api, Event.ELECT_SEGMENT, {exclude_me: false})
   }
 
+  // Collect challenger IDs from all StageOne nodes, select maximum when quorum reached.
+  // recentValue guards against out-of-order resolution.
+  // Stale entries (quorum never reached) are evicted lazily on the next incoming vote.
   event_elect_segment(body: BODY_ELECT_SEGMENT) {
+    const advanceOwner = body.advanceOwner
+    const advanceStamp = body.advanceStamp
+    const key = advanceOwner + ':' + advanceStamp
+
     if (body.challenger < this.recentValue) {
       console.log('=> Event.ELECT_SEGMENT skipped as applied:', body.challenger, '<', this.recentValue)
       return
     }
+
     console.log('=> Event.ELECT_SEGMENT', body)
-    const advanceOwner = body.advanceOwner
-    const advanceSegment = body.advanceSegment
-    const key = advanceOwner + ':' + advanceSegment
 
-    if (!this.readyQuorum.has(key)) {
-      this.readyQuorum.set(key, new ReadyVouterChallenger())
+    let entry = this.votingEntries.get(key)
+    if (!entry) {
+      entry = { maxChallenger: body.challenger, voters: new Set(), createdAt: Date.now() }
+      this.votingEntries.set(key, entry)
     }
-    const readySet: ReadyVouterChallenger = this.readyQuorum.get(key)!
-    readySet.challengers.add(body.challenger)
-    readySet.vouters.add(body.voter)
 
-    if (readySet.vouters.size >= this.syncQuorum) {
-      this.readyQuorum.delete(key)
-      let maxValue = '';
-      readySet.challengers.forEach((id) => {
-        if (maxValue === '' || maxValue < id) {
-          maxValue = id
-        }
-      })
+    // Lazy eviction: if a stale entry has been waiting too long without quorum,
+    // discard it and notify the entry node so it can retry.
+    if (Date.now() - entry.createdAt > this.timeoutMs) {
+      this.votingEntries.delete(key)
+      console.error(`StageTwoTask: Timeout for ${key} after ${entry.voters.size}/${this.syncQuorum} votes`)
+      const failedMsg: BODY_ADVANCE_SEGMENT_FAILED = {
+        advanceOwner,
+        advanceStamp,
+        reason: `StageTwoTask quorum timeout after ${entry.voters.size} votes`
+      }
+      this.api.publish(Event.ADVANCE_SEGMENT_FAILED, failedMsg, {})
+      return
+    }
+
+    if (body.challenger > entry.maxChallenger) {
+      entry.maxChallenger = body.challenger
+    }
+    entry.voters.add(body.voter)
+
+    if (entry.voters.size >= this.syncQuorum) {
+      const maxChallenger = entry.maxChallenger
+      this.votingEntries.delete(key)
+
+      // Advance recentValue for monotonic ordering
+      if (maxChallenger > this.recentValue) {
+        this.recentValue = maxChallenger
+      }
+
       const msg: BODY_ADVANCE_SEGMENT_RESOLVED = {
-        advanceSegment,
+        advanceStamp,
         advanceOwner: body.advanceOwner,
-        segment: maxValue
+        segment: maxChallenger
       }
       this.api.publish(Event.ADVANCE_SEGMENT_RESOLVED, msg, {})
     }
   }
-
 }

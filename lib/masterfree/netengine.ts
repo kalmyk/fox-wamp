@@ -2,7 +2,7 @@ import { ActorPush, BaseRealm, BaseEngine, makeDataSerializable, unSerializeData
 import { Router } from '../router'
 import { HyperClient } from '../hyper/client'
 import { MemKeyValueStorage } from '../mono/memkv'
-import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_OVER, BODY_INIT_ENTRY_ACCEPTED } from './hyper.h'
+import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_OVER, BODY_ADVANCE_SEGMENT_FAILED, BODY_INIT_ENTRY_ACCEPTED } from './hyper.h'
 import EventEmitter from 'events'
 
 export const TOTAL_SHARDS_COUNT = 1048576
@@ -11,12 +11,12 @@ export const INIT_ADVANCE_SEGMENTS_COMPLETED = 'init-advance-segments-completed'
 export class HistorySegment {
 
   private content: Map<number,ActorPush> = new Map()
-  private advanceSegment: number
+  private advanceStamp: number
   private offsetGenerator: number = 0
   private shard: number = 0
 
-  constructor (advanceSegment: number, shard: number = 0) {
-    this.advanceSegment = advanceSegment
+  constructor (advanceStamp: number, shard: number = 0) {
+    this.advanceStamp = advanceStamp
     this.shard = shard
   }
 
@@ -36,12 +36,12 @@ export class HistorySegment {
   addActorPush (actor: ActorPush): AdvanceOffsetId {
     this.offsetGenerator++
     this.content.set(this.offsetGenerator, actor)
-    return { segment: this.advanceSegment, offset: this.offsetGenerator }
+    return { segment: this.advanceStamp, offset: this.offsetGenerator }
   }
 
   fetchActor (advanceId: AdvanceOffsetId): ActorPush | undefined {
-    if (advanceId.segment !== this.advanceSegment) {
-      throw Error("advance is not identical " + advanceId.segment + " " + this.advanceSegment)
+    if (advanceId.segment !== this.advanceStamp) {
+      throw Error("advance is not identical " + advanceId.segment + " " + this.advanceStamp)
     }
     let actor = this.content.get(advanceId.offset)
     if (actor) {
@@ -50,8 +50,8 @@ export class HistorySegment {
     return actor
   }
 
-  getAdvanceSegment(): number {
-    return this.advanceSegment
+  getAdvanceStamp(): number {
+    return this.advanceStamp
   }
 }
 
@@ -90,7 +90,7 @@ export class NetEngine extends BaseEngine {
 export class NetEngineMill extends EventEmitter {
 
   private curSegment: HistorySegment | null = null
-  private recentAdvanceSegment: number = 0
+  private recentAdvanceStamp: number = 0
   private localSegments = new Map<number, HistorySegment>()
   private configQuorum: number
   private router: Router
@@ -116,6 +116,10 @@ export class NetEngineMill extends EventEmitter {
 
     this.sysApi.subscribe(Event.ADVANCE_SEGMENT_RESOLVED + '.' + this.router.getId(), (data: any, opt: any) => {
       this.advance_segment_resolved(data)
+    })
+
+    this.sysApi.subscribe(Event.ADVANCE_SEGMENT_FAILED, (data: BODY_ADVANCE_SEGMENT_FAILED) => {
+      this.event_advance_segment_failed(data)
     })
 
     this.sysApi.subscribe('dispatchEvent', (data: any, opt: any) => {
@@ -144,30 +148,30 @@ export class NetEngineMill extends EventEmitter {
     if (!this.initReceivedDone && this.initReceived.size >= this.configQuorum) {
       this.initReceivedDone = true
       const maxReceivedId = this.computeMaxId(this.initReceived)
-      this.recentAdvanceSegment = Math.max(this.recentAdvanceSegment, maxReceivedId)
-      this.emit(INIT_ADVANCE_SEGMENTS_COMPLETED, this.recentAdvanceSegment)
+      this.recentAdvanceStamp = Math.max(this.recentAdvanceStamp, maxReceivedId)
+      this.emit(INIT_ADVANCE_SEGMENTS_COMPLETED, this.recentAdvanceStamp)
     }
   }
 
   event_trim_advance_segment(data: BODY_TRIM_ADVANCE_SEGMENT) {
-    if (!data.advanceSegment) {
-      console.error('ERROR: no advanceSegment in package')
+    if (!data.advanceStamp) {
+      console.error('ERROR: no advanceStamp in package')
       return
     }
     // to do voute for complete
     if (this.curSegment) {
-      if (data.advanceSegment === this.curSegment.getAdvanceSegment()) {
+      if (data.advanceStamp === this.curSegment.getAdvanceStamp()) {
         // it will be required to create new segment at the next inbound message
-        console.log('Event.ADVANCE_SEGMENT_OVER =>', data.advanceSegment)
+        console.log('Event.ADVANCE_SEGMENT_OVER =>', data.advanceStamp)
         const body: BODY_ADVANCE_SEGMENT_OVER = {
-          advanceSegment: data.advanceSegment,
+          advanceStamp: data.advanceStamp,
           advanceOwner: this.router.getId(),
           shardTag: "" + this.curSegment.getShardTag()
         }
         this.curSegment = null
         this.sysApi.publish(Event.ADVANCE_SEGMENT_OVER, body, {exclude_me: false})
       } else {
-        console.warn('warn: new segment is not accepted, cur:', this.curSegment.getAdvanceSegment(), 'inbound:', data.advanceSegment)
+        console.warn('warn: new segment is not accepted, cur:', this.curSegment.getAdvanceStamp(), 'inbound:', data.advanceStamp)
       }
     }
   }
@@ -176,13 +180,13 @@ export class NetEngineMill extends EventEmitter {
     if (this.curSegment) {
       return this.curSegment
     }
-    let curAdvanceSegment = Math.max(this.recentAdvanceSegment + 1, Date.now())
-    this.recentAdvanceSegment = curAdvanceSegment
-    this.curSegment = new HistorySegment(curAdvanceSegment, this.nextShard())
-    this.localSegments.set(curAdvanceSegment, this.curSegment)
+    let curAdvanceStamp = Math.max(this.recentAdvanceStamp + 1, Date.now())
+    this.recentAdvanceStamp = curAdvanceStamp
+    this.curSegment = new HistorySegment(curAdvanceStamp, this.nextShard())
+    this.localSegments.set(curAdvanceStamp, this.curSegment)
     // todo: sent all open advance segments, in case of sharding that keeps order
     const body: BODY_BEGIN_ADVANCE_SEGMENT = {
-      advanceSegment: curAdvanceSegment,
+      advanceStamp: curAdvanceStamp,
       advanceOwner: this.router.getId(),
       shardTag: "" + this.curSegment.getShardTag()
     }
@@ -190,20 +194,20 @@ export class NetEngineMill extends EventEmitter {
     return this.curSegment
   }
 
-  findSegment (advanceSegment: number) : HistorySegment | undefined {
-    return this.localSegments.get(advanceSegment)
+  findSegment (advanceStamp: number) : HistorySegment | undefined {
+    return this.localSegments.get(advanceStamp)
   }
 
-  deleteSegment (advanceSegment: number) {
-    return this.localSegments.delete(advanceSegment)
+  deleteSegment (advanceStamp: number) {
+    return this.localSegments.delete(advanceStamp)
   }
 
   advance_segment_resolved (syncMessage: any) {
-    let segment = this.findSegment(syncMessage.advanceSegment)
+    let segment = this.findSegment(syncMessage.advanceStamp)
     if (!segment) {
       return
     }
-    console.log('advance-segment-resolved', syncMessage.advanceSegment, syncMessage.pkg)
+    console.log('advance-segment-resolved', syncMessage.advanceStamp, syncMessage.pkg)
     for (let event of syncMessage.pkg) {
       let actor = segment.fetchActor(event.advanceId)
       if (actor) {
@@ -214,7 +218,7 @@ export class NetEngineMill extends EventEmitter {
       }
     }
     if (syncMessage.final) {
-      this.deleteSegment(syncMessage.advanceSegment)
+      this.deleteSegment(syncMessage.advanceStamp)
       if (segment.size() > 0) {
         console.log("removing not empty segment")
       }
@@ -256,7 +260,36 @@ export class NetEngineMill extends EventEmitter {
     }
   }
 
+  event_advance_segment_failed(body: BODY_ADVANCE_SEGMENT_FAILED) {
+    if (body.advanceOwner !== this.router.getId()) {
+      return
+    }
+    const failedSegment = this.localSegments.get(body.advanceStamp)
+    if (!failedSegment) {
+      console.warn(`advance_segment_failed: segment ${body.advanceStamp} not found, already resolved?`)
+      return
+    }
+    console.warn(`advance_segment_failed: segment ${body.advanceStamp} (${body.reason}), retrying`)
+
+    // Assign a new segment number — StageOne's recentAdvanceStamp guard requires it to be
+    // strictly greater than the failed one, so a fresh timestamp is sufficient.
+    const newAdvanceStamp = Math.max(this.recentAdvanceStamp + 1, Date.now())
+    this.recentAdvanceStamp = newAdvanceStamp
+
+    this.localSegments.delete(body.advanceStamp)
+    this.localSegments.set(newAdvanceStamp, failedSegment)
+
+    // Re-trigger consensus directly — storage has already received KEEP_ADVANCE_HISTORY
+    // for this data, so we only need a new ADVANCE_SEGMENT_OVER to start a fresh vote.
+    const overBody: BODY_ADVANCE_SEGMENT_OVER = {
+      advanceStamp: newAdvanceStamp,
+      advanceOwner: this.router.getId(),
+      shardTag: '' + failedSegment.getShardTag()
+    }
+    this.sysApi.publish(Event.ADVANCE_SEGMENT_OVER, overBody, {exclude_me: false})
+  }
+
   getRecentAdvanceSegment(): number {
-    return this.recentAdvanceSegment
+    return this.recentAdvanceStamp
   }
 }

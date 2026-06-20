@@ -70,7 +70,7 @@ For each advance segment:
 
 ### Collision Prevention
 
-Once an `advanceId` (`advanceOwner:advanceSegment`) is resolved to a final ID:
+Once an `advanceId` (`advanceOwner:advanceStamp`) is resolved to a final ID:
 - Store the resolution in a time-bounded cache (e.g., 5 minutes)
 - If the same `advanceId` arrives again, return the cached result instead of regenerating
 - This ensures no duplicate IDs are issued for the same advance segment

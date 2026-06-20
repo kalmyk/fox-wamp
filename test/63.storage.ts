@@ -55,7 +55,7 @@ describe('63.storage', function () {
     const eventPC1: BODY_PICK_CHALLENGER = {
       shardTag: '0',
       advanceOwner: 'entry1',
-      advanceSegment: 1,
+      advanceStamp: 1,
       draftOwner: 'sync2',
       draftId: { dt: 'PREFIX1:', id: 1 }
     }
@@ -66,7 +66,7 @@ describe('63.storage', function () {
     const eventPC2: BODY_PICK_CHALLENGER = {
       shardTag: '0',
       advanceOwner: 'entry2',
-      advanceSegment: 1,
+      advanceStamp: 1,
       draftOwner: 'sync2',
       draftId: { dt: 'PREFIX1:', id: 1 }
     }
@@ -77,7 +77,7 @@ describe('63.storage', function () {
 
     // expect(draftStack).deep.equal([{
     //   advanceOwner: 'entry1',
-    //   advanceSegment: 1,
+    //   advanceStamp: 1,
     //   draftId: { dt: 'PREFIX1:', id: 1 },
     //   draftOwner: 'sync2'
     // }])
@@ -108,7 +108,7 @@ describe('63.storage', function () {
     // 2. Send ADVANCE_SEGMENT_RESOLVED
     const eventASR: BODY_ADVANCE_SEGMENT_RESOLVED = {
       advanceOwner: 'entry1',
-      advanceSegment: 1,
+      advanceStamp: 1,
       segment: 'res_seg1'
     }
     await api.publish(Event.ADVANCE_SEGMENT_RESOLVED, eventASR, { exclude_me: false })
@@ -118,7 +118,7 @@ describe('63.storage', function () {
 
     expect(commit_result).to.deep.equal({
       advanceOwner: 'entry1',
-      advanceSegment: 1,
+      advanceStamp: 1,
       segment: 'res_seg1',
       events: [{
         eventId: 'res_seg1a1',
