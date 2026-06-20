@@ -3,7 +3,7 @@ import * as History from './history'
 import { createKvTables, SqliteKvFabric } from './sqlitekv'
 import { createStorageRegistryTables } from './storage_registry'
 import { ProduceId } from '../masterfree/makeid'
-import { StorageTask } from '../masterfree/storage'
+import { LocalSegmentPusher } from '../masterfree/storage'
 import {
   SchemaRepository,
   createSchemaTables,
@@ -14,12 +14,14 @@ import { validatePayload } from '../schema_validation'
 import { restoreUri } from '../topic_pattern'
 import { getBodyValue } from '../tools'
 
+// situable for single-process realm operations
+// router all in one: listen for events and save to local file
 export class DbEngine extends BaseEngine {
   private idMill: ProduceId
   private modKv: SqliteKvFabric
   private pushQueue: Promise<void> = Promise.resolve()
   private schemaRepo?: SchemaRepository
-  private storageTask?: StorageTask
+  private storageTask?: LocalSegmentPusher
 
   constructor (idMill: ProduceId, modKv: SqliteKvFabric) {
     super()
@@ -27,7 +29,7 @@ export class DbEngine extends BaseEngine {
     this.modKv = modKv
   }
 
-  public setStorageTask (storageTask: StorageTask): void {
+  public setStorageTask (storageTask: LocalSegmentPusher): void {
     this.storageTask = storageTask
   }
 

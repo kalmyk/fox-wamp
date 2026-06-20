@@ -221,7 +221,7 @@ describe('56.kv_registry', function () {
     beforeEach(async () => {
       await createHistoryTables(db, 'realm1')
       storageEmitter = new EventEmitter()
-      listener = new ProjectionListener(storageEmitter as any, db, makeId)
+      listener = new ProjectionListener(storageEmitter, db, makeId)
       schemaRec = await schemas.register('label', URL_PAT, SCHEMA_DEF)
       await registry.register({ name: PROJ, uriPattern: URL_PAT, schemaId: schemaRec.schemaId })
     })

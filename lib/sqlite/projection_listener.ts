@@ -1,5 +1,5 @@
 import * as sqlite from 'sqlite'
-import { CommittedSegmentEvent, CommittedSegmentRecord, StorageTask, SEGMENT_COMMITTED } from '../masterfree/storage'
+import { CommittedSegmentEvent, CommittedSegmentRecord, SegmentCommittedSource, SEGMENT_COMMITTED } from '../masterfree/storage'
 import { StorageRegistry } from './storage_registry'
 import { SchemaRepository } from './schema_repository'
 import { StorageStatus, StorageRecord } from '../types'
@@ -97,18 +97,18 @@ export class KvProjection {
 }
 
 export class ProjectionListener {
-  private storageTask: StorageTask
+  private source: SegmentCommittedSource
   private db: sqlite.Database
   private registries: Map<string, StorageRegistry> = new Map()
   private schemas: Map<string, SchemaRepository> = new Map()
   private makeId: ProduceId
 
-  constructor(storageTask: StorageTask, db: sqlite.Database, makeId: ProduceId) {
-    this.storageTask = storageTask
+  constructor(source: SegmentCommittedSource, db: sqlite.Database, makeId: ProduceId) {
+    this.source = source
     this.db = db
     this.makeId = makeId
 
-    this.storageTask.on(SEGMENT_COMMITTED, (event: CommittedSegmentEvent) => {
+    this.source.on(SEGMENT_COMMITTED, (event: CommittedSegmentEvent) => {
       this.handleSegmentCommitted(event).catch(err => {
         console.error("Error handling segment committed in ProjectionListener:", err)
       })

@@ -25,6 +25,14 @@ export type CommittedSegmentEvent = BODY_ADVANCE_SEGMENT_RESOLVED & {
   events: CommittedSegmentRecord[]
 }
 
+export interface SegmentCommittedSource {
+  on(event: typeof SEGMENT_COMMITTED, listener: (event: CommittedSegmentEvent) => void): any
+}
+
+export interface LocalSegmentPusher {
+  pushLocalEvent(realm: string, uri: string[], data: any, opt: any, sid: string, eventId: string): void
+}
+
 export class HistoryBuffer {
   private content: Array<BODY_KEEP_ADVANCE_HISTORY> = []
   private shard: number
@@ -50,7 +58,7 @@ export class HistoryBuffer {
   }
 }
 
-export class StorageTask extends EventEmitter {
+export class StorageTask extends EventEmitter implements SegmentCommittedSource, LocalSegmentPusher {
   private sysRealm: BaseRealm
   private dbFactory: DbFactory
   private maxId: ComplexId
