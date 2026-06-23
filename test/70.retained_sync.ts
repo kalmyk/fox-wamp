@@ -40,7 +40,7 @@ const makeDbRealm = async (router: Router): Promise<BaseRealm> => {
   const makeId = new ProduceId(() => 'test-prefix-')
   makeId.actualizePrefix()
   const modKv = new SqliteKvFabric(dbFactory, makeId)
-  const engine = new DbEngine(makeId, modKv, { pushLocalEvent () {} })
+  const engine = new DbEngine(makeId, modKv)
   const realm = new BaseRealm(router, engine)
   realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, TEST_REALM_NAME, engine))
   return realm

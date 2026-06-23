@@ -56,7 +56,7 @@ async function main () {
   const stageTwoTask: StageTwoTask = new StageTwoTask(sysRealm, config.getSyncQuorum())
 
   const makeId: ProduceId = new ProduceId(() => keyDate(new Date()))
-  new ProjectionListener(storageTask, db, makeId)
+  new ProjectionListener(dbFactory, db, makeId)
   
   const modKv: SqliteKvFabric = new SqliteKvFabric(dbFactory, makeId)
 

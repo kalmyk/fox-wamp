@@ -4,7 +4,6 @@ const { expect } = chai
 chai.use(promised)
 import * as sqlite from 'sqlite'
 import sqlite3 from 'sqlite3'
-import { EventEmitter } from 'events'
 
 import { Router } from '../lib/router'
 import { BaseRealm } from '../lib/realm'
@@ -15,22 +14,10 @@ import { ProduceId } from '../lib/masterfree/makeid'
 import { SchemaRepository } from '../lib/sqlite/schema_repository'
 import { StorageRegistry } from '../lib/sqlite/storage_registry'
 import { ProjectionListener } from '../lib/sqlite/projection_listener'
-import { SEGMENT_COMMITTED } from '../lib/masterfree/storage'
 import { HyperClient } from '../lib/hyper/client'
 
 const REALM = 'realm1'
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
-class LocalStorageTask extends EventEmitter {
-  pushLocalEvent(realm: string, uri: string[], data: any, opt: any, sid: string, eventId: string) {
-    this.emit(SEGMENT_COMMITTED, {
-      advanceOwner: 'local',
-      advanceStamp: 0,
-      segment: eventId,
-      events: [{ eventId, realm, uri, data, opt, sid, shard: 0 }]
-    })
-  }
-}
 
 describe('91.customer', () => {
   let db: sqlite.Database
@@ -40,19 +27,18 @@ describe('91.customer', () => {
   let schemaRepo: SchemaRepository
   let registry: StorageRegistry
   let projectionListener: ProjectionListener
-  let storageTask: LocalStorageTask
+  let dbFactory: DbFactory
 
   beforeEach(async () => {
     db = await sqlite.open({ filename: ':memory:', driver: sqlite3.Database })
-    const dbFactory = new DbFactory('/tmp/test-91.db')
+    dbFactory = new DbFactory('/tmp/test-91.db')
     dbFactory.setMainDb(db)
 
     const makeId = new ProduceId(() => 'cust-')
     makeId.actualizePrefix()
 
     const modKv = new SqliteKvFabric(dbFactory, makeId)
-    storageTask = new LocalStorageTask()
-    const dbEngine = new DbEngine(makeId, modKv, storageTask)
+    const dbEngine = new DbEngine(makeId, modKv)
 
     router = new Router()
     realm = new BaseRealm(router, dbEngine)
@@ -63,7 +49,7 @@ describe('91.customer', () => {
 
     schemaRepo = new SchemaRepository(db, REALM, makeId)
     registry = new StorageRegistry(db, REALM, makeId)
-    projectionListener = new ProjectionListener(storageTask, db, makeId)
+    projectionListener = new ProjectionListener(dbFactory, db, makeId)
 
     api = realm.api() as HyperClient
   })

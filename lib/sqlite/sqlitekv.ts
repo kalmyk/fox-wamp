@@ -46,6 +46,10 @@ export class SqliteKvFabric {
     this.makeId = makeId
   }
 
+  getDbFactory (): DbFactory {
+    return this.dbFactory
+  }
+
   async getDb(realmName: string): Promise<sqlite.Database> {
     return this.dbFactory.getDb(realmName)
   }

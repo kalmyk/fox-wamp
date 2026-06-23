@@ -33,7 +33,7 @@ const makeRealm = async (router: Router, db: sqlite.Database, idPrefix = 'sessio
   const makeId = new ProduceId(() => idPrefix)
   makeId.actualizePrefix()
   const modKv = new SqliteKvFabric(dbFactory, makeId)
-  const engine = new DbEngine(makeId, modKv, { pushLocalEvent () {} })
+  const engine = new DbEngine(makeId, modKv)
   const realm = new BaseRealm(router, engine)
   realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, TEST_REALM_NAME, engine))
   await router.initRealm(TEST_REALM_NAME, realm)

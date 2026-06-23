@@ -28,8 +28,7 @@ const mkDbEngine = async (): Promise<DbEngine> => {
   const makeId = new ProduceId(() => keyDate(new Date()))
   return new DbEngine(
     makeId,
-    new SqliteKvFabric(dbFactory, makeId),
-    { pushLocalEvent () {} }
+    new SqliteKvFabric(dbFactory, makeId)
   )
 }
 

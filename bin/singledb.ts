@@ -15,8 +15,8 @@ async function main() {
   router.setLogTrace(true)
 
   const sysRealm = await router.getRealm('sys')
-  const storageTask = new StorageTask(sysRealm, dbFactory)
-  new ProjectionListener(storageTask, db, router.getMakeId())
+  new StorageTask(sysRealm, dbFactory)
+  new ProjectionListener(dbFactory, db, router.getMakeId())
 
   router.startActualizePrefixTimer()
   router.listenWAMP({ port: 9000 })

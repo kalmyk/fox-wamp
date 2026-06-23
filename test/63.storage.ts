@@ -103,7 +103,7 @@ describe('63.storage', function () {
     }
     await api.publish(Event.KEEP_ADVANCE_HISTORY, eventKAH, { exclude_me: false })
 
-    const commit_requested: Promise<any[]> = once(storage, SEGMENT_COMMITTED)
+    const commit_requested: Promise<any[]> = once(dbFactory, SEGMENT_COMMITTED)
 
     // 2. Send ADVANCE_SEGMENT_RESOLVED
     const eventASR: BODY_ADVANCE_SEGMENT_RESOLVED = {

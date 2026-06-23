@@ -41,7 +41,7 @@ describe('58.schema_payload_validation', function () {
     
     let modKv = new SqliteKvFabric(dbFactory, makeId)
     router = new Router()
-    realm = new BaseRealm(router, new DbEngine(makeId, modKv, { pushLocalEvent () {} }))
+    realm = new BaseRealm(router, new DbEngine(makeId, modKv))
     await router.initRealm(realmName, realm)
 
     mockSocket = { 

@@ -5,7 +5,7 @@ import { createKvTables, SqliteKvFabric } from '../sqlite/sqlitekv'
 import { createStorageRegistryTables } from '../sqlite/storage_registry'
 import { ProduceId } from '../masterfree/makeid'
 import { KPQueue } from '../masterfree/kpqueue'
-import { LocalSegmentPusher } from '../masterfree/storage'
+import { DbFactory } from '../sqlite/dbfactory'
 import { errorCodes } from '../realm_error'
 import {
   SchemaRepository,
@@ -22,18 +22,18 @@ import { getBodyValue } from '../tools'
 export class DbEngine extends BaseEngine {
   private idMill: ProduceId
   private modKv: SqliteKvFabric
-  private storageTask: LocalSegmentPusher
+  private dbFactory: DbFactory
   private pushQueue: Promise<void> = Promise.resolve()
   private schemaRepo?: SchemaRepository
 
   private pkq: KPQueue = new KPQueue()
   private resWhen: Map<string, IActorPush[]> = new Map()
 
-  constructor (idMill: ProduceId, modKv: SqliteKvFabric, storageTask: LocalSegmentPusher) {
+  constructor (idMill: ProduceId, modKv: SqliteKvFabric) {
     super()
     this.idMill = idMill
     this.modKv = modKv
-    this.storageTask = storageTask
+    this.dbFactory = modKv.getDbFactory()
   }
 
   public override async launchEngine (realmName: string): Promise<void> {
@@ -142,7 +142,7 @@ export class DbEngine extends BaseEngine {
       )
     }
 
-    this.storageTask.pushLocalEvent(
+    this.dbFactory.pushLocalEvent(
       this.getRealmName(),
       actor.getUri(),
       actor.getData(),

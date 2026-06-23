@@ -2,17 +2,30 @@ import sqlite3 from 'sqlite3'
 import * as sqlite from 'sqlite'
 import { promises as fsp } from 'fs'
 import path from 'path'
+import { EventEmitter } from 'events'
+import { SEGMENT_COMMITTED, SegmentCommittedSource, CommittedSegmentEvent } from '../masterfree/segment_types'
 
-export class DbFactory {
+export class DbFactory extends EventEmitter implements SegmentCommittedSource {
 
   private activeDbs: Map<string, sqlite.Database>  // of database file
   private mainDb: sqlite.Database | null = null
   private pathPrefix: string = ''
 
   constructor (pathPrefix: string) {
+    super()
     this.pathPrefix = pathPrefix
     this.activeDbs = new Map()  // of database file
     this.mainDb = null
+  }
+
+  pushLocalEvent (realm: string, uri: string[], data: any, opt: any, sid: string, eventId: string): void {
+    const event: CommittedSegmentEvent = {
+      advanceOwner: 'local',
+      advanceStamp: 0,
+      segment: eventId,
+      events: [{ eventId, realm, uri, data, opt, sid, shard: 0 }]
+    }
+    this.emit(SEGMENT_COMMITTED, event)
   }
 
   async openDatabase (filename: string): Promise<sqlite.Database> {
