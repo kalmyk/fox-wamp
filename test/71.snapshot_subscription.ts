@@ -10,9 +10,9 @@ import { Router } from '../lib/router'
 import { BaseEngine, BaseRealm } from '../lib/realm'
 import { MemEngine } from '../lib/mono/memengine'
 import { MemKeyValueStorage } from '../lib/mono/memkv'
-import { DbEngine } from '../lib/sqlite/dbengine'
+import { DbEngine, SqliteKv } from '../lib/sqlite/dbengine'
 import { DbFactory } from '../lib/sqlite/dbfactory'
-import { SqliteKv, SqliteKvFabric } from '../lib/sqlite/sqlitekv'
+import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
 import { ProduceId } from '../lib/masterfree/makeid'
 import { HyperClient } from '../lib/hyper/client'
 
@@ -54,8 +54,9 @@ const makeDbRealm = async (router: Router): Promise<BaseRealm> => {
   const makeId = new ProduceId(() => 'snapshot-test-')
   makeId.actualizePrefix()
   const modKv = new SqliteKvFabric(dbFactory, makeId)
-  const realm = new BaseRealm(router, new DbEngine(makeId, modKv))
-  realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, TEST_REALM_NAME))
+  const engine = new DbEngine(makeId, modKv)
+  const realm = new BaseRealm(router, engine)
+  realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, TEST_REALM_NAME, engine))
   return realm
 }
 

@@ -26,17 +26,17 @@ describe('35.update_history', function () {
     dbFactory.setMainDb(db)
     // Stub getDb to always return our in-memory DB for testrealm
     dbFactory.getDb = async (name) => db
-    
+
     makeId = new ProduceId(() => '202605301200')
     makeId.actualizePrefix()
-    
+
     kvFabric = new SqliteKvFabric(dbFactory, makeId)
     await createKvTables(db, realmName)
   })
 
   it('records history for KV create', async () => {
-    await kvFabric.setKeyValue(realmName, 'key.1', 'msg1', { kv: { a: 1 } }, {}, 'sid1', () => {})
-    
+    await kvFabric.writeKvLocked(db, realmName, 'key.1', 'msg1', { kv: { a: 1 } }, {}, 'sid1')
+
     const history = await db.all(`SELECT * FROM update_history_${realmName}`)
     expect(history).to.have.lengthOf(1)
     expect(history[0].topic).to.equal('key.1')
@@ -49,11 +49,11 @@ describe('35.update_history', function () {
   })
 
   it('records history for KV update', async () => {
-    await kvFabric.setKeyValue(realmName, 'key.1', 'msg1', { kv: { a: 1 } }, {}, 'sid1', () => {})
+    await kvFabric.writeKvLocked(db, realmName, 'key.1', 'msg1', { kv: { a: 1 } }, {}, 'sid1')
     const kv1 = await db.get(`SELECT updated_by_msg_id FROM kv_${realmName} WHERE topic = 'key.1'`)
-    
-    await kvFabric.setKeyValue(realmName, 'key.1', 'msg2', { kv: { a: 2 } }, {}, 'sid1', () => {})
-    
+
+    await kvFabric.writeKvLocked(db, realmName, 'key.1', 'msg2', { kv: { a: 2 } }, {}, 'sid1')
+
     const history = await db.all(`SELECT * FROM update_history_${realmName} ORDER BY msg_id ASC`)
     expect(history).to.have.lengthOf(2)
     expect(history[1].old_updated_by_msg_id).to.equal(kv1.updated_by_msg_id)
@@ -62,11 +62,11 @@ describe('35.update_history', function () {
   })
 
   it('records history for KV delete', async () => {
-    await kvFabric.setKeyValue(realmName, 'key.1', 'msg1', { kv: { a: 1 } }, {}, 'sid1', () => {})
+    await kvFabric.writeKvLocked(db, realmName, 'key.1', 'msg1', { kv: { a: 1 } }, {}, 'sid1')
     const kv1 = await db.get(`SELECT updated_by_msg_id FROM kv_${realmName} WHERE topic = 'key.1'`)
-    
-    await kvFabric.setKeyValue(realmName, 'key.1', 'msg2', { kv: null }, {}, 'sid1', () => {})
-    
+
+    await kvFabric.writeKvLocked(db, realmName, 'key.1', 'msg2', { kv: null }, {}, 'sid1')
+
     const history = await db.all(`SELECT * FROM update_history_${realmName} ORDER BY msg_id ASC`)
     expect(history).to.have.lengthOf(2)
     expect(history[1].old_updated_by_msg_id).to.equal(kv1.updated_by_msg_id)
@@ -75,28 +75,17 @@ describe('35.update_history', function () {
   })
 
   it('records history for session-persistent KV updates with original msg_id', async () => {
-    await kvFabric.setKeyValue(realmName, 'key.will', 'msg-orig', { kv: { a: 1 } }, { will: { kv: { a: 'will' } } }, 'sid-client', () => {})
+    await kvFabric.writeKvLocked(db, realmName, 'key.will', 'msg-orig', { kv: { a: 1 } }, { will: { kv: { a: 'will' } } }, 'sid-client')
     const kvOrig = await db.get(`SELECT updated_by_msg_id FROM kv_${realmName} WHERE topic = 'key.will'`)
-    
-    // Clear history from initial 'create' (the 'val-orig' part)
+
+    // Clear history from initial 'create'
     await db.run(`DELETE FROM update_history_${realmName}`)
-    
+
     // Simulate session cleanup (application of 'will' message)
-    await kvFabric.eraseSessionData(realmName, 'sid-client', (sid, key, will) => {
-        // This is what BaseRealm.runInboundEvent does
-        return kvFabric.setKeyValue(realmName, key.join('.'), 'new-msg-id', will, {}, sid, () => {}, {
-            getEventId: () => 'new-msg-id',
-            // mock other ActorPush methods
-            getUri: () => key,
-            getData: () => will,
-            getOpt: () => ({}),
-            getSid: () => sid,
-            confirm: () => {},
-            isActive: () => true,
-            rejectCmd: () => {}
-        } as any)
+    await kvFabric.eraseSessionData(realmName, 'sid-client', async (sid, key, will) => {
+      await kvFabric.writeKvLocked(db, realmName, key.join('.'), 'new-msg-id', will, {}, sid)
     })
-    
+
     const history = await db.all(`SELECT * FROM update_history_${realmName}`)
     expect(history).to.have.lengthOf(1)
     expect(history[0].topic).to.equal('key.will')

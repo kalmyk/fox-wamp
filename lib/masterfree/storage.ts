@@ -58,6 +58,7 @@ export class HistoryBuffer {
   }
 }
 
+// apply distributed network to database file
 export class StorageTask extends EventEmitter implements SegmentCommittedSource, LocalSegmentPusher {
   private sysRealm: BaseRealm
   private dbFactory: DbFactory

@@ -11,9 +11,9 @@ import path from 'path'
 
 import { Router } from '../lib/router'
 import { BaseRealm } from '../lib/realm'
-import { DbEngine } from '../lib/sqlite/dbengine'
+import { DbEngine, SqliteKv } from '../lib/sqlite/dbengine'
 import { DbFactory } from '../lib/sqlite/dbfactory'
-import { SqliteKv, SqliteKvFabric } from '../lib/sqlite/sqlitekv'
+import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
 import { ProduceId } from '../lib/masterfree/makeid'
 import { HyperClient } from '../lib/hyper/client'
 import { getBodyValue } from '../lib/base_gate'
@@ -33,8 +33,9 @@ const makeRealm = async (router: Router, db: sqlite.Database, idPrefix = 'sessio
   const makeId = new ProduceId(() => idPrefix)
   makeId.actualizePrefix()
   const modKv = new SqliteKvFabric(dbFactory, makeId)
-  const realm = new BaseRealm(router, new DbEngine(makeId, modKv))
-  realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, TEST_REALM_NAME))
+  const engine = new DbEngine(makeId, modKv)
+  const realm = new BaseRealm(router, engine)
+  realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, TEST_REALM_NAME, engine))
   await router.initRealm(TEST_REALM_NAME, realm)
   return realm
 }

@@ -1,15 +1,15 @@
 import { BaseRealm } from '../realm'
-import { DbEngine } from './dbengine'
-import { SqliteKvFabric, SqliteKv } from './sqlitekv'
+import { DbEngine, SqliteKv } from './dbengine'
+import { SqliteKvFabric } from './sqlitekv'
 import FoxRouter from '../fox_router'
 import { keyDate, ProduceId } from '../masterfree/makeid'
 import { DbFactory } from './dbfactory'
-import { StorageTask } from '../masterfree/storage'
+import { LocalSegmentPusher } from '../masterfree/storage'
 
 export class OneDbRouter extends FoxRouter {
   private makeId: ProduceId
   private modKv: SqliteKvFabric
-  private storageTask?: StorageTask
+  private storageTask?: LocalSegmentPusher
 
   constructor (dbFactory: DbFactory) {
     super()
@@ -18,7 +18,7 @@ export class OneDbRouter extends FoxRouter {
     this.modKv = new SqliteKvFabric(dbFactory, this.makeId)
   }
 
-  public setStorageTask (storageTask: StorageTask): void {
+  public setStorageTask (storageTask: LocalSegmentPusher): void {
     this.storageTask = storageTask
   }
 
@@ -28,7 +28,7 @@ export class OneDbRouter extends FoxRouter {
       engine.setStorageTask(this.storageTask)
     }
     const realm = new BaseRealm(this, engine)
-    realm.registerKeyValueEngine(['#'], new SqliteKv(this.getModKv(), realmName))
+    realm.registerKeyValueEngine(['#'], new SqliteKv(this.getModKv(), realmName, engine))
     return realm
   }
 

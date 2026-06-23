@@ -8,9 +8,9 @@ import { EventEmitter } from 'events'
 
 import { Router } from '../lib/router'
 import { BaseRealm } from '../lib/realm'
-import { DbEngine } from '../lib/sqlite/dbengine'
+import { DbEngine, SqliteKv } from '../lib/sqlite/dbengine'
 import { DbFactory } from '../lib/sqlite/dbfactory'
-import { SqliteKv, SqliteKvFabric } from '../lib/sqlite/sqlitekv'
+import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
 import { ProduceId } from '../lib/masterfree/makeid'
 import { SchemaRepository } from '../lib/sqlite/schema_repository'
 import { StorageRegistry } from '../lib/sqlite/storage_registry'
@@ -58,7 +58,7 @@ describe('91.customer', () => {
 
     router = new Router()
     realm = new BaseRealm(router, dbEngine)
-    realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, REALM))
+    realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, REALM, dbEngine))
     await router.initRealm(REALM, realm)
 
     realm.getEngine().retainedEventWaitTimeoutMs = 500
