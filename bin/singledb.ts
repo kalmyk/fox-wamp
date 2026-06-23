@@ -1,16 +1,14 @@
-'use strict'
+import { DbFactory } from '../lib/sqlite/dbfactory'
+import { scanMaxId } from '../lib/sqlite/history'
+import { OneDbRouter } from '../lib/mono/onedbrouter'
+import { StorageTask } from '../lib/masterfree/storage'
+import { ProjectionListener } from '../lib/sqlite/projection_listener'
 
-const { DbFactory } = require('../lib/sqlite/dbfactory')
-const History = require('../lib/sqlite/history')
-const { OneDbRouter } = require('../lib/sqlite/onedbrouter')
-const { StorageTask } = require('../lib/masterfree/storage')
-const { ProjectionListener } = require('../lib/sqlite/projection_listener')
-
-async function main () {
-  const dbFactory = new DbFactory()
+async function main() {
+  const dbFactory = new DbFactory('../dbfiles/')
   const db = await dbFactory.openMainDatabase('../dbfiles/msgdb.sqlite')
 
-  const maxId = await History.scanMaxId(db)
+  const maxId = await scanMaxId(db)
   console.log('loaded max id:', maxId)
 
   const router = new OneDbRouter(dbFactory)
@@ -26,8 +24,8 @@ async function main () {
   router.listenHyperNet({ port: 1735 })
 }
 
-main().then((value) => {
+main().then(() => {
   console.log('listen started.')
-}, (err) => {
+}, (err: Error) => {
   console.error('ERROR:', err, err.stack)
 })

@@ -8,7 +8,7 @@ import { EventEmitter } from 'events'
 
 import { Router } from '../lib/router'
 import { BaseRealm } from '../lib/realm'
-import { DbEngine, SqliteKv } from '../lib/sqlite/dbengine'
+import { DbEngine, SqliteKv } from '../lib/mono/dbengine'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
 import { ProduceId } from '../lib/masterfree/makeid'
@@ -52,9 +52,7 @@ describe('91.customer', () => {
 
     const modKv = new SqliteKvFabric(dbFactory, makeId)
     storageTask = new LocalStorageTask()
-
-    const dbEngine = new DbEngine(makeId, modKv)
-    dbEngine.setStorageTask(storageTask)
+    const dbEngine = new DbEngine(makeId, modKv, storageTask)
 
     router = new Router()
     realm = new BaseRealm(router, dbEngine)

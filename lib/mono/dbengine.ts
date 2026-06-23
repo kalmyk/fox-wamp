@@ -1,8 +1,8 @@
 import * as sqlite from 'sqlite'
 import { makeDataSerializable, unSerializeData, BaseEngine, ActorPush, ActorPushKv, SchemaRepositoryLike, IActorPush, isDataFit, KeyValueStorageAbstract } from '../realm'
-import * as History from './history'
-import { createKvTables, SqliteKvFabric } from './sqlitekv'
-import { createStorageRegistryTables } from './storage_registry'
+import * as History from '../sqlite/history'
+import { createKvTables, SqliteKvFabric } from '../sqlite/sqlitekv'
+import { createStorageRegistryTables } from '../sqlite/storage_registry'
 import { ProduceId } from '../masterfree/makeid'
 import { KPQueue } from '../masterfree/kpqueue'
 import { LocalSegmentPusher } from '../masterfree/storage'
@@ -12,7 +12,7 @@ import {
   createSchemaTables,
   extractUrlValues,
   mergeUrlAndBodyPayload
-} from './schema_repository'
+} from '../sqlite/schema_repository'
 import { validatePayload } from '../schema_validation'
 import { restoreUri } from '../topic_pattern'
 import { getBodyValue } from '../tools'
@@ -22,20 +22,17 @@ import { getBodyValue } from '../tools'
 export class DbEngine extends BaseEngine {
   private idMill: ProduceId
   private modKv: SqliteKvFabric
+  private storageTask: LocalSegmentPusher
   private pushQueue: Promise<void> = Promise.resolve()
   private schemaRepo?: SchemaRepository
-  private storageTask?: LocalSegmentPusher
 
   private pkq: KPQueue = new KPQueue()
   private resWhen: Map<string, IActorPush[]> = new Map()
 
-  constructor (idMill: ProduceId, modKv: SqliteKvFabric) {
+  constructor (idMill: ProduceId, modKv: SqliteKvFabric, storageTask: LocalSegmentPusher) {
     super()
     this.idMill = idMill
     this.modKv = modKv
-  }
-
-  public setStorageTask (storageTask: LocalSegmentPusher): void {
     this.storageTask = storageTask
   }
 
@@ -145,16 +142,14 @@ export class DbEngine extends BaseEngine {
       )
     }
 
-    if (this.storageTask) {
-      this.storageTask.pushLocalEvent(
-        this.getRealmName(),
-        actor.getUri(),
-        actor.getData(),
-        actor.getOpt(),
-        actor.getSid(),
-        id
-      )
-    }
+    this.storageTask.pushLocalEvent(
+      this.getRealmName(),
+      actor.getUri(),
+      actor.getData(),
+      actor.getOpt(),
+      actor.getSid(),
+      id
+    )
   }
 
   public override getKey (uri: string[], cbRow: (key: string[], data: any, eventId: any) => void): Promise<any> {

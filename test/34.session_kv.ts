@@ -11,7 +11,7 @@ import path from 'path'
 
 import { Router } from '../lib/router'
 import { BaseRealm } from '../lib/realm'
-import { DbEngine, SqliteKv } from '../lib/sqlite/dbengine'
+import { DbEngine, SqliteKv } from '../lib/mono/dbengine'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
 import { ProduceId } from '../lib/masterfree/makeid'
@@ -33,7 +33,7 @@ const makeRealm = async (router: Router, db: sqlite.Database, idPrefix = 'sessio
   const makeId = new ProduceId(() => idPrefix)
   makeId.actualizePrefix()
   const modKv = new SqliteKvFabric(dbFactory, makeId)
-  const engine = new DbEngine(makeId, modKv)
+  const engine = new DbEngine(makeId, modKv, { pushLocalEvent () {} })
   const realm = new BaseRealm(router, engine)
   realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, TEST_REALM_NAME, engine))
   await router.initRealm(TEST_REALM_NAME, realm)

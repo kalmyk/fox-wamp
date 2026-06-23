@@ -9,7 +9,7 @@ import * as sqlite from 'sqlite'
 
 import { Router } from '../lib/router'
 import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
-import { DbEngine } from '../lib/sqlite/dbengine'
+import { DbEngine } from '../lib/mono/dbengine'
 import { BaseRealm, StaticSchemaRepository } from '../lib/realm'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { ProduceId } from '../lib/masterfree/makeid'
@@ -41,7 +41,7 @@ describe('58.schema_payload_validation', function () {
     
     let modKv = new SqliteKvFabric(dbFactory, makeId)
     router = new Router()
-    realm = new BaseRealm(router, new DbEngine(makeId, modKv))
+    realm = new BaseRealm(router, new DbEngine(makeId, modKv, { pushLocalEvent () {} }))
     await router.initRealm(realmName, realm)
 
     mockSocket = { 

@@ -14,7 +14,7 @@ import WAMP from '../lib/wamp/protocol'
 import { WampGate } from '../lib/wamp/gate'
 import { Router } from '../lib/router'
 import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
-import { DbEngine, SqliteKv } from '../lib/sqlite/dbengine'
+import { DbEngine, SqliteKv } from '../lib/mono/dbengine'
 import { MemEngine } from '../lib/mono/memengine'
 import { MemKeyValueStorage } from '../lib/mono/memkv'
 import { BaseRealm } from '../lib/realm'
@@ -44,7 +44,7 @@ const makeDbRealm = async (router: Router): Promise<BaseRealm> => {
 
   let makeId = new ProduceId(() => keyDate(new Date()))
   let modKv = new SqliteKvFabric(dbFactory, makeId)
-  let engine = new DbEngine(makeId, modKv)
+  let engine = new DbEngine(makeId, modKv, { pushLocalEvent () {} })
   let realm = new BaseRealm(router, engine)
   realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, TEST_REALM_NAME, engine))
 

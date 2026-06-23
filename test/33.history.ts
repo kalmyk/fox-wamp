@@ -11,7 +11,7 @@ import * as sqlite from 'sqlite'
 
 import { BaseRealm, BaseEngine } from '../lib/realm'
 import { Router } from '../lib/router'
-import { DbEngine } from '../lib/sqlite/dbengine'
+import { DbEngine } from '../lib/mono/dbengine'
 import { MemEngine } from '../lib/mono/memengine'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { keyDate, ProduceId } from '../lib/masterfree/makeid'
@@ -28,7 +28,8 @@ const mkDbEngine = async (): Promise<DbEngine> => {
   const makeId = new ProduceId(() => keyDate(new Date()))
   return new DbEngine(
     makeId,
-    new SqliteKvFabric(dbFactory, makeId)
+    new SqliteKvFabric(dbFactory, makeId),
+    { pushLocalEvent () {} }
   )
 }
 
