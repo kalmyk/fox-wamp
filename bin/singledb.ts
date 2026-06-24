@@ -1,7 +1,6 @@
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { scanMaxId } from '../lib/sqlite/history'
 import { OneDbRouter } from '../lib/mono/onedbrouter'
-import { StorageTask } from '../lib/masterfree/storage'
 import { ProjectionListener } from '../lib/sqlite/projection_listener'
 
 async function main() {
@@ -14,8 +13,6 @@ async function main() {
   const router = new OneDbRouter(dbFactory)
   router.setLogTrace(true)
 
-  const sysRealm = await router.getRealm('sys')
-  new StorageTask(sysRealm, dbFactory)
   new ProjectionListener(dbFactory, db, router.getMakeId())
 
   router.startActualizePrefixTimer()

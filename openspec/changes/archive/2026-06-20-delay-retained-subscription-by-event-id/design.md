@@ -119,7 +119,7 @@ This prevents permanent memory growth while preserving the already-created subsc
 ## Open Issues
 
 ### Network mode commit visibility
-Distributed `after` support waits on the local KV projection watermark, not on `ADVANCE_SEGMENT_RESOLVED` alone. `ADVANCE_SEGMENT_RESOLVED` establishes the resolved segment, but retained replay is safe only after `kv_storage_${realmName}.current_position` is greater than or equal to the requested `after` event ID. The `kv-storage-module-registration` proposal defines that projection path: storage commits emit `SEGMENT_COMMITTED`, the local KV projection applies committed segment records, and `current_position` advances as a string-comparable event/segment watermark.
+Distributed `after` support waits on the local KV projection watermark, not on `ADVANCE_SEGMENT_RESOLVED` alone. `ADVANCE_SEGMENT_RESOLVED` establishes the resolved segment, but retained replay is safe only after `storage_desc_${realmName}.current_position` is greater than or equal to the requested `after` event ID. The `kv-storage-module-registration` proposal defines that projection path: storage commits emit `SEGMENT_COMMITTED`, the local KV projection applies committed segment records, and `current_position` advances as a string-comparable event/segment watermark.
 
 ### Network retained key-value update
 The retained lookup path in network mode must read the necessary retained rows from the same local KV projection that advances the `current_position` watermark. Waiting for history commit alone is not enough if retained lookup reads from a different state store.

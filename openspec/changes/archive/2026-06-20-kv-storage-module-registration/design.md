@@ -27,16 +27,16 @@ That path is outdated for distributed mode. Persistent KV state should be treate
 ## Decisions
 
 ### 1. Realm-Scoped Registry Storage
-We will use the primary SQLite database used by storage/history metadata to host realm-scoped `kv_storage_${realmName}` tables.
+We will use the primary SQLite database used by storage/history metadata to host realm-scoped `storage_desc_${realmName}` tables.
 - **Rationale**: The registry describes durable KV projections over committed history. Keeping it beside history metadata makes projection startup, status checks, and position tracking local to the storage node.
 - **Alternatives**: File-based storage (harder to query), or in-memory (loses state on restart).
 
 ### 2. Table Schema
-Each realm registry table is named `kv_storage_${realmName}`, following the existing `kv_${realmName}` table naming style. The realm is therefore part of the table name, not a repeated column in every row.
+Each realm registry table is named `storage_desc_${realmName}`, following the existing `kv_${realmName}` table naming style. The realm is therefore part of the table name, not a repeated column in every row.
 
 The table will be defined as follows:
 ```sql
-CREATE TABLE kv_storage_<realmName> (
+CREATE TABLE storage_desc_<realmName> (
     name TEXT PRIMARY KEY,
     schema_id TEXT NOT NULL,
     uri_pattern TEXT NOT NULL,
@@ -76,7 +76,7 @@ KEEP_ADVANCE_HISTORY
   -> StorageTask.commit_segment()
   -> SEGMENT_COMMITTED
   -> KV projection listener applies retained mutations
-  -> kv_storage_<realmName>.current_position is advanced
+  -> storage_desc_<realmName>.current_position is advanced
 ```
 
 ### 4. Committed Segment Payload
@@ -104,11 +104,11 @@ The `uri` field in the payload is the internal separator-free topic array. If a 
 ### 5. Retained KV Mutation Selection
 A committed event is eligible for persistent KV projection when `event.opt.retain === true`. The retain flag marks that the event should be kept as retained state; it does not by itself choose a storage.
 
-Storage selection is based on registered KV projections in the event realm's registry table. Each projection has an accepted URL pattern in `kv_storage_${realmName}.uri_pattern`. A retained event may be stored in zero, one, or many projections:
+Storage selection is based on registered KV projections in the event realm's registry table. Each projection has an accepted URL pattern in `storage_desc_${realmName}.uri_pattern`. A retained event may be stored in zero, one, or many projections:
 
 ```text
 event.opt.retain === true
-AND projection is registered in kv_storage_<event.realm>
+AND projection is registered in storage_desc_<event.realm>
 AND match(event.uri, defaultParse(projection.uri_pattern))
 ```
 

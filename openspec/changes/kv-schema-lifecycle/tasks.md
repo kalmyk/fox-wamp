@@ -1,7 +1,7 @@
 ## 1. Storage State Machine
 
 - [ ] 1.1 Add storage state enum: Inactive, Refreshing, Online, deactivated, Failed.
-- [ ] 1.2 Update `kv_storage_${realmName}` table to track state transitions with timestamps.
+- [ ] 1.2 Update `storage_desc_${realmName}` table to track state transitions with timestamps.
 - [ ] 1.3 Add state validation logic: enforce valid transitions (Inactive → Refreshing, Online → deactivated, etc.).
 - [ ] 1.4 Add transition logging: record all state changes to `update_history_${realmName}`.
 
@@ -42,7 +42,7 @@
 - [ ] 5.1 Implement `StorageRegistry.remove(storageName)` method.
 - [ ] 5.2 Add validation: verify storage is deactivated.
 - [ ] 5.3 Execute `DROP TABLE data_<realmName>_<hash>`.
-- [ ] 5.4 Delete storage record from `kv_storage_<realmName}`.
+- [ ] 5.4 Delete storage record from `storage_desc_<realmName}`.
 - [ ] 5.5 Record removal in history.
 - [ ] 5.6 Verify storage cannot be retrieved after removal.
 

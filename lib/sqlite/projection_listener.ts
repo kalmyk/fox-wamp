@@ -81,7 +81,7 @@ export class KvProjection {
   async advancePosition(eventId: string): Promise<void> {
     if (eventId === this.record.currentPosition) return
     await this.db.run(
-      `UPDATE kv_storage_${this.record.realmName} SET current_position = ? WHERE name = ?`,
+      `UPDATE storage_desc_${this.record.realmName} SET current_position = ? WHERE name = ?`,
       [eventId, this.record.name]
     )
     this.record.currentPosition = eventId
@@ -89,7 +89,7 @@ export class KvProjection {
 
   async setStatus(status: StorageStatus, error?: string): Promise<void> {
     await this.db.run(
-      `UPDATE kv_storage_${this.record.realmName} SET status = ?, last_error = ? WHERE name = ?`,
+      `UPDATE storage_desc_${this.record.realmName} SET status = ?, last_error = ? WHERE name = ?`,
       [status, error || null, this.record.name]
     )
     this.record.status = status

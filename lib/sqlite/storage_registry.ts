@@ -18,7 +18,7 @@ export type StorageActivation = {
 }
 
 function storageRegistryTableName(realmName: string): string {
-  return `kv_storage_${realmName}`
+  return `storage_desc_${realmName}`
 }
 
 function mapStorageRecord(realmName: string, row: any): StorageRecord {

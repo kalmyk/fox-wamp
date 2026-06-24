@@ -1,7 +1,7 @@
 # kv-storage-registry Specification
 
 ## Purpose
-Persistent KV projection registry: each realm maintains a `kv_storage_${realmName}` SQLite table that tracks registered projections, their URI pattern, linked schema, operational status, and committed-event position watermark.
+Persistent KV projection registry: each realm maintains a `storage_desc_${realmName}` SQLite table that tracks registered projections, their URI pattern, linked schema, operational status, and committed-event position watermark.
 
 ## Requirements
 
@@ -10,7 +10,7 @@ The system SHALL maintain a persistent registry of key-value projection modules 
 
 #### Scenario: Registering a new storage
 - **WHEN** a persistent KV projection is initialized for the first time
-- **THEN** the system SHALL create a record in the realm-scoped `kv_storage_${realmName}` table with its `name`, `schema_id`, `uri_pattern`, and initial `status` as `inactive`.
+- **THEN** the system SHALL create a record in the realm-scoped `storage_desc_${realmName}` table with its `name`, `schema_id`, `uri_pattern`, and initial `status` as `inactive`.
 - **AND** the projection realm SHALL be represented by the registry table name, not by a `realm_name` row column.
 - **AND** `uri_pattern` SHALL be stored as canonical dotted FOX topic text parsed by `defaultParse()`, not MQTT slash syntax.
 - **AND** `schema_id` SHALL link the projection to exactly one message schema.

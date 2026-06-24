@@ -1,6 +1,6 @@
 ## 1. Database Schema
 
-- [x] 1.1 Add `kv_storage_${realmName}` table creation logic to `lib/sqlite/history.ts` or a new metadata utility.
+- [x] 1.1 Add `storage_desc_${realmName}` table creation logic to `lib/sqlite/history.ts` or a new metadata utility.
 - [x] 1.2 Use `current_position TEXT`, include required `schema_id`, and keep realm selection in the table name rather than a row column.
 - [x] 1.3 Store `uri_pattern` as canonical dotted FOX topic text and parse it with `defaultParse()` when matching events.
 - [x] 1.4 Add `failed` to the status constraint and add `last_error TEXT`.
@@ -12,7 +12,7 @@
 - [x] 2.2 Implement `StorageRegistry` class to handle DB operations (register, update status, update position, update last error).
 - [x] 2.3 Make registration idempotent and preserve existing `current_position` on restart.
 - [x] 2.4 Ensure new registrations start as `inactive`.
-- [x] 2.5 Update code and tests to use the singular `kv_storage_${realmName}` table name.
+- [x] 2.5 Update code and tests to use the singular `storage_desc_${realmName}` table name.
 - [x] 2.6 Replace any remaining `storage_type` registry fields with required `schema_id`.
 
 ## 3. Committed Segment Payload

@@ -12,7 +12,7 @@ The current KV registry has a `storage_type` placeholder, but persistent KV proj
 - Require schema registration inputs to use canonical dotted FOX topic patterns only. Protocol gates normalize MQTT slash topics and WAMP dotted topics into this same canonical dotted FOX topic form before schema lookup.
 - **Primary key fields MUST be extracted from the URL by position**, matching the order of `*` wildcards in the URL pattern; the `primary_key` array order defines which wildcard position corresponds to which field.
 - Generate a related SQLite data table for each schema, with a `${realmName}` suffix and a stable hash-derived table name.
-- Link each `kv_storage_${realmName}` row to exactly one schema via `schema_id`; this replaces the current `storage_type` placeholder in the KV registry proposal.
+- Link each `storage_desc_${realmName}` row to exactly one schema via `schema_id`; this replaces the current `storage_type` placeholder in the KV registry proposal.
 - Validate incoming committed retained events against the schema selected by URL; ensure all primary key values (from URL) and other required fields (from body) are present before storing projected data. MQTT and WAMP follow the same schema-selection rules after protocol-boundary parsing.
 - Apply each matching schema's projection rules independently. A schema owns its generated projection table set, so overlapping schema URL patterns are allowed and are not inherently dangerous.
 - Treat schemas and generated data tables as immutable for now. To modify a schema, create a new schema record, create a new generated table, activate the new KV projection, deactivate the old one, and then remove the old generated data table when it is no longer needed.

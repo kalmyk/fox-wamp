@@ -37,7 +37,7 @@ describe('56.kv_registry', function () {
   it('creates realm-scoped kv_storage table with expected columns', async () => {
     await createStorageRegistryTables(db, 'realm1')
 
-    const rows = await db.all(`PRAGMA table_info(kv_storage_realm1)`)
+    const rows = await db.all(`PRAGMA table_info(storage_desc_realm1)`)
     const columns = rows.map((row: any) => row.name)
 
     expect(columns).to.include.members([

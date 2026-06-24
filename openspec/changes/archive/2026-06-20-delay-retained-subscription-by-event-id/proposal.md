@@ -40,7 +40,7 @@ When a client publishes an event and immediately subscribes to the same topic wi
 
 ### Distributed Engines
 
-- Distributed `after` waits on `kv_storage_${realmName}.current_position` from the local KV projection, not on `ADVANCE_SEGMENT_RESOLVED` alone.
+- Distributed `after` waits on `storage_desc_${realmName}.current_position` from the local KV projection, not on `ADVANCE_SEGMENT_RESOLVED` alone.
 - Retained lookup must read retained rows from the same local KV projection whose `current_position` watermark is used for the wait.
 - Event and segment watermarks are compared as strings, following `kv-storage-module-registration`; implementations must not parse distributed event IDs for ordering.
 - Before the serving node can observe the required local projection watermark, synchronized distributed retained replay is rejected as unsupported.

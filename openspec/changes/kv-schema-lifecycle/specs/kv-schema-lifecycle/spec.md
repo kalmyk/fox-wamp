@@ -144,7 +144,7 @@ Inactive ──Activate──> Refreshing ──(complete)──> Online
 **Process**:
 1. Verify storage is deactivated.
 2. Execute `DROP TABLE data_<realmName>_<hash>`.
-3. Delete storage record from `kv_storage_<realmName>`.
+3. Delete storage record from `storage_desc_<realmName>`.
 
 **Output**:
 ```json

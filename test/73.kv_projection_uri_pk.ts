@@ -24,7 +24,7 @@ describe('73.kv_projection_uri_pk', function () {
     )`)
 
     // Create registry table for advancePosition/setStatus to work if needed
-    await db.run(`CREATE TABLE kv_storage_${realmName} (
+    await db.run(`CREATE TABLE storage_desc_${realmName} (
       name TEXT PRIMARY KEY,
       schema_id TEXT,
       uri_pattern TEXT,

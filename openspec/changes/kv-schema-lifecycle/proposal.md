@@ -118,7 +118,7 @@ Each transition requires clear command contracts and validation rules.
 
 1. Verify storage exists and is in deactivated state.
 2. Drop the generated data table (e.g., `DROP TABLE data_testrealm_xxxxx`).
-3. Delete the storage record from `kv_storage_${realmName}`.
+3. Delete the storage record from `storage_desc_${realmName}`.
 4. Storage is now gone.
 
 ## Schema Replacement Scenario

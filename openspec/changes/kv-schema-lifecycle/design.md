@@ -109,7 +109,7 @@ Inactive ──────────────────> Refreshing ─�
 
 1. Verify storage exists and is in deactivated state.
 2. Execute `DROP TABLE data_<realmName>_<hash>` to remove the generated table.
-3. Delete the storage record from `kv_storage_<realmName>`.
+3. Delete the storage record from `storage_desc_<realmName>`.
 4. Storage is now fully removed.
 
 **Precondition**: Only deactivated storage can be removed. This prevents accidental deletion of active projections.

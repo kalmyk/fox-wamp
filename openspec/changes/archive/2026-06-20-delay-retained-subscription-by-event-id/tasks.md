@@ -43,6 +43,6 @@
 ## 6. Distributed Support Dependencies
 
 - [x] 6.1 Depend on `kv-storage-module-registration` for the local KV projection path from `SEGMENT_COMMITTED` to retained KV state.
-- [x] 6.2 Ensure distributed retained lookup reads from the same local KV projection that advances `kv_storage_${realmName}.current_position`.
+- [x] 6.2 Ensure distributed retained lookup reads from the same local KV projection that advances `storage_desc_${realmName}.current_position`.
 - [x] 6.3 Use the string-comparable event/segment watermark from `kv-storage-module-registration` for distributed `after` comparisons.
 - [x] 6.4 Keep distributed synchronized retained replay unsupported until the local KV projection watermark is observable to the serving node.

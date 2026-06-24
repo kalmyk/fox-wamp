@@ -4,7 +4,7 @@ The system currently has an outdated key-value storage registration path tied to
 
 ## What Changes
 
-- **New Registration Table**: Create realm-scoped `kv_storage_${realmName}` tables to register persistent KV projection modules, matching the existing `kv_${realmName}` table naming style.
+- **New Registration Table**: Create realm-scoped `storage_desc_${realmName}` tables to register persistent KV projection modules, matching the existing `kv_${realmName}` table naming style.
 - **Storage Fields**:
     - `name`: Unique identifier for the storage instance.
     - Realm is selected by table name, not by a row column.
@@ -60,5 +60,5 @@ The design states that matching KV mutations advance with event IDs and idle seg
 Task 4.11 remains open and should explicitly describe the compatibility boundary between the old local path and the new distributed projection path.
 
 - In-memory/local KV remains supported for compatibility and tests.
-- Persistent distributed projection uses the schema repository plus `kv_storage_${realmName}` only.
+- Persistent distributed projection uses the schema repository plus `storage_desc_${realmName}` only.
 - The old local path and the persistent distributed path must not both write the same retained projection in distributed mode.
