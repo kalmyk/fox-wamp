@@ -1,6 +1,6 @@
 import * as sqlite from 'sqlite'
 import { CommittedSegmentEvent, CommittedSegmentRecord, SegmentCommittedSource, SEGMENT_COMMITTED } from '../masterfree/storage'
-import { StorageRegistry } from './storage_registry'
+import { StorageRegistry, StorageActivation } from './storage_registry'
 import { SchemaRepository } from './schema_repository'
 import { StorageStatus, StorageRecord } from '../types'
 import { match, defaultParse } from '../topic_pattern'
@@ -118,9 +118,23 @@ export class ProjectionListener {
   async activateProjection(realmName: string, name: string): Promise<void> {
     const registry = await this.getRegistry(realmName)
     const activation = await registry.startActivation(name)
-    
-    if (!activation.started) return // Already online
+    if (!activation.started) return
+    await this._runActivation(realmName, name, activation.activationTarget)
+  }
 
+  async startActivation(realmName: string, name: string): Promise<StorageActivation> {
+    const registry = await this.getRegistry(realmName)
+    const activation = await registry.startActivation(name)
+    if (activation.started) {
+      this._runActivation(realmName, name, activation.activationTarget).catch(err => {
+        console.error(`Background activation failed for ${name}:`, err)
+      })
+    }
+    return activation
+  }
+
+  private async _runActivation(realmName: string, name: string, activationTarget: string | null): Promise<void> {
+    const registry = await this.getRegistry(realmName)
     const projRecord = await registry.get(name)
     if (!projRecord) throw new Error('Projection not found')
 
@@ -128,19 +142,18 @@ export class ProjectionListener {
       const schemaRepo = await this.getSchemaRepo(realmName)
       const schema = await schemaRepo.get(projRecord.schemaId)
       if (!schema) throw new Error(`Schema not found for projection: ${projRecord.schemaId}`)
-      
+
       const projection = new KvProjection(this.db, projRecord, JSON.parse(schema.schemaJson), schema.dataTable)
 
-      // Historical Catch-up
-      if (activation.activationTarget) {
-        await getEventHistory(this.db, realmName, { toId: activation.activationTarget }, async (event) => {
+      if (activationTarget) {
+        await getEventHistory(this.db, realmName, { toId: activationTarget }, async (event) => {
           await projection.applyEvent({
             eventId: event.id,
             realm: realmName,
             uri: event.uri,
             data: event.body,
             opt: event.opt,
-            sid: '', 
+            sid: '',
             shard: event.shard
           })
           await projection.advancePosition(event.id)

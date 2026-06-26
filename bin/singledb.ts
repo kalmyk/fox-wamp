@@ -1,7 +1,6 @@
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { scanMaxId } from '../lib/sqlite/history'
 import { OneDbRouter } from '../lib/mono/onedbrouter'
-import { ProjectionListener } from '../lib/sqlite/projection_listener'
 
 async function main() {
   const dbFactory = new DbFactory('../dbfiles/')
@@ -12,8 +11,6 @@ async function main() {
 
   const router = new OneDbRouter(dbFactory)
   router.setLogTrace(true)
-
-  new ProjectionListener(dbFactory, db, router.getMakeId())
 
   router.startActualizePrefixTimer()
   router.listenWAMP({ port: 9000 })

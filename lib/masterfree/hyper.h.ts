@@ -1,4 +1,5 @@
 import { ComplexId } from './makeid'
+import { StorageRecord, StorageStatus, SchemaRecord } from '../types'
 
 export const INTRA_REALM_NAME = 'sys'
 
@@ -89,3 +90,30 @@ export type BODY_ADVANCE_SEGMENT_FAILED = {
   advanceStamp: number
   reason: string
 }
+
+export namespace AdminEvent {
+  export const KV_LIST = 'fox.admin.kv.list'
+  export const KV_ACTIVATE = 'fox.admin.kv.activate'
+  export const KV_RESET = 'fox.admin.kv.reset'
+  export const SCHEMA_LIST = 'fox.admin.schema.list'
+  export const SCHEMA_ADD = 'fox.admin.schema.add'
+  export const SCHEMA_DROP = 'fox.admin.schema.drop'
+}
+
+export type AdminKvListRequest = Record<string, never>
+export type AdminKvListResponse = { storages: StorageRecord[] }
+
+export type AdminKvActivateRequest = { name: string }
+export type AdminKvActivateResponse = { status: StorageStatus; activationTarget: string | null }
+
+export type AdminKvResetRequest = { name: string }
+export type AdminKvResetResponse = { status: StorageStatus }
+
+export type AdminSchemaListRequest = Record<string, never>
+export type AdminSchemaListResponse = { schemas: SchemaRecord[] }
+
+export type AdminSchemaAddRequest = { label: string; urlPattern: string; schema: object }
+export type AdminSchemaAddResponse = { schemaId: string; dataTable: string }
+
+export type AdminSchemaDropRequest = { schemaId: string }
+export type AdminSchemaDropResponse = { status: 'deprecated' }

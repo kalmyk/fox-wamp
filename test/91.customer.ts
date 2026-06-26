@@ -5,15 +5,11 @@ chai.use(promised)
 import * as sqlite from 'sqlite'
 import sqlite3 from 'sqlite3'
 
-import { Router } from '../lib/router'
 import { BaseRealm } from '../lib/realm'
-import { DbEngine, SqliteKv } from '../lib/mono/dbengine'
+import { OneDbRouter } from '../lib/mono/onedbrouter'
 import { DbFactory } from '../lib/sqlite/dbfactory'
-import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
-import { ProduceId } from '../lib/masterfree/makeid'
-import { SchemaRepository } from '../lib/sqlite/schema_repository'
 import { StorageRegistry } from '../lib/sqlite/storage_registry'
-import { ProjectionListener } from '../lib/sqlite/projection_listener'
+import { AdminEvent } from '../lib/masterfree/hyper.h'
 import { HyperClient } from '../lib/hyper/client'
 
 const REALM = 'realm1'
@@ -21,35 +17,18 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 describe('91.customer', () => {
   let db: sqlite.Database
-  let router: Router
+  let router: OneDbRouter
   let realm: BaseRealm
   let api: HyperClient
-  let schemaRepo: SchemaRepository
-  let registry: StorageRegistry
-  let projectionListener: ProjectionListener
-  let dbFactory: DbFactory
 
   beforeEach(async () => {
     db = await sqlite.open({ filename: ':memory:', driver: sqlite3.Database })
-    dbFactory = new DbFactory('/tmp/test-91.db')
+    const dbFactory = new DbFactory('/tmp/test-91.db')
     dbFactory.setMainDb(db)
 
-    const makeId = new ProduceId(() => 'cust-')
-    makeId.actualizePrefix()
-
-    const modKv = new SqliteKvFabric(dbFactory, makeId)
-    const dbEngine = new DbEngine(makeId, modKv)
-
-    router = new Router()
-    realm = new BaseRealm(router, dbEngine)
-    realm.registerKeyValueEngine(['#'], new SqliteKv(modKv, REALM, dbEngine))
-    await router.initRealm(REALM, realm)
-
+    router = new OneDbRouter(dbFactory)
+    realm = await router.getRealm(REALM)
     realm.getEngine().retainedEventWaitTimeoutMs = 500
-
-    schemaRepo = new SchemaRepository(db, REALM, makeId)
-    registry = new StorageRegistry(db, REALM, makeId)
-    projectionListener = new ProjectionListener(dbFactory, db, makeId)
 
     api = realm.api() as HyperClient
   })
@@ -70,31 +49,47 @@ describe('91.customer', () => {
     expect(history).to.have.lengthOf(1)
     expect(history[0].msg_uri).to.include('id1')
 
-    // Step 2: Create customer schema (id, name, credit)
-    const schema = await schemaRepo.register('customer', 'customer.*', {
-      properties: { id: 'string', name: 'string', credit: 'number' },
-      primary_key: ['id']
+    // Step 2: Create customer schema via admin API (registered on realm by OneDbRouter)
+    const schemaResult: any = await api.callrpc(AdminEvent.SCHEMA_ADD, {
+      label: 'customer',
+      urlPattern: 'customer.*',
+      schema: {
+        properties: { id: 'string', name: 'string', credit: 'number' },
+        primary_key: ['id']
+      }
     })
-    expect(schema.schemaId).to.be.a('string')
-    expect(schema.dataTable).to.be.a('string')
+    expect(schemaResult.schemaId).to.be.a('string')
+    expect(schemaResult.dataTable).to.be.a('string')
 
-    // Step 3: Register projection and validate table was created
+    // Step 3: Register projection record (no admin RPC for this yet)
+    const registry = new StorageRegistry(db, REALM, router.getMakeId())
     await registry.register({
       name: 'customer-proj',
       uriPattern: 'customer.*',
-      schemaId: schema.schemaId
+      schemaId: schemaResult.schemaId
     })
 
     const tableRow = await db.get(
       `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
-      [schema.dataTable]
+      [schemaResult.dataTable]
     )
     expect(tableRow).to.exist
 
-    // Step 4: Activate projection — catch-up replay populates id1
-    await projectionListener.activateProjection(REALM, 'customer-proj')
+    // Step 4: Activate via admin API — returns immediately, poll until online
+    const activateResult: any = await api.callrpc(AdminEvent.KV_ACTIVATE, { name: 'customer-proj' })
+    expect(activateResult.status).to.equal('refreshing')
 
-    const rowsAfterActivation = await db.all(`SELECT * FROM "${schema.dataTable}"`)
+    let projStatus = 'refreshing'
+    for (let i = 0; i < 20 && projStatus === 'refreshing'; i++) {
+      await sleep(10)
+      const listResult: any = await api.callrpc(AdminEvent.KV_LIST, {})
+      const proj = listResult.storages?.find((s: any) => s.name === 'customer-proj')
+      projStatus = proj?.status ?? 'unknown'
+      if (projStatus === 'failed') throw new Error(`Projection activation failed: ${proj?.lastError}`)
+    }
+    expect(projStatus).to.equal('online')
+
+    const rowsAfterActivation = await db.all(`SELECT * FROM "${schemaResult.dataTable}"`)
     expect(rowsAfterActivation).to.have.lengthOf(1)
     expect(rowsAfterActivation[0].id).to.equal('id1')
     expect(rowsAfterActivation[0].name).to.equal('Alice')
@@ -114,12 +109,10 @@ describe('91.customer', () => {
     })
     await sleep(50)
 
-    // received data is the same as sent
     expect(events).to.have.lengthOf(1)
     expect(events[0]).to.deep.include({ id: 'id2', name: 'Bob', credit: 200 })
 
-    // verify that id2 is in the projection table
-    const allRows = await db.all(`SELECT * FROM "${schema.dataTable}"`)
+    const allRows = await db.all(`SELECT * FROM "${schemaResult.dataTable}"`)
     expect(allRows).to.have.lengthOf(2)
     const id2Row = allRows.find((r: any) => r.id === 'id2')
     expect(id2Row).to.exist
