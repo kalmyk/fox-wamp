@@ -15,6 +15,9 @@ program
   .allowUnknownOption(true)
   .parse(process.argv)
 
+// parseOptions captures flags (like --wait) that were swallowed by allowUnknownOption
+const _parsed = (program as any).parseOptions(process.argv.slice(2))
+
 const globalOpts = program as any
 
 function getHost(): string { return globalOpts.host || 'localhost' }
@@ -92,7 +95,8 @@ function printTable(rows: Record<string, any>[], columns: string[]): void {
 
 // ── command dispatch ────────────────────────────────────────────────
 
-const subArgs: string[] = program.args || []
+// Combine positional args with unknown flags (e.g. --wait) that commander swallowed
+const subArgs: string[] = [...(_parsed.args || []), ...(_parsed.unknown || [])]
 const [group, subCmd, ...rest] = subArgs
 
 function makeSubProgram(): InstanceType<typeof Command> {
@@ -112,7 +116,7 @@ function runKv(args: string[]): void {
       const result: any = await client.callrpc(AdminEvent.KV_LIST, {})
       const storages: any[] = result.storages || []
       if (isJson()) {
-        console.log(JSON.stringify(storages, null, 2))
+        console.log(JSON.stringify(storages))
       } else {
         printTable(
           storages.map((s: any) => ({
@@ -176,7 +180,7 @@ function runSchema(args: string[]): void {
       const result: any = await client.callrpc(AdminEvent.SCHEMA_LIST, {})
       const schemas: any[] = result.schemas || []
       if (isJson()) {
-        console.log(JSON.stringify(schemas, null, 2))
+        console.log(JSON.stringify(schemas))
       } else {
         printTable(
           schemas.map((s: any) => ({
