@@ -53,7 +53,7 @@ describe('63.storage', function () {
 
   it('receive-draft-segment', async () => {
     const eventPC1: BODY_PICK_CHALLENGER = {
-      shardTag: '0',
+      shardTag: 0,
       advanceOwner: 'entry1',
       advanceStamp: 1,
       draftOwner: 'sync2',
@@ -64,7 +64,7 @@ describe('63.storage', function () {
     expect(extractStack).deep.equal([])
 
     const eventPC2: BODY_PICK_CHALLENGER = {
-      shardTag: '0',
+      shardTag: 0,
       advanceOwner: 'entry2',
       advanceStamp: 1,
       draftOwner: 'sync2',

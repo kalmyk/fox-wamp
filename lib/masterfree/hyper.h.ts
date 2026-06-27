@@ -26,13 +26,13 @@ export enum Event {
 export type BODY_BEGIN_ADVANCE_SEGMENT = {
   advanceOwner: string
   advanceStamp: number // todo rename to advanceStamp  // local entry timestamp
-  shardTag: string
+  shardTag: number
 }
 
 export type BODY_ADVANCE_SEGMENT_OVER = {
   advanceOwner: string
   advanceStamp: number
-  shardTag: string
+  shardTag: number
 }
 
 export type BODY_TRIM_ADVANCE_SEGMENT = {
@@ -49,13 +49,13 @@ export type BODY_INIT_ENTRY_ACCEPTED = {
 export type BODY_GENERATE_DRAFT = {
   advanceOwner: string // TODO: origin / relay
   advanceStamp: number
-  shardTag: string
+  shardTag: number
 }
 
 export type BODY_PICK_CHALLENGER = {
   advanceOwner: string
   advanceStamp: number
-  shardTag: string
+  shardTag: number
   draftOwner: string
   draftId: ComplexId
 }
@@ -74,7 +74,7 @@ export type BODY_KEEP_ADVANCE_HISTORY = {
 export type BODY_ELECT_SEGMENT = {
   advanceOwner: string
   advanceStamp: number
-  shardTag: string
+  shardTag: number
   voter: string
   challenger: string
 }

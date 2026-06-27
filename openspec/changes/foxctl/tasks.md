@@ -84,7 +84,16 @@
 - [x] 7.2 Confirm `tsconfig.json` compiles `bin/` to `out/bin/`.
 - [x] 7.3 Verify `tsx bin/foxctl.ts` works as a dev-time entry point without a pre-build step.
 
-## 8. Verification
+## 8. `foxctl event` Commands
+
+- [ ] 8.1 Add `AdminEvent.EVENT_SHARD_LIST` constant to the foxctl import list (defined in sharding change)
+- [ ] 8.2 Implement `foxctl event shard list`:
+  Calls `fox.admin.event.shard.list` (no realm required — cluster-level RPC).
+  Default: ASCII table with columns `schema | shard | node | host | port`.
+  `--json`: raw JSON array.
+- [ ] 8.3 Wire `event` group into the foxctl command dispatcher alongside `kv` and `schema`
+
+## 9. Verification (existing commands)
 
 - [ ] 8.1 Integration test: `foxctl schema add` registers a schema; `foxctl schema list` returns it.
 - [ ] 8.2 Integration test: `foxctl kv list` on an empty realm returns an empty table.

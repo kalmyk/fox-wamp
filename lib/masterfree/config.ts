@@ -46,6 +46,33 @@ export class Config {
   getSyncQuorum () {
     return this.config.syncQuorum || 2
   }
+
+  // Returns all schemas a given node participates in, with their shardCount and the node's owned shards.
+  findSchemasForNode (nodeId: string): Array<{ schemaName: string; shardCount: number; shards: number[] }> {
+    const eventNodes = this.config.eventNodes
+    if (!eventNodes) return []
+    const result: Array<{ schemaName: string; shardCount: number; shards: number[] }> = []
+    for (const schemaName of Object.keys(eventNodes)) {
+      const schema = eventNodes[schemaName]
+      const node = schema[nodeId]
+      if (node && Array.isArray(node.shards)) {
+        result.push({ schemaName, shardCount: schema.shardCount, shards: node.shards })
+      }
+    }
+    return result
+  }
+
+  getEventSchemaNames (): string[] {
+    return Object.keys(this.config.eventNodes || {})
+  }
+
+  getEventSchema (schemaName: string): { shardCount: number; [nodeId: string]: any } {
+    const schema = this.config.eventNodes?.[schemaName]
+    if (!schema) {
+      throw Error('Event schema "' + schemaName + '" not found in config')
+    }
+    return schema
+  }
 }
 
 let configInstance: Config | undefined = undefined

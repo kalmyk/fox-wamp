@@ -6,77 +6,76 @@
 - [x] 1.4 Rename `tag` field to `shardTag` in BODY_PICK_CHALLENGER type definition in `lib/masterfree/hyper.h.ts`
 - [x] 1.5 Rename `tag` field to `shardTag` in BODY_ELECT_SEGMENT type definition in `lib/masterfree/hyper.h.ts`
 
-## 2. NDB Configuration for Shard Scheme
+## 2. Config File: eventNodes Schema
 
-- [ ] 2.1 Add `divider` configuration parameter to NDB config structure (default: 1048576) in `lib/masterfree/ndb.ts` or appropriate config module
-- [ ] 2.2 Document in code that `divider` must be consistent across all NDB nodes in a cluster
-- [ ] 2.3 Implement validation to ensure divider is a positive integer and loaded correctly on startup
-- [ ] 2.4 Add logging on NDB startup to display configured divider value for operational visibility
+- [x] 2.1 Add `eventNodes` section to `supervisor/config.json` with named schemas, each containing `shardCount` and per-node `shards` arrays (see design doc for structure)
+- [x] 2.2 Add `getEventSchema(schemaName)` and `getEventSchemaNames()` methods to `Config` class
+- [x] 2.3 Add `findSchemasForNode(nodeId)` method returning all `{ schemaName, shardCount, shards }` entries where nodeId appears
+- [ ] 2.4 Validate on startup: at least one schema found for nodeId, all shard values are integers in `[0, shardCount-1]`
 
-## 3. Entry Node Shard Allocation Implementation
+## 3. Entry Node Shard Allocation
 
-- [ ] 3.1 Add `shardCounter` instance variable to track shard allocation counter in `lib/masterfree/netengine.ts`
-- [ ] 3.2 Implement round-robin shard allocation logic: `shardTag = "s" + (shardCounter++ % 1048576)` in entry node message creation
-- [ ] 3.3 Update BEGIN_ADVANCE_SEGMENT generation to assign `shardTag` using round-robin allocation
-- [ ] 3.4 Update ADVANCE_SEGMENT_OVER generation to use the same `shardTag` from the segment
-- [ ] 3.5 Initialize shard counter to a random value in the 2^20 shard space on entry-node startup
+- [ ] 3.1 Add `shardCounter` instance variable to the entry node in `lib/masterfree/netengine.ts`
+- [ ] 3.2 Initialise `shardCounter` to a random integer in `[0, 1048575]` on construction
+- [ ] 3.3 For each new segment, assign `shardTag = shardCounter++ % 1048576` as a plain integer
+- [ ] 3.4 Update BEGIN_ADVANCE_SEGMENT generation to include the assigned `shardTag`
 
-## 4. NetEngine and Segment Management Updates
+## 4. Topic-Based Routing of KEEP_ADVANCE_HISTORY
 
-- [ ] 4.1 Update all existing references to `tag` field in `lib/masterfree/netengine.ts` to use `shardTag`
-- [ ] 4.2 Verify that segment objects properly track and propagate `shardTag` throughout message flow
-- [ ] 4.3 Update segment creation and lifecycle to ensure `shardTag` is assigned early and immutable
+- [ ] 4.1 Implement `getDestinationTopics()` on the segment object to return `['keepHistory_' + schemaName + '.' + (shardTag % shardCount)]` instead of the broadcast `Event.KEEP_ADVANCE_HISTORY`
+- [ ] 4.2 Pass `schemaName` and `shardCount` (from config) into the entry node so `getDestinationTopics()` has access to them
+- [ ] 4.3 Update the entry node to publish `KEEP_ADVANCE_HISTORY` to the topic returned by `getDestinationTopics()` (replaces the commented-out sharding logic)
+- [ ] 4.4 Verify that ADVANCE_SEGMENT_OVER and other non-history messages remain on their existing broadcast topics — only KEEP_ADVANCE_HISTORY is shard-routed
 
-## 5. Storage Node Updates with msg_shard Computation
+## 5. Storage Node Startup and Subscription
 
-- [ ] 5.1 Update `lib/masterfree/storage.ts` to handle `shardTag` field in incoming messages
-- [ ] 5.2 Implement `computeMsgShard(shardTag, divider)` function that extracts numeric shard ID and computes `msg_shard = (shardTag_numeric % divider)`
-- [ ] 5.3 Update KEEP_ADVANCE_HISTORY message processing to compute and store `msg_shard` in addition to shardTag metadata
-- [ ] 5.4 Update any storage queries or placement logic to use both `shardTag` and computed `msg_shard` values
+- [ ] 5.1 Accept `--node-id <id>` CLI argument in the storage node entrypoint
+- [ ] 5.2 On startup, call `config.findSchemasForNode(nodeId)` to discover all schemas and owned shards
+- [ ] 5.3 Subscribe to `keepHistory_<schemaName>.<bucket>` for each bucket across all discovered schemas instead of the broadcast `Event.KEEP_ADVANCE_HISTORY`
+- [ ] 5.4 Remove the old broadcast `KEEP_ADVANCE_HISTORY` subscription
+- [ ] 5.5 Log all discovered schemas, their shardCount, and owned buckets on startup
 
-## 6. Database Schema Changes
+## 5a. Event History Table Naming
 
-- [ ] 6.1 Create database migration to add nullable `msg_shard` (INTEGER) column to `event_history_${realmName}` tables
-- [ ] 6.2 Add composite index on (realm, msg_shard, timestamp) for efficient shard-range queries
-- [ ] 6.3 Write migration script to backfill `msg_shard` values for existing events: `msg_shard = (shardTag_numeric % 1048576) % divider` (or NULL if shardTag unknown)
-- [ ] 6.4 Implement schema migration execution as part of NDB startup or separate migration tool
-- [ ] 6.5 Test schema migration on local SQLite test databases
+- [ ] 5a.1 Rename event history table from `event_history_<realmName>` to `event_history_<schemaName>_<realmName>` in the storage node
+- [ ] 5a.2 Update `saveEventHistory` and all table-creation / query helpers to use the schema-qualified table name
 
-## 7. Synchronizer Protocol Updates
+## 6. Synchronizer Protocol Updates
 
-- [ ] 7.1 Update GENERATE_DRAFT message construction in `lib/masterfree/synchronizer.ts` to use `shardTag` field
-- [ ] 7.2 Update PICK_CHALLENGER message construction to propagate `shardTag` unchanged
-- [ ] 7.3 Update ELECT_SEGMENT message construction to propagate `shardTag` unchanged
-- [ ] 7.4 Verify that all sync cluster operations preserve `shardTag` immutability
+- [ ] 6.1 Update GENERATE_DRAFT construction in `lib/masterfree/synchronizer.ts` to carry `shardTag` from the incoming segment
+- [ ] 6.2 Update PICK_CHALLENGER construction to propagate `shardTag` unchanged
+- [ ] 6.3 Update ELECT_SEGMENT construction to propagate `shardTag` unchanged
+
+## 7. Cleanup: Remaining `tag` References
+
+- [ ] 7.1 Grep for remaining `.tag` / `[tag]` field accesses in masterfree source files and rename to `shardTag`
+- [ ] 7.2 Update ADVANCE_SEGMENT_OVER usages to use `shardTag`
 
 ## 8. Testing and Validation
 
-- [ ] 8.1 Write unit tests for round-robin shard allocation (allocation sequence, wraparound at 1048576)
-- [ ] 8.2 Write unit tests for random shard counter initialization on node restart
-- [ ] 8.3 Write unit tests for `computeMsgShard()` function with various divider values (4, 512, 1048576)
-- [ ] 8.4 Write integration tests verifying `shardTag` is correctly assigned and propagated through message lifecycle
-- [ ] 8.5 Write integration tests verifying `msg_shard` is correctly computed and stored in event_history
-- [ ] 8.6 Write integration tests for multi-segment scenarios to verify deterministic allocation
-- [ ] 8.7 Write tests for schema migration (backfill logic on legacy databases)
-- [ ] 8.8 Write tests to verify backward compatibility with legacy events (NULL msg_shard)
-- [ ] 8.9 Run full test suite: `npm test`
+- [ ] 8.1 Unit test: sequential shard allocation increments by 1 modulo 1048576
+- [ ] 8.2 Unit test: counter wraps from 1048575 back to 0
+- [ ] 8.3 Unit test: `getDestinationTopics()` returns correct topic for given shardTag, schemaName, shardCount (e.g. shardTag=42, schema="main", shardCount=16 → "keepHistory_main.10")
+- [ ] 8.4 Unit test: `findSchemasForNode` returns correct schemas and shards; node subscribes to all matching `keepHistory_<schemaName>.*` topics
+- [ ] 8.5 Integration test: `KEEP_ADVANCE_HISTORY` is delivered only to the storage node that owns the bucket — not to others
+- [ ] 8.6 Integration test: `shardTag` propagates unchanged through GENERATE_DRAFT → PICK_CHALLENGER → ELECT_SEGMENT
+- [ ] 8.7 Integration test: two-node storage cluster where each node owns half the shards receives the correct subset of messages
+- [ ] 8.8 Run full test suite: `npm test`
 
-## 9. Documentation and Logging
+## 9. Admin RPC: Event Shard List
 
-- [ ] 9.1 Update code comments in `netengine.ts` to explain `shardTag` allocation strategy (round-robin across 1048576 shards)
-- [ ] 9.2 Update code comments in `storage.ts` to document `msg_shard` computation and divider usage
-- [ ] 9.3 Update code comments in `synchronizer.ts` to document `shardTag` immutability requirement
-- [ ] 9.4 Add logging statements to trace `shardTag` assignment and propagation for debugging
-- [ ] 9.5 Add logging statements to show `msg_shard` computation and divider value in storage operations
-- [ ] 9.6 Update internal developer docs (if applicable) to explain shard allocation semantics and divider configuration
-- [ ] 9.7 Add comments to database schema or migration scripts explaining `msg_shard` column purpose
+- [ ] 9.1 Add `AdminEvent.EVENT_SHARD_LIST = 'fox.admin.event.shard.list'` to the `AdminEvent` namespace in `lib/masterfree/hyper.h.ts`
+- [ ] 9.2 Register `fox.admin.event.shard.list` handler in `AdminApiServer`: reads the cluster config, iterates all event schemas, and returns each schema's `shardCount` and per-shard entry: `{ schemaName, shardCount, shards: [{ bucket, nodeId, host, port }] }`
+- [ ] 9.3 Integration test: RPC returns correct schema and shard layout matching the config
 
-## 10. Code Review and Final Checks
+## 10. Logging
 
-- [ ] 10.1 Verify all `tag` references have been renamed to `shardTag` (grep for remaining `tag` field accesses)
-- [ ] 10.2 Verify divider is used consistently across all NDB nodes in tests
-- [ ] 10.3 Run linting: `npm run lint`
-- [ ] 10.4 Run full build: `npm run compile`
-- [ ] 10.5 Verify no breaking changes to public APIs or external interfaces
-- [ ] 10.6 Test schema migration on sample databases with existing data
-- [ ] 10.7 Create summary of changes for release notes (protocol field rename, shard allocation formalization, database schema updates, divider configuration)
+- [ ] 10.1 Log `shardTag` assignment in the entry node when a new segment is created
+- [ ] 10.2 Log the shard topic subscription list on storage node startup
+- [ ] 10.3 Log `shardCount` on both entry and storage node startup
+
+## 11. Build and Final Checks
+
+- [ ] 11.1 Run `npm run compile` — no TypeScript errors
+- [ ] 11.2 Grep for any remaining `.tag` (not `.shardTag`) in masterfree source files
+- [ ] 11.3 Verify no external test fixtures reference the old `tag` field name

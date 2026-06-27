@@ -1,37 +1,41 @@
 ## Why
 
-The current message sharding mechanism uses a generic `tag` field for segment tracking, making it unclear how shards are allocated and distributed across nodes. To improve scalability and clarity in distributed message storage, we need to formalize the sharding strategy by renaming `tag` to `shardTag` and implementing explicit round-robin shard allocation across 2^20 (1048576) shards at the entry node level. This will establish a deterministic, load-balanced distribution pattern for messages across storage nodes.
+The current message sharding mechanism uses a generic `tag` field for segment tracking, and `KEEP_ADVANCE_HISTORY` is broadcast to **all storage nodes** without any routing — every NDB receives every segment regardless of which shard it owns. To fix this, we formalize a topic-based shard routing scheme: `KEEP_ADVANCE_HISTORY` is published to a dedicated per-shard topic in the sys realm, and each storage node subscribes only to the topics for the shards it is responsible for. This eliminates unnecessary broadcast traffic and makes horizontal scaling of the storage tier explicit and controllable.
 
 ## What Changes
 
 - **Rename `tag` to `shardTag`** across all message protocol structures (`BODY_BEGIN_ADVANCE_SEGMENT`, `BODY_ADVANCE_SEGMENT_OVER`, `BODY_GENERATE_DRAFT`, `BODY_PICK_CHALLENGER`, `BODY_ELECT_SEGMENT`) in the HyperNet protocol definitions.
-- **Implement round-robin shard allocation** at the entry node: Distribute incoming messages across 2^20 (1048576) shards using a monotonically incrementing round-robin counter.
-- **Update netengine and synchronizer** to use the formalized `shardTag` field for shard-aware message routing and storage decisions.
-- **Document shard assignment semantics** explaining how entry nodes assign shards and how storage nodes use `shardTag` for placement decisions.
+- **Implement round-robin shard allocation** at the entry node: distribute incoming messages across 2^20 (1048576) virtual shards using a monotonically incrementing counter, initialised to a random value on startup.
+- **Route `KEEP_ADVANCE_HISTORY` to a dedicated shard topic** instead of broadcasting. The entry node publishes to `keepHistory_<schemaName>.<bucket>` where `schemaName` is the named event node schema from config and `bucket = shardTag % shardCount`. Implemented in `getDestinationTopics()` on the segment object.
+- **Storage nodes subscribe to specific shard topics** based on their section in the config. A node launched as `--schema main --node-id NDB1` reads its `shards` array and subscribes to the matching `keepHistory_main.*` topics. Using the schema name as the topic namespace allows multiple schemas with different `shardCount` values to coexist during topology changes.
+- **Update netengine and synchronizer** to use `shardTag` throughout message flow.
 
 ## Capabilities
 
 ### New Capabilities
-- `message-shard-allocation`: Formalized round-robin shard allocation strategy at entry nodes, distributing messages across 2^20 shards to enable scalable, deterministic message distribution for distributed storage.
+- `message-shard-allocation`: Round-robin virtual shard allocation at entry nodes and topic-based routing of `KEEP_ADVANCE_HISTORY` to dedicated per-shard sys-realm topics (`keepHistory_<N>.<bucket>`).
 
 ### Modified Capabilities
-- `distributed-mode`: Updated to leverage explicit `shardTag` field for message routing and shard-aware storage placement (renaming the generic `tag` field for clarity and semantic correctness).
+- `distributed-mode`: Eliminates broadcast of `KEEP_ADVANCE_HISTORY`. Each storage node subscribes only to its assigned shard topics. The `tag` field is renamed to `shardTag` for semantic clarity.
 
 ## Impact
 
 **Affected Code:**
-- `lib/masterfree/hyper.h.ts`: Type definitions for protocol bodies.
-- `lib/masterfree/entry.ts`: Entry node implementation—allocate shards via round-robin.
-- `lib/masterfree/netengine.ts`: Current `tag` usage for segment sharding.
-- `lib/masterfree/synchronizer.ts`: Current `tag` usage in protocol message handling.
-- `lib/masterfree/storage.ts`: Current `tag` usage in data persistence.
+- `lib/masterfree/hyper.h.ts`: `tag` → `shardTag` in all protocol body types.
+- `lib/masterfree/netengine.ts`: `getDestinationTopics()` returns `keepHistory_<N>.<bucket>`; round-robin shard counter added.
+- `lib/masterfree/synchronizer.ts`: `shardTag` propagation in GENERATE_DRAFT, PICK_CHALLENGER, ELECT_SEGMENT.
+- `lib/masterfree/storage.ts`: Subscribe to `keepHistory_<schemaName>.<bucket>` for owned shards instead of the broadcast `KEEP_ADVANCE_HISTORY`.
+- `supervisor/config.json`: New `eventNodes` section with named schemas, each containing `shardCount` and per-node `shards` arrays.
+- `lib/masterfree/config.ts`: New `getEventSchema()` and `getEventNodeById()` methods.
 
 **APIs/Interfaces:**
-- Protocol message bodies will change `tag` to `shardTag` (BREAKING for any external tools that depend on these internals).
+- Internal HyperNet protocol: `tag` → `shardTag` (breaking for any tooling that inspects raw protocol messages).
+- New sys-realm topic namespace: `keepHistory_<schemaName>.<bucket>`.
 
 **Dependencies:**
 - No new external dependencies required.
 
 **Testing:**
-- Need unit tests for round-robin shard allocation logic.
-- Integration tests to verify shardTag is correctly propagated through the message lifecycle.
+- Unit tests for round-robin shard allocation and wraparound.
+- Unit tests for topic name generation (`keepHistory_<N>.<bucket>`).
+- Integration tests verifying `KEEP_ADVANCE_HISTORY` is delivered only to the owning storage node and not others.
