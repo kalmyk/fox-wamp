@@ -86,12 +86,12 @@
 
 ## 8. `foxctl event` Commands
 
-- [ ] 8.1 Add `AdminEvent.EVENT_SHARD_LIST` constant to the foxctl import list (defined in sharding change)
-- [ ] 8.2 Implement `foxctl event shard list`:
+- [x] 8.1 Add `AdminEvent.EVENT_SHARD_LIST` constant to the foxctl import list (defined in sharding change)
+- [x] 8.2 Implement `foxctl event shard list`:
   Calls `fox.admin.event.shard.list` (no realm required — cluster-level RPC).
   Default: ASCII table with columns `schema | shard | node | host | port`.
   `--json`: raw JSON array.
-- [ ] 8.3 Wire `event` group into the foxctl command dispatcher alongside `kv` and `schema`
+- [x] 8.3 Wire `event` group into the foxctl command dispatcher alongside `kv` and `schema`
 
 ## 9. Verification (existing commands)
 

@@ -33,7 +33,7 @@ function isJson(): boolean { return !!globalOpts.json }
 
 // ── connection helpers ──────────────────────────────────────────────
 
-async function withAdmin(fn: (client: HyperNetClient) => Promise<void>): Promise<void> {
+async function withAdminRealm(realm: string, fn: (client: HyperNetClient) => Promise<void>): Promise<void> {
   const client = new HyperNetClient({ host: getHost(), port: getPort(), maxReconnectAttempts: 0 })
 
   await new Promise<void>((resolve, reject) => {
@@ -41,7 +41,7 @@ async function withAdmin(fn: (client: HyperNetClient) => Promise<void>): Promise
 
     client.onopen(async () => {
       try {
-        await client.login({ realm: getRealm() })
+        await client.login({ realm })
         await fn(client)
         resolve()
       } catch (e) {
@@ -55,8 +55,21 @@ async function withAdmin(fn: (client: HyperNetClient) => Promise<void>): Promise
   })
 }
 
+async function withAdmin(fn: (client: HyperNetClient) => Promise<void>): Promise<void> {
+  return withAdminRealm(getRealm(), fn)
+}
+
 function runCommand(fn: (client: HyperNetClient) => Promise<void>): void {
   withAdmin(fn).then(() => {
+    process.exit(0)
+  }).catch((err: any) => {
+    process.stderr.write('Error: ' + (err.message || String(err)) + '\n')
+    process.exit(1)
+  })
+}
+
+function runCommandWithRealm(realm: string, fn: (client: HyperNetClient) => Promise<void>): void {
+  withAdminRealm(realm, fn).then(() => {
     process.exit(0)
   }).catch((err: any) => {
     process.stderr.write('Error: ' + (err.message || String(err)) + '\n')
@@ -228,15 +241,42 @@ function runSchema(args: string[]): void {
   schema.parse(['node', 'schema', subCmd, ...rest].filter(Boolean))
 }
 
+// ── event commands ──────────────────────────────────────────────────
+
+function runEventShardList(): void {
+  const realm = globalOpts.realm || 'sys'
+  runCommandWithRealm(realm, async (client) => {
+    const result: any = await client.callrpc(AdminEvent.EVENT_SHARD_LIST, {})
+    const schemas: any[] = result.schemas || []
+    if (isJson()) {
+      console.log(JSON.stringify(schemas))
+    } else {
+      const rows: Record<string, any>[] = []
+      for (const s of schemas) {
+        for (const sh of s.shards || []) {
+          rows.push({
+            schema: s.schemaName,
+            shard: sh.bucket,
+            node: sh.nodeId,
+            host: sh.host,
+            port: sh.port,
+          })
+        }
+      }
+      printTable(rows, ['schema', 'shard', 'node', 'host', 'port'])
+    }
+  })
+}
+
 // ── entry point ─────────────────────────────────────────────────────
 
 if (!group || group === '--help' || group === '-h') {
-  console.log('Usage: foxctl [options] <kv|schema> <subcommand> [args...]')
+  console.log('Usage: foxctl [options] <kv|schema|event> <subcommand> [args...]')
   console.log('')
   console.log('Global options:')
   console.log('  --host <host>    server host (default: localhost)')
   console.log('  --port <port>    server port (default: 1735)')
-  console.log('  --realm <realm>  realm name (required)')
+  console.log('  --realm <realm>  realm name (required for kv/schema; defaults to sys for event)')
   console.log('  --json           JSON output')
   console.log('')
   console.log('Commands:')
@@ -246,12 +286,20 @@ if (!group || group === '--help' || group === '-h') {
   console.log('  schema list                    list schemas')
   console.log('  schema add <label> <file>      register a schema')
   console.log('  schema drop <schema-id>        deprecate a schema')
+  console.log('  event shard list               list event shard allocation')
   process.exit(0)
 } else if (group === 'kv') {
   runKv([subCmd, ...rest])
 } else if (group === 'schema') {
   runSchema([subCmd, ...rest])
+} else if (group === 'event') {
+  if (subCmd === 'shard' && rest[0] === 'list') {
+    runEventShardList()
+  } else {
+    process.stderr.write(`Unknown event subcommand: ${subCmd} ${rest.join(' ')}\nUse: foxctl event shard list\n`)
+    process.exit(1)
+  }
 } else {
-  process.stderr.write(`Unknown command group: ${group}\nUse: foxctl kv|schema ...\n`)
+  process.stderr.write(`Unknown command group: ${group}\nUse: foxctl kv|schema|event ...\n`)
   process.exit(1)
 }

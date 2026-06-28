@@ -2,7 +2,7 @@ import { ActorPush, BaseRealm, BaseEngine, makeDataSerializable, unSerializeData
 import { Router } from '../router'
 import { HyperClient } from '../hyper/client'
 import { MemKeyValueStorage } from '../mono/memkv'
-import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_OVER, BODY_ADVANCE_SEGMENT_FAILED, BODY_INIT_ENTRY_ACCEPTED } from './hyper.h'
+import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_OVER, BODY_ADVANCE_SEGMENT_FAILED, BODY_INIT_ENTRY_ACCEPTED, keepHistoryShardTopic } from './hyper.h'
 import EventEmitter from 'events'
 
 export const TOTAL_SHARDS_COUNT = 1048576
@@ -14,10 +14,14 @@ export class HistorySegment {
   private advanceStamp: number
   private offsetGenerator: number = 0
   private shard: number = 0
+  private schemaName: string
+  private shardCount: number
 
-  constructor (advanceStamp: number, shard: number = 0) {
+  constructor (advanceStamp: number, shard: number = 0, schemaName: string = '', shardCount: number = 1) {
     this.advanceStamp = advanceStamp
     this.shard = shard
+    this.schemaName = schemaName
+    this.shardCount = shardCount
   }
 
   getShardTag(): number {
@@ -29,8 +33,10 @@ export class HistorySegment {
   }
 
   getDestinationTopics(): Array<string> {
-    // to do: sharding by topic
-    return [Event.KEEP_ADVANCE_HISTORY /* + '.' + (this.shard % 16) */]
+    if (this.schemaName) {
+      return [keepHistoryShardTopic(this.schemaName, this.shard % this.shardCount)]
+    }
+    return [Event.KEEP_ADVANCE_HISTORY]
   }
 
   addActorPush (actor: ActorPush): AdvanceOffsetId {
@@ -97,14 +103,21 @@ export class NetEngineMill extends EventEmitter {
   private sysRealm: BaseRealm
   private sysApi: HyperClient
   private lastShard: number = 0
+  private schemaName: string
+  private shardCount: number
   private initReceived: Map<string, number> = new Map() // sync node -> lastSeenAdvanceId
   private initReceivedDone: boolean = false
 
-  constructor (router: Router, configQuorum: number) {
+  constructor (router: Router, configQuorum: number, schemaName: string = '', shardCount: number = 1) {
     super()
     this.router = router
     this.configQuorum = configQuorum
+    this.schemaName = schemaName
+    this.shardCount = shardCount
     this.lastShard = Math.floor(Math.random() * TOTAL_SHARDS_COUNT)
+    if (schemaName) {
+      console.log(`NetEngineMill: schema="${schemaName}" shardCount=${shardCount}`)
+    }
     this.sysRealm = new BaseRealm(router, new BaseEngine())
 
     this.router.initRealm(INTRA_REALM_NAME, this.sysRealm)
@@ -182,7 +195,7 @@ export class NetEngineMill extends EventEmitter {
     }
     let curAdvanceStamp = Math.max(this.recentAdvanceStamp + 1, Date.now())
     this.recentAdvanceStamp = curAdvanceStamp
-    this.curSegment = new HistorySegment(curAdvanceStamp, this.nextShard())
+    this.curSegment = new HistorySegment(curAdvanceStamp, this.nextShard(), this.schemaName, this.shardCount)
     this.localSegments.set(curAdvanceStamp, this.curSegment)
     // todo: sent all open advance segments, in case of sharding that keeps order
     const body: BODY_BEGIN_ADVANCE_SEGMENT = {

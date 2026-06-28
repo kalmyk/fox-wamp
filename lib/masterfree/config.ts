@@ -62,6 +62,18 @@ export class Config {
     return result
   }
 
+  validateSchemasForNode (nodeId: string): void {
+    const schemas = this.findSchemasForNode(nodeId)
+    if (schemas.length === 0) return
+    for (const { schemaName, shardCount, shards } of schemas) {
+      for (const bucket of shards) {
+        if (!Number.isInteger(bucket) || bucket < 0 || bucket >= shardCount) {
+          throw Error(`eventNodes.${schemaName}.${nodeId}: shard ${bucket} out of range [0, ${shardCount - 1}]`)
+        }
+      }
+    }
+  }
+
   getEventSchemaNames (): string[] {
     return Object.keys(this.config.eventNodes || {})
   }

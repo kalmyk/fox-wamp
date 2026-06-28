@@ -14,9 +14,14 @@ export async function forEachRealm (db: sqlite.Database, callback: (realmName: s
   }
 }
 
-export async function createHistoryTables (db: sqlite.Database, realmName: string) {
+function historyTable(realmName: string, schemaName: string = ''): string {
+  return schemaName ? `event_history_${schemaName}_${realmName}` : `event_history_${realmName}`
+}
+
+export async function createHistoryTables (db: sqlite.Database, realmName: string, schemaName: string = '') {
+  const table = historyTable(realmName, schemaName)
   await db.run(
-    `CREATE TABLE IF NOT EXISTS event_history_${realmName} (
+    `CREATE TABLE IF NOT EXISTS ${table} (
       msg_id TEXT not null,
       msg_shard INTEGER,
       -- Canonical dotted FOX topic text. Use defaultParse()/restoreUri();
@@ -29,10 +34,11 @@ export async function createHistoryTables (db: sqlite.Database, realmName: strin
   )
 }
 
-export async function saveEventHistory (db: sqlite.Database, realmName: string, id: string, shard: number, uri:any, body:any, opt:any) {
+export async function saveEventHistory (db: sqlite.Database, realmName: string, id: string, shard: number, uri:any, body:any, opt:any, schemaName: string = '') {
+  const table = historyTable(realmName, schemaName)
   // Persist topics in canonical dotted form even when the publish arrived via MQTT.
   return db.run(
-    `INSERT INTO event_history_${realmName} (msg_id, msg_shard, msg_uri, msg_body, msg_opt) VALUES (?, ?, ?, ?, ?);`,
+    `INSERT INTO ${table} (msg_id, msg_shard, msg_uri, msg_body, msg_opt) VALUES (?, ?, ?, ?, ?);`,
     [id, shard, restoreUri(uri), JSON.stringify(body), JSON.stringify(opt)]
   )
 }
@@ -57,8 +63,9 @@ export async function scanMaxId (db: sqlite.Database) {
   return maxId
 }
 
-export async function getEventHistory (db: sqlite.Database, realmName: string, range: { fromId?: string, toId?: string, uri?: string[] }, rowcb: (event: any) => Promise<void>) {
-  let sql = `SELECT msg_id, msg_shard, msg_uri, msg_body, msg_opt FROM event_history_${realmName}`
+export async function getEventHistory (db: sqlite.Database, realmName: string, range: { fromId?: string, toId?: string, uri?: string[] }, rowcb: (event: any) => Promise<void>, schemaName: string = '') {
+  const table = historyTable(realmName, schemaName)
+  let sql = `SELECT msg_id, msg_shard, msg_uri, msg_body, msg_opt FROM ${table}`
   let where = []
   let params: any[] = []
   

@@ -4,6 +4,9 @@ const conf_db_file = process.env.DB_FILE
 const conf_config_file = process.env.CONFIG
   || console.log('CONFIG file name must be defined') || process.exit(1)
 
+const conf_node_id = process.env.NODE_ID
+  || console.log('NODE_ID must be defined') || process.exit(1)
+
 import { keyDate, ProduceId } from '../lib/masterfree/makeid'
 import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
 import { ProjectionListener } from '../lib/sqlite/projection_listener'
@@ -52,7 +55,12 @@ async function main () {
   const dbFactory = new DbFactory('')
   const db = await dbFactory.openMainDatabase(conf_db_file)
 
-  const storageTask: StorageTask = new StorageTask(sysRealm, dbFactory)
+  config.validateSchemasForNode(conf_node_id)
+  const schemas = config.findSchemasForNode(conf_node_id)
+  if (schemas.length === 0) {
+    console.warn(`NODE_ID="${conf_node_id}" not found in any eventNodes schema — falling back to broadcast`)
+  }
+  const storageTask: StorageTask = new StorageTask(sysRealm, dbFactory, schemas)
   const stageTwoTask: StageTwoTask = new StageTwoTask(sysRealm, config.getSyncQuorum())
 
   const makeId: ProduceId = new ProduceId(() => keyDate(new Date()))

@@ -3,6 +3,10 @@ import { StorageRecord, StorageStatus, SchemaRecord } from '../types'
 
 export const INTRA_REALM_NAME = 'sys'
 
+export const KEEP_HISTORY_SHARD_PREFIX = 'keepHistory_'
+export const keepHistoryShardTopic = (schemaName: string, bucket: number) =>
+  `${KEEP_HISTORY_SHARD_PREFIX}${schemaName}.${bucket}`
+
 export type AdvanceOffsetId = {
   segment: number   // timestamp in msec
   offset: number    // offset in this segment
@@ -98,6 +102,7 @@ export namespace AdminEvent {
   export const SCHEMA_LIST = 'fox.admin.schema.list'
   export const SCHEMA_ADD = 'fox.admin.schema.add'
   export const SCHEMA_DROP = 'fox.admin.schema.drop'
+  export const EVENT_SHARD_LIST = 'fox.admin.event.shard.list'
 }
 
 export type AdminKvListRequest = Record<string, never>
@@ -117,3 +122,7 @@ export type AdminSchemaAddResponse = { schemaId: string; dataTable: string }
 
 export type AdminSchemaDropRequest = { schemaId: string }
 export type AdminSchemaDropResponse = { status: 'deprecated' }
+
+export type AdminEventShardEntry = { bucket: number; nodeId: string; host: string; port: string }
+export type AdminEventShardSchema = { schemaName: string; shardCount: number; shards: AdminEventShardEntry[] }
+export type AdminEventShardListResponse = { schemas: AdminEventShardSchema[] }
