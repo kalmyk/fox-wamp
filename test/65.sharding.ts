@@ -29,76 +29,62 @@ describe('65.sharding', function () {
   })
 
   describe('HistorySegment.getDestinationTopics()', () => {
-    it('8.3 returns shard topic when schemaName is set', () => {
-      // shardTag=42, shardCount=16 → 42 % 16 = 10 → keepHistoryShardTopic('main', 10)
-      const seg = new HistorySegment(1000, 42, 'main', 16)
-      expect(seg.getDestinationTopics()).to.deep.equal([keepHistoryShardTopic('main', 10)])
+    it('8.3 returns shard topic when sharded=true', () => {
+      const seg = new HistorySegment(1000, 5, true)
+      expect(seg.getDestinationTopics()).to.deep.equal([keepHistoryShardTopic(5)])
     })
 
-    it('8.3 returns broadcast topic when schemaName is empty', () => {
-      const seg = new HistorySegment(1000, 42, '', 16)
+    it('8.3 returns broadcast topic when sharded=false', () => {
+      const seg = new HistorySegment(1000, 5, false)
       expect(seg.getDestinationTopics()).to.deep.equal([Event.KEEP_ADVANCE_HISTORY])
     })
   })
 
   // ─── Config ────────────────────────────────────────────────────────────────
 
-  describe('Config.findSchemasForNode()', () => {
+  describe('Config.findShardsForNode()', () => {
     let config: Config
 
     beforeEach(() => {
       config = new Config()
       ;(config as any).config = {
         eventNodes: {
-          main: {
-            shardCount: 16,
-            NDB1: { host: '127.0.0.1', port: '1755', shards: [0, 1, 2, 3] },
-            NDB2: { host: '127.0.0.1', port: '1756', shards: [4, 5, 6, 7] },
-          },
-          archive: {
-            shardCount: 4,
-            NDB1: { host: '127.0.0.1', port: '1755', shards: [0, 1] },
-          }
+          NDB1: { host: '127.0.0.1', port: '1755', shards: [0, 1, 2, 3] },
+          NDB2: { host: '127.0.0.1', port: '1756', shards: [4, 5, 6, 7] },
         }
       }
     })
 
-    it('8.4 returns all schemas for NDB1', () => {
-      const schemas = config.findSchemasForNode('NDB1')
-      expect(schemas).to.have.length(2)
-      expect(schemas[0]).to.deep.equal({ schemaName: 'main', shardCount: 16, shards: [0, 1, 2, 3] })
-      expect(schemas[1]).to.deep.equal({ schemaName: 'archive', shardCount: 4, shards: [0, 1] })
+    it('8.4 returns shards for NDB1', () => {
+      expect(config.findShardsForNode('NDB1')).to.deep.equal([0, 1, 2, 3])
     })
 
-    it('8.4 returns only matching schemas for NDB2', () => {
-      const schemas = config.findSchemasForNode('NDB2')
-      expect(schemas).to.have.length(1)
-      expect(schemas[0].schemaName).to.equal('main')
-      expect(schemas[0].shards).to.deep.equal([4, 5, 6, 7])
+    it('8.4 returns shards for NDB2', () => {
+      expect(config.findShardsForNode('NDB2')).to.deep.equal([4, 5, 6, 7])
     })
 
     it('8.4 returns empty array for unknown node', () => {
-      expect(config.findSchemasForNode('NDB99')).to.deep.equal([])
+      expect(config.findShardsForNode('NDB99')).to.deep.equal([])
     })
 
     it('8.4 returns empty array when eventNodes missing', () => {
       ;(config as any).config = {}
-      expect(config.findSchemasForNode('NDB1')).to.deep.equal([])
+      expect(config.findShardsForNode('NDB1')).to.deep.equal([])
     })
 
-    it('validateSchemasForNode passes for valid shards', () => {
-      expect(() => config.validateSchemasForNode('NDB1')).to.not.throw()
+    it('validateShardsForNode passes for valid shards', () => {
+      expect(() => config.validateShardsForNode('NDB1')).to.not.throw()
     })
 
-    it('validateSchemasForNode throws for out-of-range shard', () => {
-      ;(config as any).config.eventNodes.main.NDB1.shards = [0, 99]
-      expect(() => config.validateSchemasForNode('NDB1')).to.throw('out of range')
+    it('validateShardsForNode throws for out-of-range shard', () => {
+      ;(config as any).config.eventNodes.NDB1.shards = [0, 99]
+      expect(() => config.validateShardsForNode('NDB1')).to.throw('out of range')
     })
   })
 
-  // ─── Entry node: publishes to shard topic when schema is configured ────────
+  // ─── Entry node: publishes to shard topic when sharded ────────────────────
 
-  describe('NetEngineMill with schemaName', () => {
+  describe('NetEngineMill with sharded=true', () => {
     let router: Router
     let netEngineMill: NetEngineMill
     let sysRealm: BaseRealm
@@ -109,17 +95,16 @@ describe('65.sharding', function () {
       setConfigInstance(new Config())
       router = new Router()
       router.setId('E1')
-      // shardCount=4 so we can predict bucket = shardTag % 4
-      netEngineMill = new NetEngineMill(router, 2, 'main', 4)
+      netEngineMill = new NetEngineMill(router, 2, true)
       netRealm = new BaseRealm(router, new NetEngine(netEngineMill))
       router.initRealm('testnet', netRealm)
       sysRealm = await router.getRealm('sys')
       sysApi = sysRealm.api()
     })
 
-    it('publishes KEEP_ADVANCE_HISTORY to keepHistory_main.<bucket> not broadcast', async () => {
+    it('publishes KEEP_ADVANCE_HISTORY to keepHistory.<shardTag> not broadcast', async () => {
       const receivedTopics: string[] = []
-      sysApi.subscribe(KEEP_HISTORY_SHARD_PREFIX + 'main.*', (_event, opt) => {
+      sysApi.subscribe(KEEP_HISTORY_SHARD_PREFIX + '.*', (_event, opt) => {
         receivedTopics.push(opt.topic)
       })
       const broadcastReceived: string[] = []
@@ -133,15 +118,15 @@ describe('65.sharding', function () {
       // Give async publish chain time to settle
       await new Promise(r => setTimeout(r, 20))
 
-      expect(broadcastReceived).to.have.length(0, 'broadcast topic must not be used with schema')
+      expect(broadcastReceived).to.have.length(0, 'broadcast topic must not be used when sharded')
       expect(receivedTopics).to.have.length(1)
-      expect(receivedTopics[0]).to.match(new RegExp('^' + KEEP_HISTORY_SHARD_PREFIX + 'main\\.\\d+$'))
+      expect(receivedTopics[0]).to.match(new RegExp('^' + KEEP_HISTORY_SHARD_PREFIX + '\\.\\d+$'))
     })
 
-    it('shard topic bucket matches shardTag % shardCount', async () => {
+    it('shard topic matches shardTag directly', async () => {
       let capturedTopic = ''
       let capturedShardTag = -1
-      sysApi.subscribe(KEEP_HISTORY_SHARD_PREFIX + 'main.*', (event, opt) => {
+      sysApi.subscribe(KEEP_HISTORY_SHARD_PREFIX + '.*', (event, opt) => {
         capturedTopic = opt.topic as string
         capturedShardTag = (event as any).shard
       })
@@ -150,14 +135,13 @@ describe('65.sharding', function () {
       await netApi.publish('any-topic', { data: 'test' }, {})
       await new Promise(r => setTimeout(r, 20))
 
-      const expectedBucket = capturedShardTag % 4
-      expect(capturedTopic).to.equal(keepHistoryShardTopic('main', expectedBucket))
+      expect(capturedTopic).to.equal(keepHistoryShardTopic(capturedShardTag))
     })
   })
 
-  // ─── Storage node: processes shard topics, writes schema-qualified tables ──
+  // ─── Storage node: processes shard topics, writes to plain tables ──────────
 
-  describe('StorageTask with EventNodeSchema[]', () => {
+  describe('StorageTask with EventNodeConfig', () => {
     let router: Router
     let sysRealm: BaseRealm
     let storage: StorageTask
@@ -175,10 +159,8 @@ describe('65.sharding', function () {
       api = sysRealm.buildApi()
     })
 
-    it('processes events from owned shard topic and writes to schema-qualified table', async () => {
-      storage = new StorageTask(sysRealm, dbFactory, [
-        { schemaName: 'main', shardCount: 4, shards: [0, 1] }
-      ])
+    it('processes events from owned shard topic and writes to plain table', async () => {
+      storage = new StorageTask(sysRealm, dbFactory, { shards: [0, 1] })
 
       const committed = once(dbFactory, SEGMENT_COMMITTED)
 
@@ -192,7 +174,7 @@ describe('65.sharding', function () {
         opt: {},
         sid: 'session1'
       }
-      await api.publish(keepHistoryShardTopic('main', 0), eventKAH, { exclude_me: false })
+      await api.publish(keepHistoryShardTopic(0), eventKAH, { exclude_me: false })
 
       const eventASR: BODY_ADVANCE_SEGMENT_RESOLVED = {
         advanceOwner: 'entry1',
@@ -203,17 +185,15 @@ describe('65.sharding', function () {
 
       await committed
 
-      // Schema-qualified table must exist and have the row
-      const rows = await db.all('SELECT * FROM event_history_main_myrealm')
+      // Plain table (no schema prefix)
+      const rows = await db.all('SELECT * FROM event_history_myrealm')
       expect(rows).to.have.lengthOf(1)
       expect(rows[0].msg_id).to.equal('seg1a1')
       expect(rows[0].msg_shard).to.equal(0)
     })
 
-    it('does NOT process broadcast KEEP_ADVANCE_HISTORY when schemas are configured', async () => {
-      storage = new StorageTask(sysRealm, dbFactory, [
-        { schemaName: 'main', shardCount: 4, shards: [0, 1] }
-      ])
+    it('does NOT process broadcast KEEP_ADVANCE_HISTORY when eventConfig is set', async () => {
+      storage = new StorageTask(sysRealm, dbFactory, { shards: [0, 1] })
 
       await api.publish(Event.KEEP_ADVANCE_HISTORY, {
         advanceOwner: 'entry1',
@@ -235,7 +215,7 @@ describe('65.sharding', function () {
       expect(tables).to.have.lengthOf(0)
     })
 
-    it('falls back to broadcast when no schemas configured', async () => {
+    it('falls back to broadcast when no eventConfig provided', async () => {
       storage = new StorageTask(sysRealm, dbFactory)
 
       const committed = once(dbFactory, SEGMENT_COMMITTED)
@@ -259,7 +239,6 @@ describe('65.sharding', function () {
 
       await committed
 
-      // Old-style unqualified table
       const rows = await db.all('SELECT * FROM event_history_myrealm')
       expect(rows).to.have.lengthOf(1)
     })

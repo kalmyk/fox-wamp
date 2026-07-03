@@ -5,7 +5,7 @@ import { StorageRegistry } from '../sqlite/storage_registry'
 import { SchemaRepository } from '../sqlite/schema_repository'
 import { StorageStatus } from '../types'
 import { ProduceId } from './makeid'
-import { AdminEvent, AdminEventShardSchema } from './hyper.h'
+import { AdminEvent, AdminEventShardEntry } from './hyper.h'
 import { getConfigInstance } from './config'
 
 export class AdminApiServer {
@@ -69,22 +69,18 @@ export class AdminApiServer {
 
     api.register(AdminEvent.EVENT_SHARD_LIST, () => {
       const config = getConfigInstance()
-      const schemas: AdminEventShardSchema[] = []
-      for (const schemaName of config.getEventSchemaNames()) {
-        const schema = config.getEventSchema(schemaName)
-        const shards: AdminEventShardSchema['shards'] = []
-        for (const nodeId of Object.keys(schema)) {
-          if (nodeId === 'shardCount') continue
-          const node = schema[nodeId]
-          if (!node || !Array.isArray(node.shards)) continue
-          for (const bucket of node.shards) {
-            shards.push({ bucket, nodeId, host: node.host, port: node.port })
-          }
+      const eventNodes = config.getEventNodes()
+      if (!eventNodes) return { shards: [] }
+      const shards: AdminEventShardEntry[] = []
+      for (const nodeId of Object.keys(eventNodes)) {
+        const node = eventNodes[nodeId]
+        if (!node || !Array.isArray(node.shards)) continue
+        for (const shardTag of node.shards) {
+          shards.push({ shardTag, nodeId, host: node.host, port: node.port })
         }
-        shards.sort((a, b) => a.bucket - b.bucket)
-        schemas.push({ schemaName, shardCount: schema.shardCount, shards })
       }
-      return { schemas }
+      shards.sort((a, b) => a.shardTag - b.shardTag)
+      return { shards }
     })
   }
 }

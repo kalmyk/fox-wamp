@@ -1,4 +1,5 @@
 import { promises as fsp } from 'fs'
+import { TOTAL_SHARDS_COUNT } from './netengine'
 
 export class Config {
   private config: any = {}
@@ -47,43 +48,24 @@ export class Config {
     return this.config.syncQuorum || 2
   }
 
-  // Returns all schemas a given node participates in, with their shardCount and the node's owned shards.
-  findSchemasForNode (nodeId: string): Array<{ schemaName: string; shardCount: number; shards: number[] }> {
+  getEventNodes (): { [nodeId: string]: any } | undefined {
+    return this.config.eventNodes
+  }
+
+  findShardsForNode (nodeId: string): number[] {
     const eventNodes = this.config.eventNodes
     if (!eventNodes) return []
-    const result: Array<{ schemaName: string; shardCount: number; shards: number[] }> = []
-    for (const schemaName of Object.keys(eventNodes)) {
-      const schema = eventNodes[schemaName]
-      const node = schema[nodeId]
-      if (node && Array.isArray(node.shards)) {
-        result.push({ schemaName, shardCount: schema.shardCount, shards: node.shards })
+    const node = eventNodes[nodeId]
+    if (!node || !Array.isArray(node.shards)) return []
+    return node.shards
+  }
+
+  validateShardsForNode (nodeId: string): void {
+    for (const shard of this.findShardsForNode(nodeId)) {
+      if (!Number.isInteger(shard) || shard < 0 || shard >= TOTAL_SHARDS_COUNT) {
+        throw Error(`eventNodes.${nodeId}: shard ${shard} out of range [0, ${TOTAL_SHARDS_COUNT - 1}]`)
       }
     }
-    return result
-  }
-
-  validateSchemasForNode (nodeId: string): void {
-    const schemas = this.findSchemasForNode(nodeId)
-    if (schemas.length === 0) return
-    for (const { schemaName, shardCount, shards } of schemas) {
-      for (const bucket of shards) {
-        if (!Number.isInteger(bucket) || bucket < 0 || bucket >= shardCount) {
-          throw Error(`eventNodes.${schemaName}.${nodeId}: shard ${bucket} out of range [0, ${shardCount - 1}]`)
-        }
-      }
-    }
-  }
-
-  getEventSchemaNames (): string[] {
-    return Object.keys(this.config.eventNodes || {})
-  }
-
-  getEventSchema (schemaName: string): { shardCount: number; [nodeId: string]: any } {
-    const schema = this.config.eventNodes?.[schemaName]
-    if (!schema) {
-      throw Error('Event schema "' + schemaName + '" not found in config')
-    }
-    return schema
   }
 }
 

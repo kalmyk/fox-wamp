@@ -13,19 +13,13 @@ export { SEGMENT_COMMITTED, CommittedSegmentRecord, CommittedSegmentEvent, Segme
 export class HistoryBuffer {
   private content: Array<BODY_KEEP_ADVANCE_HISTORY> = []
   private shard: number
-  private schemaName: string
 
-  constructor (shard: number, schemaName: string = '') {
+  constructor (shard: number) {
     this.shard = shard
-    this.schemaName = schemaName
   }
 
   getShard (): number {
     return this.shard
-  }
-
-  getSchemaName (): string {
-    return this.schemaName
   }
 
   addEvent (event: BODY_KEEP_ADVANCE_HISTORY) {
@@ -43,7 +37,7 @@ export class HistoryBuffer {
 
 import { SEGMENT_COMMITTED, CommittedSegmentRecord, CommittedSegmentEvent } from './segment_types'
 
-export type EventNodeSchema = { schemaName: string; shardCount: number; shards: number[] }
+export type EventNodeConfig = { shards: number[] }
 
 // apply distributed network to database file
 export class StorageTask {
@@ -52,10 +46,10 @@ export class StorageTask {
   private maxId: ComplexId
   private bufferToWrite: Map<string, HistoryBuffer> = new Map()
   private api: HyperClient
-  private realms: Map<string, string> = new Map()
-  private ownedTopics: Array<{ topic: string; schemaName: string }> = []
+  private realms: Set<string> = new Set()
+  private ownedTopics: string[] = []
 
-  constructor (sysRealm: BaseRealm, dbFactory: DbFactory, schemas: EventNodeSchema[] = []) {
+  constructor (sysRealm: BaseRealm, dbFactory: DbFactory, eventConfig?: EventNodeConfig) {
     this.sysRealm = sysRealm
     this.dbFactory = dbFactory
     this.maxId = makeEmpty(new Date())
@@ -71,20 +65,18 @@ export class StorageTask {
       console.log("PING: BEGIN_ADVANCE_SEGMENT => TRIM_ADVANCE_SEGMENT", args.advanceStamp)
     })
 
-    if (schemas.length > 0) {
-      for (const { schemaName, shardCount, shards } of schemas) {
-        for (const bucket of shards) {
-          const topic = keepHistoryShardTopic(schemaName, bucket)
-          this.ownedTopics.push({ topic, schemaName })
-          this.api.subscribe(topic, (event: BODY_KEEP_ADVANCE_HISTORY) => {
-            this.event_keep_advance_history(event, schemaName)
-          })
-        }
+    if (eventConfig) {
+      for (const bucket of eventConfig.shards) {
+        const topic = keepHistoryShardTopic(bucket)
+        this.ownedTopics.push(topic)
+        this.api.subscribe(topic, (event: BODY_KEEP_ADVANCE_HISTORY) => {
+          this.event_keep_advance_history(event)
+        })
       }
-      console.log('StorageTask: subscribed to shard topics:', this.ownedTopics.map(t => t.topic).join(', '))
+      console.log('StorageTask: subscribed to shard topics:', this.ownedTopics.join(', '))
     } else {
       this.api.subscribe(Event.KEEP_ADVANCE_HISTORY, (event: BODY_KEEP_ADVANCE_HISTORY) => {
-        this.event_keep_advance_history(event, '')
+        this.event_keep_advance_history(event)
       })
     }
 
@@ -113,7 +105,7 @@ export class StorageTask {
   async listenEntry(client: HyperClient, gateId: string) {
     await client.pipe(this.api, Event.BEGIN_ADVANCE_SEGMENT, {exclude_me: false})
     if (this.ownedTopics.length > 0) {
-      for (const { topic } of this.ownedTopics) {
+      for (const topic of this.ownedTopics) {
         await client.pipe(this.api, topic, {exclude_me: false})
       }
     } else {
@@ -134,30 +126,29 @@ export class StorageTask {
     await client.pipe(this.api, Event.ADVANCE_SEGMENT_RESOLVED, {exclude_me: false})
   }
 
-  getHystoryBuffer(segment: string, shard: number, schemaName: string = ''): HistoryBuffer {
+  getHystoryBuffer(segment: string, shard: number): HistoryBuffer {
     let buffer = this.bufferToWrite.get(segment)
     if (!buffer) {
-      buffer = new HistoryBuffer(shard, schemaName)
+      buffer = new HistoryBuffer(shard)
       this.bufferToWrite.set(segment, buffer)
     }
     return buffer
   }
 
-  async event_keep_advance_history (event: BODY_KEEP_ADVANCE_HISTORY, schemaName: string) {
-    let buffer = this.getHystoryBuffer(event.advanceOwner + ':' + event.advanceId.segment, event.shard, schemaName)
+  async event_keep_advance_history (event: BODY_KEEP_ADVANCE_HISTORY) {
+    let buffer = this.getHystoryBuffer(event.advanceOwner + ':' + event.advanceId.segment, event.shard)
     buffer.addEvent(event)
     if (buffer.count() !== event.advanceId.offset) {
       console.error('serment position is not equal', buffer.count(), event.advanceId.offset)
     }
-    await this.ensureRealm(event.realm, schemaName)
+    await this.ensureRealm(event.realm)
   }
 
-  async ensureRealm (realm: string, schemaName: string = '') {
-    const key = schemaName ? schemaName + ':' + realm : realm
-    if (!this.realms.has(key)) {
-      await History.createHistoryTables(this.dbFactory.getMainDb(), realm, schemaName)
+  async ensureRealm (realm: string) {
+    if (!this.realms.has(realm)) {
+      await History.createHistoryTables(this.dbFactory.getMainDb(), realm)
       await createStorageRegistryTables(this.dbFactory.getMainDb(), realm)
-      this.realms.set(key, "ok")
+      this.realms.add(realm)
     }
   }
 
@@ -182,9 +173,9 @@ export class StorageTask {
     await db.run('BEGIN TRANSACTION')
     try {
       for (let row of historyBuffer.getContent()) {
-        await this.ensureRealm(row.realm, historyBuffer.getSchemaName())
+        await this.ensureRealm(row.realm)
         let eventId: string = segment + keyId(++offset)
-        await History.saveEventHistory(db, row.realm, eventId, historyBuffer.getShard(), row.uri, row.data, row.opt, historyBuffer.getSchemaName())
+        await History.saveEventHistory(db, row.realm, eventId, historyBuffer.getShard(), row.uri, row.data, row.opt)
         result.push({
           eventId,
           realm: row.realm,

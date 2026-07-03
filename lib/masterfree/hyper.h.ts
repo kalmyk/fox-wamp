@@ -3,9 +3,9 @@ import { StorageRecord, StorageStatus, SchemaRecord } from '../types'
 
 export const INTRA_REALM_NAME = 'sys'
 
-export const KEEP_HISTORY_SHARD_PREFIX = 'keepHistory_'
-export const keepHistoryShardTopic = (schemaName: string, bucket: number) =>
-  `${KEEP_HISTORY_SHARD_PREFIX}${schemaName}.${bucket}`
+export const KEEP_HISTORY_SHARD_PREFIX = 'keepHistory'
+export const keepHistoryShardTopic = (bucket: number) =>
+  `${KEEP_HISTORY_SHARD_PREFIX}.${bucket}`
 
 export type AdvanceOffsetId = {
   segment: number   // timestamp in msec
@@ -123,6 +123,5 @@ export type AdminSchemaAddResponse = { schemaId: string; dataTable: string }
 export type AdminSchemaDropRequest = { schemaId: string }
 export type AdminSchemaDropResponse = { status: 'deprecated' }
 
-export type AdminEventShardEntry = { bucket: number; nodeId: string; host: string; port: string }
-export type AdminEventShardSchema = { schemaName: string; shardCount: number; shards: AdminEventShardEntry[] }
-export type AdminEventShardListResponse = { schemas: AdminEventShardSchema[] }
+export type AdminEventShardEntry = { shardTag: number; nodeId: string; host: string; port: string }
+export type AdminEventShardListResponse = { shards: AdminEventShardEntry[] }

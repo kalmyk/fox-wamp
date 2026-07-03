@@ -17,8 +17,8 @@ The system needs a clearer, more explicit shard allocation and routing mechanism
 
 **Goals:**
 - Rename the generic `tag` field to `shardTag` across all HyperNet protocol message types for semantic clarity.
-- Implement round-robin shard allocation at the entry node, cycling through 2^20 (1048576) virtual shards for each new segment.
-- Route `KEEP_ADVANCE_HISTORY` to a dedicated per-shard sys-realm topic (`keepHistory_<N>.<bucket>`) instead of broadcasting.
+- Implement round-robin shard allocation at the entry node, cycling through 2^3 (8) virtual shards for each new segment.
+- Route `KEEP_ADVANCE_HISTORY` to a dedicated per-shard sys-realm topic (`keepHistory.<bucket>`) instead of broadcasting.
 - Each storage node subscribes only to the shard topics it owns.
 - Ensure backward compatibility at the node communication layer (internal protocol only — no external API change).
 
@@ -29,14 +29,14 @@ The system needs a clearer, more explicit shard allocation and routing mechanism
 
 ## Decisions
 
-### Decision 1: 2^20 Virtual Shard Space
-**Rationale:** 1048576 virtual shards provide fine-grained load distribution and are a superset of any physical shard count. Using a large virtual space decouples allocation granularity from cluster topology. Powers of 2 make modulo arithmetic efficient.
+### Decision 1: 2^3 Virtual Shard Space
+**Rationale:** 8 virtual shards provide fine-grained load distribution and are a superset of any physical shard count. Using a large virtual space decouples allocation granularity from cluster topology. Powers of 2 make modulo arithmetic efficient.
 **Alternatives:**
-- 2^10 (1024): Coarser distribution, limits future topology growth.
+- 2^10 (1024) or higher: Finer granularity, but adds overhead with no benefit at current cluster sizes.
 - Physical shards only: Ties the entry node counter directly to the cluster topology, forcing counter changes on rebalancing.
 
 ### Decision 2: Round-Robin at Entry Node
-**Rationale:** Allocating shards at the entry point via a monotonic counter ensures deterministic, predictable distribution without requiring inter-node coordination. Each new segment gets `shardTag = shardCounter++ % 1048576`.
+**Rationale:** Allocating shards at the entry point via a monotonic counter ensures deterministic, predictable distribution without requiring inter-node coordination. Each new segment gets `shardTag = shardCounter++ % 8`.
 **Alternatives:**
 - Hash-based allocation (by topic or client): Topic-dependent sharding leads to hot shards; client-based sharding ties shards to session lifetime.
 - Per-segment random allocation: Non-deterministic, complicates testing and debugging.
@@ -47,54 +47,43 @@ The system needs a clearer, more explicit shard allocation and routing mechanism
 - Keep `tag` and document it: Leaves ambiguity and future confusion.
 
 ### Decision 4: Shard Allocation Counter Startup
-**Rationale:** Store the round-robin counter as instance state in `netengine.ts`. On startup, initialise to a random value in `[0, 1048575]` and continue from there. No recovery from storage needed.
+**Rationale:** Store the round-robin counter as instance state in `netengine.ts`. On startup, initialise to a random value in `[0, 7]` and continue from there. No recovery from storage needed.
 **Alternatives:**
 - Persist counter: Extra I/O overhead.
 - Coordinate across entry nodes: Adds latency and consensus overhead; not needed for load balancing.
 
 ### Decision 5: Topic-Based Routing for KEEP_ADVANCE_HISTORY
-**Rationale:** `KEEP_ADVANCE_HISTORY` is published to a shard-specific topic in the sys realm instead of a broadcast topic. The topic format is `keepHistory_<schemaName>.<bucket>` where:
-- `schemaName` = the named event node schema this cluster belongs to (e.g. `"main"`)
-- `bucket = shardTag % shardCount` where `shardCount` comes from the schema config
+**Rationale:** `KEEP_ADVANCE_HISTORY` is published to a shard-specific topic in the sys realm instead of a broadcast topic. The topic format is `keepHistory.<shardTag>` — the shardTag is used directly with no modulo division.
 
-Using the schema name as the namespace means that if `shardCount` changes, a new schema with a new name is introduced. Old and new nodes subscribe to different topic prefixes and coexist cleanly during a topology transition — no mis-routing possible even mid-rollout.
+`getDestinationTopics()` on the segment object returns `keepHistory.<shardTag>` when `sharded=true`, otherwise falls back to the broadcast `KEEP_ADVANCE_HISTORY` topic. There is no `shardCount` config field; the shard space is fixed at `TOTAL_SHARDS_COUNT = 8` and each storage node owns specific shardTag values directly.
 
-`getDestinationTopics()` on the segment object returns `['keepHistory_' + schemaName + '.' + (shardTag % shardCount)]`.
-
-Each storage node subscribes to `keepHistory_<schemaName>.<bucket>` for each bucket in its `shards` array.
+Each storage node subscribes to `keepHistory.<shardTag>` for each value in its `shards` array.
 
 **Alternatives:**
-- Include `shardCount` in the topic name instead of schema name: Loses the ability to distinguish two schemas with the same count.
+- Divide shardTag by a configurable `shardCount`: Adds indirection — the `shards` array in config already maps node to owned values directly, making a separate `shardCount` redundant.
 - Filter on receive (all nodes receive all, discard unwanted): What exists today. Eliminates the benefit of sharding at the network layer.
 
 ### Decision 6: Event Node Configuration in config.json
-**Rationale:** The single cluster config file (`supervisor/config.json`) holds an `eventNodes` section containing one or more named schemas. Each schema has a `shardCount` and a map of node IDs to their connection details and owned shard buckets:
+**Rationale:** The single cluster config file (`supervisor/config.json`) holds an `eventNodes` section mapping node IDs to their connection details and owned shardTag values. No top-level `shardCount` — the shard space size is fixed at `TOTAL_SHARDS_COUNT = 8` in code.
 
 ```json
 "eventNodes": {
-    "main": {
-        "shardCount": 16,
-        "NDB1": { "host": "127.0.0.1", "port": "1755", "shards": [0, 1, 2, 3] },
-        "NDB2": { "host": "127.0.0.1", "port": "1756", "shards": [4, 5, 6, 7] }
-    }
+    "NDB1": { "host": "127.0.0.1", "port": "1755", "shards": [0, 1] },
+    "NDB2": { "host": "127.0.0.1", "port": "1756", "shards": [2, 3] }
 }
 ```
 
-A storage node is launched with only `--node-id NDB1`. On startup it scans all schemas in `eventNodes`, collects every schema where its node ID appears, and subscribes to `keepHistory_<schemaName>.<bucket>` for each owned bucket in each schema. This way a single node can participate in multiple schemas simultaneously without extra CLI flags.
-
-Event history is stored in per-schema tables named `event_history_<schemaName>_<realmName>`, keeping data from different schemas isolated.
-
-Multiple schemas allow incremental topology changes: introduce `"main2"` with a new `shardCount` and new nodes, migrate traffic, then retire `"main"` — no coordinated downtime required.
+A storage node is launched with `NODE_ID=NDB1`. On startup it reads its entry from `eventNodes`, discovers its owned shardTags, and subscribes to `keepHistory.<shardTag>` for each. Event history is stored in `event_history_<realmName>` tables (unchanged from the broadcast case).
 
 ## Risks / Trade-offs
 
 | Risk | Mitigation |
 |------|-----------|
-| **Counter wraparound after 2^32 messages** | Modulo 1048576 wraps naturally; no action needed. |
+| **Counter wraparound after 2^32 messages** | Modulo 8 wraps naturally; no action needed. |
 | **Counter lost on entry node restart** | Start from a random value. Recovery not required; round-robin distribution remains statistically even. |
 | **Protocol break for tooling inspecting raw messages** | Internal only. Update tooling alongside the code change. |
 | **Bursty clients concentrate on adjacent shards** | Round-robin is per-entry-node; with multiple entry nodes the virtual shard allocation interleaves. Monitor post-launch. |
-| **Schema name or shardCount mismatch** | Entry node and storage nodes must use the same schema name and shardCount. A mismatch causes silent message loss (topic names won't match). Mitigated by reading both from the same config file. Log schema name and shardCount on startup. |
+| **shardCount mismatch** | Entry node and storage nodes must use the same `shardCount`. A mismatch causes silent message loss (topic names won't match). Mitigated by reading both from the same config file. Log `shardCount` on startup. |
 
 ## Migration Plan
 
@@ -102,9 +91,9 @@ Multiple schemas allow incremental topology changes: introduce `"main2"` with a 
    - Rename `tag` → `shardTag` in `hyper.h.ts` and all usages in netengine, synchronizer, storage.
 
 2. **Phase 2: Round-robin allocation and topic routing** (low risk)
-   - Add `shardCounter` to entry node; implement `getDestinationTopics()` returning `keepHistory_<schemaName>.<bucket>`.
-   - Update storage node to read `--schema` and `--node-id` at startup, subscribe to `keepHistory_<schemaName>.<bucket>` for each owned shard instead of the broadcast topic.
-   - Schema name and shardCount read from config file; no hardcoded defaults.
+   - Add `shardCounter` to entry node; implement `getDestinationTopics()` returning `keepHistory.<bucket>`.
+   - Update storage node to read `NODE_ID` env var at startup, subscribe to `keepHistory.<bucket>` for each owned shard instead of the broadcast topic.
+   - `shardCount` read from `eventNodes.shardCount` in config file; no hardcoded defaults.
 
 3. **Phase 3: Testing & Validation** (medium risk)
    - Unit tests for allocation, wraparound, and topic name generation.
