@@ -32,27 +32,23 @@ The HyperNet protocol messages (BEGIN_ADVANCE_SEGMENT, ADVANCE_SEGMENT_OVER, GEN
 - **THEN** it is an integer in `[0, 7]`
 
 ### Requirement: Topic-based routing of KEEP_ADVANCE_HISTORY
-The entry node SHALL publish `KEEP_ADVANCE_HISTORY` to a shard-specific topic rather than a broadcast topic. The topic is `keepHistory.<shardTag>` — the shardTag is used directly with no modulo division.
+The entry node SHALL publish `KEEP_ADVANCE_HISTORY` to a shard-specific sub-topic rather than broadcasting. The topic is `KEEP_ADVANCE_HISTORY.<shardTag>`, generated via `Event.keepAdvanceHistoryTopic(shardTag)`. The shardTag is used directly with no modulo division.
 
 #### Scenario: Topic name for shardTag
 - **WHEN** a segment has shardTag `5`
-- **THEN** `KEEP_ADVANCE_HISTORY` is published to topic `keepHistory.5`
+- **THEN** `KEEP_ADVANCE_HISTORY` is published to topic `KEEP_ADVANCE_HISTORY.5`
 
 #### Scenario: Segment exposes its destination topic
-- **WHEN** `getDestinationTopics()` is called on a segment with shardTag `5` and `sharded=true`
-- **THEN** it returns `['keepHistory.5']`
-
-#### Scenario: Broadcast fallback when sharding not configured
-- **WHEN** `getDestinationTopics()` is called on a segment with `sharded=false`
-- **THEN** it returns `[Event.KEEP_ADVANCE_HISTORY]`
+- **WHEN** `getDestinationTopics()` is called on a segment with shardTag `5`
+- **THEN** it returns `['KEEP_ADVANCE_HISTORY.5']`
 
 ### Requirement: Storage node discovers its shards from config
-A storage node SHALL be launched with `NODE_ID` env var. On startup it SHALL look up its entry in `eventNodes`, read its `shards` array, and subscribe to `keepHistory.<shardTag>` for each owned shardTag value. There is no `shardCount` field in config — the shard space size is fixed at `TOTAL_SHARDS_COUNT = 8`.
+A storage node SHALL be launched with `NODE_ID` env var. On startup it SHALL look up its entry in `eventNodes`, read its `shards` array, and subscribe to `KEEP_ADVANCE_HISTORY.<shardTag>` for each owned shardTag value. The shard space size is fixed at `TOTAL_SHARDS_COUNT = 8`.
 
 #### Scenario: Node discovers its shards and subscribes
 - **WHEN** a storage node starts with `NODE_ID=NDB1`
 - **AND** the config has `eventNodes.NDB1.shards = [0, 1]`
-- **THEN** it subscribes to `keepHistory.0` and `keepHistory.1`
+- **THEN** it subscribes to `KEEP_ADVANCE_HISTORY.0` and `KEEP_ADVANCE_HISTORY.1`
 
 #### Scenario: Node does not receive messages for unowned shardTags
 - **WHEN** a segment is published with shardTag `5`

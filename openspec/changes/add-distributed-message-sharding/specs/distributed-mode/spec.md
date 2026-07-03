@@ -27,10 +27,10 @@ The HyperNet protocol messages SHALL use a `shardTag` field (replacing the gener
 - **THEN** the shardTag value remains constant across all protocol stages and is not modified by intermediate nodes
 
 ### Requirement: Shard-Aware Storage and Routing
-Storage nodes (NDB) subscribe to shard-specific topics and store events in the `event_history_<realmName>` table. Each NDB node owns a set of `shardTag` values listed directly in its `shards` config array and subscribes to `keepHistory.<shardTag>` for each owned value.
+Storage nodes (NDB) subscribe to shard-specific sub-topics of `KEEP_ADVANCE_HISTORY` and store events in the `event_history_<realmName>` table. Each NDB node owns a set of `shardTag` values listed directly in its `shards` config array and subscribes to `KEEP_ADVANCE_HISTORY.<shardTag>` for each owned value.
 
 #### Scenario: Storage receives shardTag metadata
-- **WHEN** an NDB node processes KEEP_ADVANCE_HISTORY via a shard topic
+- **WHEN** an NDB node processes a KEEP_ADVANCE_HISTORY message via a shard topic
 - **THEN** it preserves the `shard` field (the shardTag) in the `msg_shard` column of `event_history_<realmName>`
 
 #### Scenario: Synchronizer propagates shardTag
@@ -38,15 +38,15 @@ Storage nodes (NDB) subscribe to shard-specific topics and store events in the `
 - **THEN** all outgoing messages (GENERATE_DRAFT, PICK_CHALLENGER, ELECT_SEGMENT) propagate the same shardTag value unchanged
 
 ### Requirement: NDB Configuration with Owned Shards
-Each NDB storage node SHALL be configured with a `shards` array listing the shardTag values it owns. The union of all nodes' `shards` arrays SHOULD cover `[0, TOTAL_SHARDS_COUNT-1]` with no overlaps. `TOTAL_SHARDS_COUNT = 8` is the size of the virtual shard space.
+Each NDB storage node SHALL be configured with a `shards` array listing the shardTag values it owns. The union of all nodes' `shards` arrays SHOULD cover `[0, TOTAL_SHARDS_COUNT-1]` with no overlaps. `TOTAL_SHARDS_COUNT = 8` is fixed in code.
 
 #### Scenario: NDB discovers owned shards on startup
 - **WHEN** an NDB node is initialized with `NODE_ID=NDB1`
-- **THEN** it reads `eventNodes.NDB1.shards` from config and subscribes to `keepHistory.<shardTag>` for each value
+- **THEN** it reads `eventNodes.NDB1.shards` from config and subscribes to `KEEP_ADVANCE_HISTORY.<shardTag>` for each value
 
 #### Scenario: Each shardTag maps to exactly one topic
 - **WHEN** a segment has shardTag `3`
-- **THEN** `KEEP_ADVANCE_HISTORY` is published to `keepHistory.3` — no modulo, no division
+- **THEN** `KEEP_ADVANCE_HISTORY` is published to `KEEP_ADVANCE_HISTORY.3` — no modulo, no division
 
 #### Scenario: Node does not receive messages for unowned shardTags
 - **WHEN** a segment is published with shardTag `5` and NDB1 owns `[0, 1]`

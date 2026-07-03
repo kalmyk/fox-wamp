@@ -6,11 +6,11 @@ import * as sqlite from 'sqlite'
 
 import { Router } from '../lib/router'
 import { HistorySegment, NetEngine, NetEngineMill, TOTAL_SHARDS_COUNT } from '../lib/masterfree/netengine'
-import { StorageTask, SEGMENT_COMMITTED } from '../lib/masterfree/storage'
+import { EventStorageTask, SEGMENT_COMMITTED } from '../lib/masterfree/storage'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { BaseRealm } from '../lib/realm'
 import { Config, setConfigInstance } from '../lib/masterfree/config'
-import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_ADVANCE_SEGMENT_RESOLVED, keepHistoryShardTopic, KEEP_HISTORY_SHARD_PREFIX } from '../lib/masterfree/hyper.h'
+import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_ADVANCE_SEGMENT_RESOLVED } from '../lib/masterfree/hyper.h'
 import { HyperClient } from '../lib/hyper/client'
 
 // ─── shard counter and HistorySegment ────────────────────────────────────────
@@ -29,14 +29,9 @@ describe('65.sharding', function () {
   })
 
   describe('HistorySegment.getDestinationTopics()', () => {
-    it('8.3 returns shard topic when sharded=true', () => {
-      const seg = new HistorySegment(1000, 5, true)
-      expect(seg.getDestinationTopics()).to.deep.equal([keepHistoryShardTopic(5)])
-    })
-
-    it('8.3 returns broadcast topic when sharded=false', () => {
-      const seg = new HistorySegment(1000, 5, false)
-      expect(seg.getDestinationTopics()).to.deep.equal([Event.KEEP_ADVANCE_HISTORY])
+    it('8.3 returns shard topic for shardTag', () => {
+      const seg = new HistorySegment(1000, 5)
+      expect(seg.getDestinationTopics()).to.deep.equal([Event.keepAdvanceHistoryTopic(5)])
     })
   })
 
@@ -95,7 +90,7 @@ describe('65.sharding', function () {
       setConfigInstance(new Config())
       router = new Router()
       router.setId('E1')
-      netEngineMill = new NetEngineMill(router, 2, true)
+      netEngineMill = new NetEngineMill(router, 2)
       netRealm = new BaseRealm(router, new NetEngine(netEngineMill))
       router.initRealm('testnet', netRealm)
       sysRealm = await router.getRealm('sys')
@@ -104,7 +99,7 @@ describe('65.sharding', function () {
 
     it('publishes KEEP_ADVANCE_HISTORY to keepHistory.<shardTag> not broadcast', async () => {
       const receivedTopics: string[] = []
-      sysApi.subscribe(KEEP_HISTORY_SHARD_PREFIX + '.*', (_event, opt) => {
+      sysApi.subscribe(Event.KEEP_ADVANCE_HISTORY + '.*', (_event, opt) => {
         receivedTopics.push(opt.topic)
       })
       const broadcastReceived: string[] = []
@@ -120,13 +115,13 @@ describe('65.sharding', function () {
 
       expect(broadcastReceived).to.have.length(0, 'broadcast topic must not be used when sharded')
       expect(receivedTopics).to.have.length(1)
-      expect(receivedTopics[0]).to.match(new RegExp('^' + KEEP_HISTORY_SHARD_PREFIX + '\\.\\d+$'))
+      expect(receivedTopics[0]).to.match(new RegExp('^' + Event.KEEP_ADVANCE_HISTORY + '\\.\\d+$'))
     })
 
     it('shard topic matches shardTag directly', async () => {
       let capturedTopic = ''
       let capturedShardTag = -1
-      sysApi.subscribe(KEEP_HISTORY_SHARD_PREFIX + '.*', (event, opt) => {
+      sysApi.subscribe(Event.KEEP_ADVANCE_HISTORY + '.*', (event, opt) => {
         capturedTopic = opt.topic as string
         capturedShardTag = (event as any).shard
       })
@@ -135,16 +130,16 @@ describe('65.sharding', function () {
       await netApi.publish('any-topic', { data: 'test' }, {})
       await new Promise(r => setTimeout(r, 20))
 
-      expect(capturedTopic).to.equal(keepHistoryShardTopic(capturedShardTag))
+      expect(capturedTopic).to.equal(Event.keepAdvanceHistoryTopic(capturedShardTag))
     })
   })
 
   // ─── Storage node: processes shard topics, writes to plain tables ──────────
 
-  describe('StorageTask with EventNodeConfig', () => {
+  describe('EventStorageTask with shardConfig', () => {
     let router: Router
     let sysRealm: BaseRealm
-    let storage: StorageTask
+    let storage: EventStorageTask
     let dbFactory: DbFactory
     let db: sqlite.Database
     let api: HyperClient
@@ -160,7 +155,7 @@ describe('65.sharding', function () {
     })
 
     it('processes events from owned shard topic and writes to plain table', async () => {
-      storage = new StorageTask(sysRealm, dbFactory, { shards: [0, 1] })
+      storage = new EventStorageTask(sysRealm, dbFactory, { shards: [0, 1] })
 
       const committed = once(dbFactory, SEGMENT_COMMITTED)
 
@@ -174,7 +169,7 @@ describe('65.sharding', function () {
         opt: {},
         sid: 'session1'
       }
-      await api.publish(keepHistoryShardTopic(0), eventKAH, { exclude_me: false })
+      await api.publish(Event.keepAdvanceHistoryTopic(0), eventKAH, { exclude_me: false })
 
       const eventASR: BODY_ADVANCE_SEGMENT_RESOLVED = {
         advanceOwner: 'entry1',
@@ -192,8 +187,8 @@ describe('65.sharding', function () {
       expect(rows[0].msg_shard).to.equal(0)
     })
 
-    it('does NOT process broadcast KEEP_ADVANCE_HISTORY when eventConfig is set', async () => {
-      storage = new StorageTask(sysRealm, dbFactory, { shards: [0, 1] })
+    it('does NOT process broadcast KEEP_ADVANCE_HISTORY', async () => {
+      storage = new EventStorageTask(sysRealm, dbFactory, { shards: [0, 1] })
 
       await api.publish(Event.KEEP_ADVANCE_HISTORY, {
         advanceOwner: 'entry1',
@@ -215,32 +210,5 @@ describe('65.sharding', function () {
       expect(tables).to.have.lengthOf(0)
     })
 
-    it('falls back to broadcast when no eventConfig provided', async () => {
-      storage = new StorageTask(sysRealm, dbFactory)
-
-      const committed = once(dbFactory, SEGMENT_COMMITTED)
-
-      await api.publish(Event.KEEP_ADVANCE_HISTORY, {
-        advanceOwner: 'entry1',
-        advanceId: { segment: 1, offset: 1 },
-        shard: 0,
-        realm: 'myrealm',
-        data: 'broadcast-data',
-        uri: ['my', 'topic'],
-        opt: {},
-        sid: 'session1'
-      } as BODY_KEEP_ADVANCE_HISTORY, { exclude_me: false })
-
-      await api.publish(Event.ADVANCE_SEGMENT_RESOLVED, {
-        advanceOwner: 'entry1',
-        advanceStamp: 1,
-        segment: 'seg1'
-      } as BODY_ADVANCE_SEGMENT_RESOLVED, { exclude_me: false })
-
-      await committed
-
-      const rows = await db.all('SELECT * FROM event_history_myrealm')
-      expect(rows).to.have.lengthOf(1)
-    })
   })
 })

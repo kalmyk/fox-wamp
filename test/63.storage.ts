@@ -8,7 +8,7 @@ import sqlite3 from 'sqlite3'
 import * as sqlite from 'sqlite'
 
 import { Router } from '../lib/router'
-import { CommittedSegmentEvent, StorageTask, SEGMENT_COMMITTED } from '../lib/masterfree/storage'
+import { CommittedSegmentEvent, EventStorageTask, SEGMENT_COMMITTED } from '../lib/masterfree/storage'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { Event, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_KEEP_ADVANCE_HISTORY, BODY_PICK_CHALLENGER } from '../lib/masterfree/hyper.h'
 import { BaseRealm } from '../lib/realm'
@@ -21,7 +21,7 @@ describe('63.storage', function () {
     api: HyperClient,
     router: Router,
     sysRealm: BaseRealm,
-    storage: StorageTask,
+    storage: EventStorageTask,
     dbFactory: DbFactory,
     db: sqlite.Database
 
@@ -39,10 +39,7 @@ describe('63.storage', function () {
     router.setId('sync1')
     sysRealm = await router.getRealm('sys')
 
-    storage = new StorageTask(
-      sysRealm,
-      dbFactory
-    )
+    storage = new EventStorageTask(sysRealm, dbFactory, { shards: [0] })
 
     api = sysRealm.buildApi()
     await api.subscribe(Event.PICK_CHALLENGER, (event, opt) => { draftStack.push(opt.headers) })
@@ -101,7 +98,7 @@ describe('63.storage', function () {
       opt: { trace: true },
       sid: 'session1'
     }
-    await api.publish(Event.KEEP_ADVANCE_HISTORY, eventKAH, { exclude_me: false })
+    await api.publish(Event.keepAdvanceHistoryTopic(0), eventKAH, { exclude_me: false })
 
     const commit_requested: Promise<any[]> = once(dbFactory, SEGMENT_COMMITTED)
 

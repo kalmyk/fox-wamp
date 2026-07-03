@@ -42,7 +42,7 @@ describe('61.net-entry', function () {
     sysStack = []
     sysRealm = await router.getRealm('sys')
     sysApi = sysRealm.api()
-    sysApi.subscribe('*', (event, opt) => {
+    sysApi.subscribe('#', (event, opt) => {
       if (nextSysPromise.length > 0) {
         const promiseResolve = nextSysPromise.shift() as (value: any) => void
         promiseResolve([opt.topic, event])
@@ -93,7 +93,7 @@ describe('61.net-entry', function () {
 
     const admanceEventSent = await admanceEventSentPkg
     expect(admanceEventSent.length).equal(2)
-    expect(admanceEventSent[0]).equal(Event.KEEP_ADVANCE_HISTORY)
+    expect(admanceEventSent[0]).to.match(new RegExp('^' + Event.KEEP_ADVANCE_HISTORY + '\\.\\d+$'))
     delete admanceEventSent[1].shard
     delete admanceEventSent[1].sid
     expect(admanceEventSent[1]).deep.equal({

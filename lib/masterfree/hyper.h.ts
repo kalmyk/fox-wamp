@@ -3,9 +3,6 @@ import { StorageRecord, StorageStatus, SchemaRecord } from '../types'
 
 export const INTRA_REALM_NAME = 'sys'
 
-export const KEEP_HISTORY_SHARD_PREFIX = 'keepHistory'
-export const keepHistoryShardTopic = (bucket: number) =>
-  `${KEEP_HISTORY_SHARD_PREFIX}.${bucket}`
 
 export type AdvanceOffsetId = {
   segment: number   // timestamp in msec
@@ -14,7 +11,7 @@ export type AdvanceOffsetId = {
 
 export enum Event {
   BEGIN_ADVANCE_SEGMENT = 'BEGIN_ADVANCE_SEGMENT',
-  KEEP_ADVANCE_HISTORY = 'KEEP_ADVANCE_HISTORY',
+  KEEP_ADVANCE_HISTORY = 'KEEP_ADVANCE_HISTORY',  // sharded: delivered to KEEP_ADVANCE_HISTORY.<shardTag>
   TRIM_ADVANCE_SEGMENT = 'TRIM_ADVANCE_SEGMENT',  // sub-topic to dedicated gate
   ADVANCE_SEGMENT_OVER = 'ADVANCE_SEGMENT_OVER',
 
@@ -25,6 +22,11 @@ export enum Event {
   ADVANCE_SEGMENT_RESOLVED = 'advance-segment-resolved', // sub-topic to dedicated gate to send ACK
   ADVANCE_SEGMENT_FAILED = 'advance-segment-failed',     // quorum timeout or fatal error
   INIT_ENTRY_ACCEPTED = 'INIT_ENTRY_ACCEPTED',
+}
+
+export namespace Event {
+  export const keepAdvanceHistoryTopic = (shardTag: number) =>
+    `${Event.KEEP_ADVANCE_HISTORY}.${shardTag}`
 }
 
 export type BODY_BEGIN_ADVANCE_SEGMENT = {

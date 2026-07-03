@@ -6,7 +6,7 @@ import { HyperClient } from '../hyper/client'
 import * as History from '../sqlite/history'
 import { DbFactory } from '../sqlite/dbfactory'
 import { createStorageRegistryTables } from '../sqlite/storage_registry'
-import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER, BODY_GENERATE_DRAFT, keepHistoryShardTopic } from './hyper.h'
+import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER, BODY_GENERATE_DRAFT } from './hyper.h'
 
 export { SEGMENT_COMMITTED, CommittedSegmentRecord, CommittedSegmentEvent, SegmentCommittedSource } from './segment_types'
 
@@ -39,8 +39,7 @@ import { SEGMENT_COMMITTED, CommittedSegmentRecord, CommittedSegmentEvent } from
 
 export type EventNodeConfig = { shards: number[] }
 
-// apply distributed network to database file
-export class StorageTask {
+export class EventStorageTask {
   private sysRealm: BaseRealm
   private dbFactory: DbFactory
   private maxId: ComplexId
@@ -49,7 +48,7 @@ export class StorageTask {
   private realms: Set<string> = new Set()
   private ownedTopics: string[] = []
 
-  constructor (sysRealm: BaseRealm, dbFactory: DbFactory, eventConfig?: EventNodeConfig) {
+  constructor (sysRealm: BaseRealm, dbFactory: DbFactory, shardConfig: EventNodeConfig) {
     this.sysRealm = sysRealm
     this.dbFactory = dbFactory
     this.maxId = makeEmpty(new Date())
@@ -65,20 +64,14 @@ export class StorageTask {
       console.log("PING: BEGIN_ADVANCE_SEGMENT => TRIM_ADVANCE_SEGMENT", args.advanceStamp)
     })
 
-    if (eventConfig) {
-      for (const bucket of eventConfig.shards) {
-        const topic = keepHistoryShardTopic(bucket)
-        this.ownedTopics.push(topic)
-        this.api.subscribe(topic, (event: BODY_KEEP_ADVANCE_HISTORY) => {
-          this.event_keep_advance_history(event)
-        })
-      }
-      console.log('StorageTask: subscribed to shard topics:', this.ownedTopics.join(', '))
-    } else {
-      this.api.subscribe(Event.KEEP_ADVANCE_HISTORY, (event: BODY_KEEP_ADVANCE_HISTORY) => {
+    for (const shard of shardConfig.shards) {
+      const topic = Event.keepAdvanceHistoryTopic(shard)
+      this.ownedTopics.push(topic)
+      this.api.subscribe(topic, (event: BODY_KEEP_ADVANCE_HISTORY) => {
         this.event_keep_advance_history(event)
       })
     }
+    console.log('EventStorageTask: subscribed to shard topics:', this.ownedTopics.join(', '))
 
     this.api.subscribe(Event.ADVANCE_SEGMENT_OVER, (body: BODY_ADVANCE_SEGMENT_OVER) => {
       const msg: BODY_GENERATE_DRAFT = {
@@ -104,12 +97,8 @@ export class StorageTask {
 
   async listenEntry(client: HyperClient, gateId: string) {
     await client.pipe(this.api, Event.BEGIN_ADVANCE_SEGMENT, {exclude_me: false})
-    if (this.ownedTopics.length > 0) {
-      for (const topic of this.ownedTopics) {
-        await client.pipe(this.api, topic, {exclude_me: false})
-      }
-    } else {
-      await client.pipe(this.api, Event.KEEP_ADVANCE_HISTORY, {exclude_me: false})
+    for (const topic of this.ownedTopics) {
+      await client.pipe(this.api, topic, {exclude_me: false})
     }
     await client.pipe(this.api, Event.ADVANCE_SEGMENT_OVER, {exclude_me: false})
 
