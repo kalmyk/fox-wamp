@@ -25,6 +25,8 @@ export enum Event {
 }
 
 export namespace Event {
+  export const beginAdvanceSegmentTopic = (shardTag: number) =>
+    `${Event.BEGIN_ADVANCE_SEGMENT}.${shardTag}`
   export const keepAdvanceHistoryTopic = (shardTag: number) =>
     `${Event.KEEP_ADVANCE_HISTORY}.${shardTag}`
 }
@@ -39,6 +41,7 @@ export type BODY_ADVANCE_SEGMENT_OVER = {
   advanceOwner: string
   advanceStamp: number
   shardTag: number
+  totalEvents: number
 }
 
 export type BODY_TRIM_ADVANCE_SEGMENT = {

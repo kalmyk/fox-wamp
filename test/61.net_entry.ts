@@ -87,7 +87,7 @@ describe('61.net-entry', function () {
 
     const advanceStampStarted = await advanceStampStartedPkg
     expect(advanceStampStarted.length).equal(2)
-    expect(advanceStampStarted[0]).equal(Event.BEGIN_ADVANCE_SEGMENT)
+    expect(advanceStampStarted[0]).to.match(new RegExp('^' + Event.BEGIN_ADVANCE_SEGMENT + '\\.\\d+$'))
     expect(advanceStampStarted[1])
       .deep.include({ advanceOwner: "E1", advanceStamp: netEngineMill.getRecentAdvanceSegment() })
 

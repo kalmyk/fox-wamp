@@ -55,19 +55,19 @@ export class EventStorageTask {
 
     this.api = sysRealm.buildApi()
 
-    this.api.subscribe(Event.BEGIN_ADVANCE_SEGMENT, (args: BODY_BEGIN_ADVANCE_SEGMENT) => {
-      const msg: BODY_TRIM_ADVANCE_SEGMENT = {
-        advanceStamp: args.advanceStamp,
-        advanceOwner: args.advanceOwner
-      }
-      this.api.publish(Event.TRIM_ADVANCE_SEGMENT + '.' + args.advanceOwner, msg, {exclude_me: false})
-      console.log("PING: BEGIN_ADVANCE_SEGMENT => TRIM_ADVANCE_SEGMENT", args.advanceStamp)
-    })
-
     for (const shard of shardConfig.shards) {
-      const topic = Event.keepAdvanceHistoryTopic(shard)
-      this.ownedTopics.push(topic)
-      this.api.subscribe(topic, (event: BODY_KEEP_ADVANCE_HISTORY) => {
+      const beginTopic = Event.beginAdvanceSegmentTopic(shard)
+      const historyTopic = Event.keepAdvanceHistoryTopic(shard)
+      this.ownedTopics.push(historyTopic)
+      this.api.subscribe(beginTopic, (args: BODY_BEGIN_ADVANCE_SEGMENT) => {
+        const msg: BODY_TRIM_ADVANCE_SEGMENT = {
+          advanceStamp: args.advanceStamp,
+          advanceOwner: args.advanceOwner
+        }
+        this.api.publish(Event.TRIM_ADVANCE_SEGMENT + '.' + args.advanceOwner, msg, {exclude_me: false})
+        console.log("PING: BEGIN_ADVANCE_SEGMENT => TRIM_ADVANCE_SEGMENT", args.advanceStamp)
+      })
+      this.api.subscribe(historyTopic, (event: BODY_KEEP_ADVANCE_HISTORY) => {
         this.event_keep_advance_history(event)
       })
     }
@@ -96,7 +96,7 @@ export class EventStorageTask {
   }
 
   async listenEntry(client: HyperClient, gateId: string) {
-    await client.pipe(this.api, Event.BEGIN_ADVANCE_SEGMENT, {exclude_me: false})
+    await client.pipe(this.api, Event.BEGIN_ADVANCE_SEGMENT + '.*', {exclude_me: false})
     for (const topic of this.ownedTopics) {
       await client.pipe(this.api, topic, {exclude_me: false})
     }

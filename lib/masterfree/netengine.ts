@@ -165,7 +165,8 @@ export class NetEngineMill extends EventEmitter {
         const body: BODY_ADVANCE_SEGMENT_OVER = {
           advanceStamp: data.advanceStamp,
           advanceOwner: this.router.getId(),
-          shardTag: this.curSegment.getShardTag()
+          shardTag: this.curSegment.getShardTag(),
+          totalEvents: this.curSegment.size()
         }
         this.curSegment = null
         this.sysApi.publish(Event.ADVANCE_SEGMENT_OVER, body, {exclude_me: false})
@@ -189,7 +190,7 @@ export class NetEngineMill extends EventEmitter {
       advanceOwner: this.router.getId(),
       shardTag: this.curSegment.getShardTag()
     }
-    this.sysApi.publish(Event.BEGIN_ADVANCE_SEGMENT, body)
+    this.sysApi.publish(Event.beginAdvanceSegmentTopic(body.shardTag), body)
     return this.curSegment
   }
 
@@ -283,7 +284,8 @@ export class NetEngineMill extends EventEmitter {
     const overBody: BODY_ADVANCE_SEGMENT_OVER = {
       advanceStamp: newAdvanceStamp,
       advanceOwner: this.router.getId(),
-      shardTag: failedSegment.getShardTag()
+      shardTag: failedSegment.getShardTag(),
+      totalEvents: failedSegment.size()
     }
     this.sysApi.publish(Event.ADVANCE_SEGMENT_OVER, overBody, {exclude_me: false})
   }
