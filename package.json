@@ -34,6 +34,7 @@
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@eslint/js": "^8.57.1",
     "@types/chai": "^4.3.20",
     "@types/chai-as-promised": "^7.1.8",
     "@types/chai-spies": "^1.0.6",
@@ -46,7 +47,8 @@
     "chai-as-promised": "*",
     "chai-spies": "*",
     "eslint": "^10.6.0",
-    "eslint-plugin-mocha": "^5.3.0",
+    "eslint-plugin-mocha": "^11.3.0",
+    "globals": "^13.24.0",
     "gts": "^6.0.2",
     "mocha": "^10.7.3",
     "typescript": "^5.6.3"
@@ -57,7 +59,7 @@
   },
   "scripts": {
     "mocha-node-test": "mocha",
-    "lint": "eslint --ignore-path .gitignore .",
+    "lint": "eslint .",
     "test": "npm run-script lint && npm run-script build && npm run-script mocha-node-test",
     "compile": "tsc -p ./tsconfig.json",
     "build": "rm -rf ./out && npm run-script compile"
