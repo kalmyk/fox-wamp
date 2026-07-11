@@ -28,27 +28,31 @@ The segment registry lives in the same SQLite file as `event_history_*`. This ke
 Alternatives considered:
 - Separate database file: adds connection overhead and cross-file transaction complexity with no benefit.
 
-### 2. Row lifecycle: insert on BEGIN, two updates
+### 2. Row lifecycle: insert on OVER, update on RESOLVED
 
 ```
-INSERT on BEGIN_ADVANCE_SEGMENT:
-  advance_owner, advance_stamp, shard_tag, status='open'
+No action on BEGIN_ADVANCE_SEGMENT (realm is not known at this point)
 
-UPDATE on ADVANCE_SEGMENT_OVER:
-  status='over'
+INSERT on ADVANCE_SEGMENT_OVER (one row per realm that has events):
+  advance_owner, advance_stamp, shard_tag, realm, status='over'
+  → look up HistoryBuffer for advanceOwner:advanceStamp
+  → skip if no buffer (not our shard)
+  → group events by realm; for each realm call insertSegmentOver(...)
 
 UPDATE on ADVANCE_SEGMENT_RESOLVED (inside dbSaveSegment transaction):
   segment_id, msg_count, crc32, status='resolved'
+  → msg_count and crc32 are per-realm slices of the segment
 ```
 
-`ADVANCE_SEGMENT_OVER` and `BEGIN_ADVANCE_SEGMENT` both carry `shardTag`, so it is captured at `BEGIN`. The `OVER` update transitions `status` so failed/hanging segments are distinguishable from resolved ones.
+`ADVANCE_SEGMENT_OVER` is the first point where both `shardTag` and the buffered events (with their realms) are available. Using only realms that actually have events avoids phantom rows.
 
 Alternatives considered:
-- Insert only at `RESOLVED`: simpler, but loses visibility into in-flight and failed segments.
+- Insert on `BEGIN_ADVANCE_SEGMENT`: realm not available yet, ruled out.
+- Insert on `RESOLVED` only: loses visibility into over-but-not-resolved segments (e.g. consensus timeout).
 
-### 3. Table created inside `createHistoryTables`
+### 3. Table created inside `createHistoryTables`, named per-realm
 
-`segment_registry` is created inside the existing `createHistoryTables` function in `lib/sqlite/history.ts`, alongside `event_history_*`. It is therefore initialised lazily via `ensureRealm` — the same pattern used for event tables, with no new startup ordering or async-in-constructor problems. `CREATE TABLE IF NOT EXISTS` makes the call idempotent across multiple realm initialisations.
+`segment_registry_<realm>` is created inside the existing `createHistoryTables` function in `lib/sqlite/history.ts`, alongside `event_history_<realm>`. It is therefore initialised lazily via `ensureRealm` — the same pattern used for event tables, with no new startup ordering or async-in-constructor problems. By the time `ADVANCE_SEGMENT_OVER` fires and we attempt to INSERT, `ensureRealm` has already been called for every realm that has events in the buffer, so the table always exists at INSERT time.
 
 ### 4. CRC-32 summed over per-event URIs
 
@@ -70,12 +74,12 @@ Alternatives considered:
 
 ### 5. `foxctl segment list` uses `--realm` like other commands
 
-The table is per-realm-agnostic (it tracks segments across all realms stored on this node), but the admin RPC is registered per realm. Using `--realm sys` (or any realm) is acceptable; the handler ignores the realm for this query.
+`segment_registry_<realm>` is per-realm, so `fox.admin.segment.list` queries the table for the realm it is registered on — the same pattern as `kv list` and `schema list`. `foxctl segment list --realm testnet` returns segments written to the `testnet` realm on that node.
 
 ## Risks / Trade-offs
 
 - **Write amplification**: every segment adds one INSERT + two UPDATEs. At high segment rates (e.g. 100/s) this is negligible next to the history inserts already being done.
-- **Node 22 `zlib.crc32`**: if the runtime is older, a pure-JS CRC-32 polyfill must be bundled. Detect at import time and log a warning if falling back.
+- **`zlib.crc32`**: available since Node 20; no polyfill needed for this runtime.
 - **ADVANCE_SEGMENT_OVER may arrive before BEGIN**: unlikely in practice but possible on replay. Use `INSERT OR IGNORE` / `UPDATE OR IGNORE` to handle out-of-order delivery safely.
 - **Failed segments**: `ADVANCE_SEGMENT_FAILED` is not handled — the row stays in `status='over'` indefinitely. A future cleanup job can prune stale rows.
 

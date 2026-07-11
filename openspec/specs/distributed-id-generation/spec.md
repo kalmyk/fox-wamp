@@ -243,7 +243,7 @@ type ResolutionCache = {
 
 ### Output Event: ADVANCE_SEGMENT_RESOLVED
 
-**Target:** Entry node (advanceOwner)
+**Target:** Broadcast on sys realm; entry nodes filter by `advanceOwner === this.router.getId()`
 
 **Payload:**
 ```json

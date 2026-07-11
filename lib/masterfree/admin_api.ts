@@ -5,8 +5,9 @@ import { StorageRegistry } from '../sqlite/storage_registry'
 import { SchemaRepository } from '../sqlite/schema_repository'
 import { StorageStatus } from '../types'
 import { ProduceId } from './makeid'
-import { AdminEvent, AdminEventShardEntry } from './hyper.h'
+import { AdminEvent, AdminEventShardEntry, SegmentRecord } from './hyper.h'
 import { getConfigInstance } from './config'
+import { listSegments } from '../sqlite/segment_registry'
 
 export class AdminApiServer {
   private realmName: string
@@ -81,6 +82,20 @@ export class AdminApiServer {
       }
       shards.sort((a, b) => a.shardTag - b.shardTag)
       return { shards }
+    })
+
+    api.register(AdminEvent.SEGMENT_LIST, async () => {
+      const rows = await listSegments(this.db, this.realmName)
+      const segments: SegmentRecord[] = rows.map(row => ({
+        advanceOwner: row.advance_owner,
+        advanceStamp: row.advance_stamp,
+        shardTag: row.shard_tag,
+        segmentId: row.segment_id,
+        msgCount: row.msg_count,
+        crc32: row.crc32,
+        status: row.status,
+      }))
+      return { segments }
     })
   }
 }

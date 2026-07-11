@@ -241,6 +241,37 @@ function runSchema(args: string[]): void {
   schema.parse(['node', 'schema', subCmd, ...rest].filter(Boolean))
 }
 
+// ── segment commands ────────────────────────────────────────────────
+
+function runSegment(): void {
+  const segment = makeSubProgram()
+
+  segment.command('list')
+    .description('list segments for a realm')
+    .action(() => runCommand(async (client) => {
+      const result: any = await client.callrpc(AdminEvent.SEGMENT_LIST, {})
+      const segments: any[] = result.segments || []
+      if (isJson()) {
+        console.log(JSON.stringify(segments))
+      } else {
+        printTable(
+          segments.map((s: any) => ({
+            advance_owner: s.advanceOwner,
+            advance_stamp: s.advanceStamp,
+            shard_tag: s.shardTag ?? '',
+            segment_id: s.segmentId ?? '',
+            msg_count: s.msgCount ?? '',
+            crc32: s.crc32 ?? '',
+            status: s.status,
+          })),
+          ['advance_owner', 'advance_stamp', 'shard_tag', 'segment_id', 'msg_count', 'crc32', 'status']
+        )
+      }
+    }))
+
+  segment.parse(['node', 'segment', subCmd, ...rest].filter(Boolean))
+}
+
 // ── event commands ──────────────────────────────────────────────────
 
 function runEventShardList(): void {
@@ -271,12 +302,12 @@ function runEventShardList(): void {
 // ── entry point ─────────────────────────────────────────────────────
 
 if (!group || group === '--help' || group === '-h') {
-  console.log('Usage: foxctl [options] <kv|schema|event> <subcommand> [args...]')
+  console.log('Usage: foxctl [options] <kv|schema|segment|event> <subcommand> [args...]')
   console.log('')
   console.log('Global options:')
   console.log('  --host <host>    server host (default: localhost)')
   console.log('  --port <port>    server port (default: 1735)')
-  console.log('  --realm <realm>  realm name (required for kv/schema; defaults to sys for event)')
+  console.log('  --realm <realm>  realm name (required for kv/schema/segment; defaults to sys for event)')
   console.log('  --json           JSON output')
   console.log('')
   console.log('Commands:')
@@ -286,12 +317,15 @@ if (!group || group === '--help' || group === '-h') {
   console.log('  schema list                    list schemas')
   console.log('  schema add <label> <file>      register a schema')
   console.log('  schema drop <schema-id>        deprecate a schema')
+  console.log('  segment list                   list advance segments')
   console.log('  event shard list               list event shard allocation')
   process.exit(0)
 } else if (group === 'kv') {
   runKv([subCmd, ...rest])
 } else if (group === 'schema') {
   runSchema([subCmd, ...rest])
+} else if (group === 'segment') {
+  runSegment()
 } else if (group === 'event') {
   if (subCmd === 'shard' && rest[0] === 'list') {
     runEventShardList()

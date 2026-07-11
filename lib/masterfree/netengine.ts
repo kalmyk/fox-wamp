@@ -2,7 +2,8 @@ import { ActorPush, BaseRealm, BaseEngine, makeDataSerializable, unSerializeData
 import { Router } from '../router'
 import { HyperClient } from '../hyper/client'
 import { MemKeyValueStorage } from '../mono/memkv'
-import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_OVER, BODY_ADVANCE_SEGMENT_FAILED, BODY_INIT_ENTRY_ACCEPTED } from './hyper.h'
+import { AdvanceOffsetId, Event, INTRA_REALM_NAME, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_OVER, BODY_ADVANCE_SEGMENT_FAILED, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_INIT_ENTRY_ACCEPTED } from './hyper.h'
+import { keyId } from './makeid'
 import EventEmitter from 'events'
 
 export const TOTAL_SHARDS_COUNT = 8
@@ -51,6 +52,10 @@ export class HistorySegment {
 
   getAdvanceStamp(): number {
     return this.advanceStamp
+  }
+
+  getAllActors(): ActorPush[] {
+    return Array.from(this.content.values())
   }
 }
 
@@ -113,8 +118,10 @@ export class NetEngineMill extends EventEmitter {
     this.sysApi.subscribe(Event.INIT_ENTRY_ACCEPTED + '.' + this.router.getId(), this.event_init_entry_accepted.bind(this))
     this.sysApi.subscribe(Event.TRIM_ADVANCE_SEGMENT + '.*', this.event_trim_advance_segment.bind(this))
 
-    this.sysApi.subscribe(Event.ADVANCE_SEGMENT_RESOLVED + '.' + this.router.getId(), (data: any, opt: any) => {
-      this.advance_segment_resolved(data)
+    this.sysApi.subscribe(Event.ADVANCE_SEGMENT_RESOLVED, (data: BODY_ADVANCE_SEGMENT_RESOLVED) => {
+      if (data.advanceOwner === this.router.getId()) {
+        this.advance_segment_resolved(data)
+      }
     })
 
     this.sysApi.subscribe(Event.ADVANCE_SEGMENT_FAILED, (data: BODY_ADVANCE_SEGMENT_FAILED) => {
@@ -202,27 +209,18 @@ export class NetEngineMill extends EventEmitter {
     return this.localSegments.delete(advanceStamp)
   }
 
-  advance_segment_resolved (syncMessage: any) {
-    let segment = this.findSegment(syncMessage.advanceStamp)
+  advance_segment_resolved (body: BODY_ADVANCE_SEGMENT_RESOLVED) {
+    const segment = this.findSegment(body.advanceStamp)
     if (!segment) {
       return
     }
-    console.log('advance-segment-resolved', syncMessage.advanceStamp, syncMessage.pkg)
-    for (let event of syncMessage.pkg) {
-      let actor = segment.fetchActor(event.advanceId)
-      if (actor) {
-        actor.setEventId(event.qid)
-        actor.confirm({ sid: event.sid })
-      } else {
-        console.log("actor not found by advanceId", event.advanceId)
-      }
-    }
-    if (syncMessage.final) {
-      this.deleteSegment(syncMessage.advanceStamp)
-      if (segment.size() > 0) {
-        console.log("removing not empty segment")
-      }
-    }
+    console.log('advance-segment-resolved', body.advanceStamp, body.segment)
+    const actors = segment.getAllActors()
+    actors.forEach((actor, i) => {
+      actor.setEventId(body.segment + keyId(i + 1))
+      actor.confirm({})
+    })
+    this.deleteSegment(body.advanceStamp)
   }
 
   // @return promise

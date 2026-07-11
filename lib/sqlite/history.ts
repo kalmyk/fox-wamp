@@ -1,5 +1,6 @@
 import * as sqlite from 'sqlite'
 import { defaultParse, restoreUri } from '../topic_pattern'
+import { createSegmentRegistryTable } from './segment_registry'
 
 // Fetch all table names that match the pattern 'event_history_%'
 // and call the callback with the realm name extracted from the table name.
@@ -28,6 +29,7 @@ export async function createHistoryTables (db: sqlite.Database, realmName: strin
       PRIMARY KEY (msg_id));
     `, []
   )
+  await createSegmentRegistryTable(db, realmName)
 }
 
 export async function saveEventHistory (db: sqlite.Database, realmName: string, id: string, shard: number, uri:any, body:any, opt:any) {

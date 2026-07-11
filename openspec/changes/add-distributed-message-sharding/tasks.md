@@ -58,16 +58,16 @@
 - [x] 8.2 Unit test: counter wraps from 7 back to 0
 - [x] 8.3 Unit test: `getDestinationTopics()` returns `KEEP_ADVANCE_HISTORY.<shardTag>` (e.g. shardTag=5 → `KEEP_ADVANCE_HISTORY.5`)
 - [x] 8.4 Unit test: `findShardsForNode` returns correct shards; node subscribes to matching `KEEP_ADVANCE_HISTORY.*` topics
-- [ ] 8.5 Integration test: `KEEP_ADVANCE_HISTORY` is delivered only to the storage node that owns the shardTag — not to others
-- [ ] 8.6 Integration test: `shardTag` propagates unchanged through GENERATE_DRAFT → PICK_CHALLENGER → ELECT_SEGMENT
-- [ ] 8.7 Integration test: two-node storage cluster where each node owns half the shards receives the correct subset of messages
+- [x] 8.5 Integration test: `KEEP_ADVANCE_HISTORY` is delivered only to the storage node that owns the shardTag — not to others
+- [x] 8.6 Integration test: `shardTag` propagates unchanged through GENERATE_DRAFT → PICK_CHALLENGER → ELECT_SEGMENT
+- [x] 8.7 Integration test: two-node storage cluster where each node owns half the shards receives the correct subset of messages
 - [x] 8.8 Run full test suite: `npm test`
 
 ## 9. Admin RPC: Event Shard List
 
 - [x] 9.1 Add `AdminEvent.EVENT_SHARD_LIST = 'fox.admin.event.shard.list'` to the `AdminEvent` namespace in `lib/masterfree/hyper.h.ts`
 - [x] 9.2 Register `fox.admin.event.shard.list` handler in `AdminApiServer`: reads `eventNodes` from config and returns `{ shards: [{ shardTag, nodeId, host, port }] }`
-- [ ] 9.3 Integration test: RPC returns correct shard layout matching the config
+- [x] 9.3 Integration test: RPC returns correct shard layout matching the config
 
 ## 10. Logging
 

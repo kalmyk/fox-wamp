@@ -10,8 +10,9 @@ import { EventStorageTask, SEGMENT_COMMITTED } from '../lib/masterfree/storage'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { BaseRealm } from '../lib/realm'
 import { Config, setConfigInstance } from '../lib/masterfree/config'
-import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_ADVANCE_SEGMENT_RESOLVED } from '../lib/masterfree/hyper.h'
+import { AdminEvent, Event, BODY_KEEP_ADVANCE_HISTORY, BODY_ADVANCE_SEGMENT_RESOLVED } from '../lib/masterfree/hyper.h'
 import { HyperClient } from '../lib/hyper/client'
+import { AdminApiServer } from '../lib/masterfree/admin_api'
 
 // ─── shard counter and HistorySegment ────────────────────────────────────────
 
@@ -211,4 +212,124 @@ describe('65.sharding', function () {
     })
 
   })
+
+  // ─── 8.7: Two-node storage cluster ────────────────────────────────────────
+
+  describe('8.7 two-node storage cluster', () => {
+    let router: Router
+    let sysRealm: BaseRealm
+    let dbFactory1: DbFactory
+    let dbFactory2: DbFactory
+    let db1: sqlite.Database
+    let db2: sqlite.Database
+    let api: HyperClient
+
+    beforeEach(async () => {
+      db1 = await sqlite.open({ filename: ':memory:', driver: sqlite3.Database })
+      db2 = await sqlite.open({ filename: ':memory:', driver: sqlite3.Database })
+      dbFactory1 = new DbFactory('/tmp/fox-test-dbs/')
+      dbFactory1.setMainDb(db1)
+      dbFactory2 = new DbFactory('/tmp/fox-test-dbs/')
+      dbFactory2.setMainDb(db2)
+
+      router = new Router()
+      router.setId('NDB_cluster')
+      sysRealm = await router.getRealm('sys')
+      api = sysRealm.buildApi()
+    })
+
+    it('each node receives only its own shard events', async () => {
+      new EventStorageTask(sysRealm, dbFactory1, { shards: [0, 1, 2, 3] })
+      new EventStorageTask(sysRealm, dbFactory2, { shards: [4, 5, 6, 7] })
+
+      // Wait for exactly 2 SEGMENT_COMMITTED from each factory (one with data, one empty)
+      const done1 = new Promise<void>(resolve => {
+        let n = 0
+        dbFactory1.on(SEGMENT_COMMITTED, () => { if (++n === 2) resolve() })
+      })
+      const done2 = new Promise<void>(resolve => {
+        let n = 0
+        dbFactory2.on(SEGMENT_COMMITTED, () => { if (++n === 2) resolve() })
+      })
+
+      await api.publish(Event.keepAdvanceHistoryTopic(0), {
+        advanceOwner: 'entry1', advanceId: { segment: 1, offset: 1 },
+        shard: 0, realm: 'myrealm', data: 'data-shard0',
+        uri: ['t1'], opt: {}, sid: 'sid1'
+      } as BODY_KEEP_ADVANCE_HISTORY, { exclude_me: false })
+
+      await api.publish(Event.keepAdvanceHistoryTopic(4), {
+        advanceOwner: 'entry2', advanceId: { segment: 1, offset: 1 },
+        shard: 4, realm: 'myrealm', data: 'data-shard4',
+        uri: ['t2'], opt: {}, sid: 'sid2'
+      } as BODY_KEEP_ADVANCE_HISTORY, { exclude_me: false })
+
+      await api.publish(Event.ADVANCE_SEGMENT_RESOLVED, {
+        advanceOwner: 'entry1', advanceStamp: 1, segment: 'seg1'
+      } as BODY_ADVANCE_SEGMENT_RESOLVED, { exclude_me: false })
+
+      await api.publish(Event.ADVANCE_SEGMENT_RESOLVED, {
+        advanceOwner: 'entry2', advanceStamp: 1, segment: 'seg2'
+      } as BODY_ADVANCE_SEGMENT_RESOLVED, { exclude_me: false })
+
+      await Promise.all([done1, done2])
+
+      const rows1 = await db1.all('SELECT * FROM event_history_myrealm')
+      const rows2 = await db2.all('SELECT * FROM event_history_myrealm')
+
+      expect(rows1).to.have.lengthOf(1)
+      expect(rows1[0].msg_shard).to.equal(0)
+
+      expect(rows2).to.have.lengthOf(1)
+      expect(rows2[0].msg_shard).to.equal(4)
+    })
+  })
+
+  // ─── 9.3: fox.admin.event.shard.list RPC ──────────────────────────────────
+
+  describe('9.3 fox.admin.event.shard.list RPC', () => {
+    it('returns shard layout from config', async () => {
+      const config = new Config()
+      ;(config as any).config = {
+        eventNodes: {
+          NDB1: { host: '10.0.0.1', port: '1755', shards: [0, 1] },
+          NDB2: { host: '10.0.0.2', port: '1756', shards: [2, 3] },
+        }
+      }
+      setConfigInstance(config)
+
+      const router = new Router()
+      router.setId('admin-test')
+      const sysRealm = await router.getRealm('sys')
+      const api = sysRealm.buildApi()
+
+      new AdminApiServer(sysRealm, 'sys', null as any, null as any, null as any)
+
+      const result: any = await api.callrpc(AdminEvent.EVENT_SHARD_LIST, {})
+
+      expect(result.shards).to.deep.equal([
+        { shardTag: 0, nodeId: 'NDB1', host: '10.0.0.1', port: '1755' },
+        { shardTag: 1, nodeId: 'NDB1', host: '10.0.0.1', port: '1755' },
+        { shardTag: 2, nodeId: 'NDB2', host: '10.0.0.2', port: '1756' },
+        { shardTag: 3, nodeId: 'NDB2', host: '10.0.0.2', port: '1756' },
+      ])
+    })
+
+    it('returns empty shards when no eventNodes configured', async () => {
+      const config = new Config()
+      ;(config as any).config = {}
+      setConfigInstance(config)
+
+      const router = new Router()
+      router.setId('admin-test2')
+      const sysRealm = await router.getRealm('sys')
+      const api = sysRealm.buildApi()
+
+      new AdminApiServer(sysRealm, 'sys', null as any, null as any, null as any)
+
+      const result: any = await api.callrpc(AdminEvent.EVENT_SHARD_LIST, {})
+      expect(result.shards).to.deep.equal([])
+    })
+  })
+
 })

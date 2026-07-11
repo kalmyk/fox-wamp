@@ -19,8 +19,8 @@ export enum Event {
   PICK_CHALLENGER = 'PICK_CHALLENGER', // sub-topic to dedicated sync
   ELECT_SEGMENT = 'ELECT_SEGMENT',
 
-  ADVANCE_SEGMENT_RESOLVED = 'advance-segment-resolved', // sub-topic to dedicated gate to send ACK
-  ADVANCE_SEGMENT_FAILED = 'advance-segment-failed',     // quorum timeout or fatal error
+  ADVANCE_SEGMENT_RESOLVED = 'advance-segment-resolved', // broadcast; entry nodes filter by advanceOwner
+  ADVANCE_SEGMENT_FAILED = 'advance-segment-failed',     // broadcast; entry nodes filter by advanceOwner
   INIT_ENTRY_ACCEPTED = 'INIT_ENTRY_ACCEPTED',
 }
 
@@ -108,6 +108,7 @@ export namespace AdminEvent {
   export const SCHEMA_ADD = 'fox.admin.schema.add'
   export const SCHEMA_DROP = 'fox.admin.schema.drop'
   export const EVENT_SHARD_LIST = 'fox.admin.event.shard.list'
+  export const SEGMENT_LIST = 'fox.admin.segment.list'
 }
 
 export type AdminKvListRequest = Record<string, never>
@@ -130,3 +131,14 @@ export type AdminSchemaDropResponse = { status: 'deprecated' }
 
 export type AdminEventShardEntry = { shardTag: number; nodeId: string; host: string; port: string }
 export type AdminEventShardListResponse = { shards: AdminEventShardEntry[] }
+
+export type SegmentRecord = {
+  advanceOwner: string
+  advanceStamp: number
+  shardTag: number | null
+  segmentId: string | null
+  msgCount: number | null
+  crc32: number | null
+  status: string
+}
+export type AdminSegmentListResponse = { segments: SegmentRecord[] }
