@@ -4,13 +4,13 @@ In distributed mode (`NetEngine`), `getHistoryAfter` is a no-op stub — subscri
 
 ## What Changes
 
-- Storage node exposes `fox.storage.history.fetch` RPC on the sys realm: takes `{ realm, afterEventId }`, streams events in batches via progressive RPC (`opt.progress`), returns `{ done: true }`.
-- Entry node announces its connection to each storage node and receives a shard-coverage announcement in return (`STORAGE_NODE_CONNECTED` on the sys realm).
-- `NetSubStatusFactory` on the entry tracks, per shard tag, which storage node(s) serve it and their last committed event ID.
-- `SharedSegmentBuffer` on the entry holds events fetched from storage nodes per realm; shared across all `ActorNetSub` instances for that realm.
+- Storage node exposes `fox.storage.history.fetch.<shardTag>` as a progressive RPC on the sys realm, registered once per shard it owns: takes `{ realm, afterEventId }`, streams that shard's events in batches via progressive RPC (`opt.progress`), returns `{ done: true }`. Registering per shard (rather than one RPC per node covering a whole realm) means a shard replicated across multiple storage nodes is served by whichever registrant the router's existing shared-registration RPC dispatch picks — no entry-side node tracking or selection logic is needed for replication.
+- Storage node announces its connection to the entry (`STORAGE_NODE_CONNECTED` on the sys realm, bridged via the existing `pipe()` idiom already used for other cross-node signals in `listenEntry`) — used only to gate `supportsRetainedEventSync`, not to track per-shard coverage.
+- `NetSubStatusFactory` on the entry tracks only whether any storage node has ever connected (`hasStorageNodes()`).
+- `SharedSegmentBuffer` on the entry holds events fetched from all shard RPC calls for a realm; shared across all `ActorNetSub` instances for that realm. Fetches all `TOTAL_SHARDS_COUNT` shard tags on every access (a fixed, known set — never zero, never open-ended), treating an unregistered shard (`ERROR_NO_SUCH_PROCEDURE`) as "no data for that shard" rather than a failure.
 - `ActorNetSub` is a new actor (or extended `ActorTrace`) that fetches from `SharedSegmentBuffer`, delivers events in `event_id ASC` order, and logs an error if out-of-order delivery is detected.
 - `NetEngine.getHistoryAfter` is implemented to drive the fetch flow.
-- `NetEngine.supportsRetainedEventSync` is set to `true` once at least one storage node is connected and has announced coverage for the realm.
+- `NetEngine.supportsRetainedEventSync` is set to `true` once at least one storage node has ever connected.
 
 ## Capabilities
 
@@ -28,8 +28,8 @@ In distributed mode (`NetEngine`), `getHistoryAfter` is a no-op stub — subscri
 ## Impact
 
 - **`lib/masterfree/netengine.ts`**: `NetEngine.getHistoryAfter` implemented; `NetEngineMill` gains `NetSubStatusFactory` and `SharedSegmentBuffer`; `supportsRetainedEventSync` toggled at runtime.
-- **`lib/masterfree/storage.ts`**: `EventStorageTask` registers `fox.storage.history.fetch` on its sys-realm API; adds shard-coverage announcement on connect.
-- **`lib/sqlite/history.ts`**: `getEventHistory` used as-is; no changes needed.
-- **`lib/masterfree/hyper.h.ts`**: New event constant `STORAGE_NODE_CONNECTED`; new types for RPC request/response and the announcement body.
-- New file **`lib/masterfree/net_sub.ts`**: `NetSubStatusFactory`, `SharedSegmentBuffer`, `ActorNetSub`.
+- **`lib/masterfree/storage.ts`**: `EventStorageTask` registers `fox.storage.history.fetch.<shardTag>` per owned shard on its sys-realm API; bridges a minimal `STORAGE_NODE_CONNECTED` announcement to the connecting entry via `pipe()`.
+- **`lib/sqlite/history.ts`**: `getEventHistory` used as-is; no changes needed (shard filtering happens in the RPC handler using the already-returned `shard` field per row).
+- **`lib/masterfree/hyper.h.ts`**: New event constant `STORAGE_NODE_CONNECTED` (payload: `{ nodeId }`); new types for the per-shard RPC request/progress payload.
+- New file **`lib/masterfree/net_sub.ts`**: `NetSubStatusFactory` (connection-existence tracking only), `SharedSegmentBuffer` (fixed-shard-range fetch), `ActorNetSub`.
 - No schema changes; no client-facing API changes.

@@ -2,50 +2,34 @@
 
 ## Purpose
 
-Defines `NetSubStatusFactory` on the entry node: tracks connected storage nodes, their shard assignments, and their last known committed event ID. Used to decide which storage node to call for a given realm and whether history is available.
+Defines `NetSubStatusFactory` on the entry node: tracks whether any storage node has ever connected, to gate `supportsRetainedEventSync`. It does **not** track which node serves which shard, or rank nodes by freshness — shard dispatch (including replication) is handled entirely by shared RPC registration on the per-shard `fox.storage.history.fetch.<shardTag>` procedures (see `net-history-fetch`), so the entry has no need to enumerate or select storage nodes itself.
 
 ## Requirements
 
 ### Requirement: Storage node announces on connect
 
-When a storage node calls `listenEntry`, it SHALL publish `STORAGE_NODE_CONNECTED` on the sys realm containing its node ID, the shard tags it owns, and the last committed event ID across all its realms.
+When a storage node calls `listenEntry`, it SHALL announce to the connecting entry, via the `client` connection passed into `listenEntry` (using the existing `pipe()` bridging idiom — not by publishing only on the storage node's own local realm), containing at minimum its node ID.
 
 #### Scenario: Announcement published on listenEntry
 
 - **WHEN** `EventStorageTask.listenEntry(entryClient, gateId)` is called
-- **THEN** the storage task SHALL publish `STORAGE_NODE_CONNECTED` on the sys realm with `{ nodeId: string, shards: number[], lastEventId: string | null }`
-- **AND** `lastEventId` SHALL be the result of `scanMaxId(db)` at the time of connection
+- **THEN** the storage task SHALL bridge `STORAGE_NODE_CONNECTED` to the entry via `this.api.pipe(entryClient, Event.STORAGE_NODE_CONNECTED)` followed by publishing `{ nodeId: string }` on `this.api`
+- **AND** the entry SHALL receive the announcement regardless of whether entry and storage happen to share the same realm object (this must not rely on same-realm dispersal as an implicit delivery mechanism)
 
-### Requirement: NetSubStatusFactory absorbs shard announcements
+### Requirement: NetSubStatusFactory tracks connection existence only
 
-`NetSubStatusFactory` on the entry node SHALL subscribe to `STORAGE_NODE_CONNECTED` and maintain a per-shard list of `{ nodeId, storageClient, lastEventId }`.
+`NetSubStatusFactory` on the entry node SHALL subscribe to `STORAGE_NODE_CONNECTED` and record that at least one storage node has connected. It SHALL NOT maintain a per-shard node list, per-node `lastEventId`, or any node-selection state — that responsibility does not exist on the entry side under this design.
 
-#### Scenario: First storage node for a shard
+#### Scenario: First storage node connects
 
-- **WHEN** `STORAGE_NODE_CONNECTED` arrives with `{ nodeId: 'NDB1', shards: [0,1,2,3], lastEventId: 'EVT_X' }`
-- **THEN** `NetSubStatusFactory` SHALL record `nodeId='NDB1'` as serving shards 0, 1, 2, and 3
-- **AND** `lastEventId` SHALL be stored as `'EVT_X'` for nodeId `'NDB1'`
+- **WHEN** `STORAGE_NODE_CONNECTED` arrives with `{ nodeId: 'NDB1' }`
+- **THEN** `NetSubStatusFactory.hasStorageNodes()` SHALL return `true`
 
-#### Scenario: Second storage node for same shard (multi-node)
+#### Scenario: Multiple storage nodes connect, including replicas of the same shard
 
-- **WHEN** a second `STORAGE_NODE_CONNECTED` arrives with `{ nodeId: 'NDB2', shards: [0], lastEventId: 'EVT_Y' }`
-- **THEN** both `NDB1` and `NDB2` SHALL be tracked for shard 0
-- **AND** each entry SHALL retain its own `lastEventId`
-
-### Requirement: Connected node list used for fetch dispatch
-
-`NetSubStatusFactory` SHALL expose a method returning all unique connected storage node clients for a given realm. The entry uses this list to call `fox.storage.history.fetch` on each.
-
-#### Scenario: All nodes returned for realm
-
-- **WHEN** nodes NDB1 (shards 0–3) and NDB2 (shards 4–7) are connected
-- **AND** `getStorageClientsForRealm(realm)` is called
-- **THEN** both NDB1 and NDB2 SHALL be returned (any node may have realm events within its shards)
-
-#### Scenario: No nodes connected
-
-- **WHEN** no storage nodes have announced
-- **THEN** `getStorageClientsForRealm(realm)` SHALL return an empty array
+- **WHEN** `STORAGE_NODE_CONNECTED` arrives from `NDB1` and later from `NDB2` (regardless of whether they cover overlapping shards)
+- **THEN** `NetSubStatusFactory.hasStorageNodes()` SHALL remain `true`
+- **AND** `NetSubStatusFactory` SHALL NOT need to record which shards either node covers — shard-level dispatch is handled by RPC registration, not by this factory
 
 ### Requirement: supportsRetainedEventSync toggled at runtime
 
