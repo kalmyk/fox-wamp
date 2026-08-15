@@ -33,7 +33,7 @@ export function buildInvokeOpt(cmd: RealmCommand): any {
 
 export function buildEventOpt(cmd: RealmCommand): any {
   let eventOpt: any = {
-    topic: restoreUri(cmd.uri),
+    topic: restoreUri(cmd.uri || []),
     publisher: cmd.sid
     // publisher_authid: undefined,
     // publisher_authrole: undefined,

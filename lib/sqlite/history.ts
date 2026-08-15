@@ -1,5 +1,6 @@
 import * as sqlite from 'sqlite'
 import { defaultParse, restoreUri } from '../topic_pattern'
+import { createSegmentRegistryTable } from './segment_registry'
 
 // Fetch all table names that match the pattern 'event_history_%'
 // and call the callback with the realm name extracted from the table name.
@@ -15,8 +16,9 @@ export async function forEachRealm (db: sqlite.Database, callback: (realmName: s
 }
 
 export async function createHistoryTables (db: sqlite.Database, realmName: string) {
+  const table = `event_history_${realmName}`
   await db.run(
-    `CREATE TABLE IF NOT EXISTS event_history_${realmName} (
+    `CREATE TABLE IF NOT EXISTS ${table} (
       msg_id TEXT not null,
       msg_shard INTEGER,
       -- Canonical dotted FOX topic text. Use defaultParse()/restoreUri();
@@ -27,12 +29,14 @@ export async function createHistoryTables (db: sqlite.Database, realmName: strin
       PRIMARY KEY (msg_id));
     `, []
   )
+  await createSegmentRegistryTable(db, realmName)
 }
 
 export async function saveEventHistory (db: sqlite.Database, realmName: string, id: string, shard: number, uri:any, body:any, opt:any) {
+  const table = `event_history_${realmName}`
   // Persist topics in canonical dotted form even when the publish arrived via MQTT.
   return db.run(
-    `INSERT INTO event_history_${realmName} (msg_id, msg_shard, msg_uri, msg_body, msg_opt) VALUES (?, ?, ?, ?, ?);`,
+    `INSERT INTO ${table} (msg_id, msg_shard, msg_uri, msg_body, msg_opt) VALUES (?, ?, ?, ?, ?);`,
     [id, shard, restoreUri(uri), JSON.stringify(body), JSON.stringify(opt)]
   )
 }
@@ -57,29 +61,39 @@ export async function scanMaxId (db: sqlite.Database) {
   return maxId
 }
 
-export async function getEventHistory (db: sqlite.Database, realmName: string, range:any, rowcb:any) {
-  let sql = `SELECT msg_id, msg_shard, msg_uri, msg_body, msg_opt FROM event_history_${realmName}`
+export async function getEventHistory (db: sqlite.Database, realmName: string, range: { fromId?: string, toId?: string, uri?: string[] }, rowcb: (event: any) => Promise<void>) {
+  const table = `event_history_${realmName}`
+  let sql = `SELECT msg_id, msg_shard, msg_uri, msg_body, msg_opt FROM ${table}`
   let where = []
+  let params: any[] = []
+  
   if (range.fromId) {
-    where.push('msg_id > "' + range.fromId + '"')
+    where.push('msg_id > ?')
+    params.push(range.fromId)
   }
   if (range.toId) {
-    where.push('msg_id <= "' + range.toId + '"')
+    where.push('msg_id <= ?')
+    params.push(range.toId)
   }
-  where.push('msg_uri = ?')
-  sql += ' WHERE ' + where.join(' AND ') + ' ORDER BY msg_id'
+  if (range.uri) {
+    where.push('msg_uri = ?')
+    params.push(restoreUri(range.uri))
+  }
+  
+  if (where.length > 0) {
+    sql += ' WHERE ' + where.join(' AND ')
+  }
+  sql += ' ORDER BY msg_id'
 
-  return db.each(
-    sql,
-    [restoreUri(range.uri)],
-    (err, row) => {
-      rowcb({
-        id: row.msg_id,
-        shard: row.msg_shard,
-        uri: defaultParse(row.msg_uri),
-        body: JSON.parse(row.msg_body),
-        opt: JSON.parse(row.msg_opt)
-      })
-    }
-  )
+  const rows = await db.all(sql, params)
+  for (const row of rows) {
+    await rowcb({
+      id: row.msg_id,
+      shard: row.msg_shard,
+      uri: defaultParse(row.msg_uri),
+      body: JSON.parse(row.msg_body),
+      opt: JSON.parse(row.msg_opt)
+    })
+  }
+  return rows.length
 }

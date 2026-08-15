@@ -60,7 +60,7 @@ describe('30.message-storage', async () => {
         db,
         'testrealm',
         {uri:['msg', 'test', 'com'],fromId:'12345678b10'},
-        (row: any) => {result.push(row)}
+        async (row: any) => {result.push(row)}
       ),
       1
     )

@@ -25,9 +25,9 @@ import { MqttGate } from '../lib/mqtt/gate'
 
 async function main() {
   const router: Router = new Router()
+  router.setId(conf_node_id)
   const netEngineMill: NetEngineMill = new NetEngineMill(router, Number(conf_quorum))
 
-  router.setId(conf_node_id)
   router.createRealm = (): BaseRealm => new BaseRealm(router, new NetEngine(netEngineMill))
   router.setLogTrace(true)
 

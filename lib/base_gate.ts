@@ -1,24 +1,7 @@
 import { errorCodes } from './realm_error';
 import { Router } from './router';
 import { RealmCommand } from './types';
-
-export function getBodyValue(body: any): any {
-  if (body === null || body === undefined) {
-    return null;
-  }
-  if (typeof body === 'object') {
-    if ('kv' in body)      return body.kv
-    if ('payload' in body) return JSON.parse(body.payload)
-    if ('args' in body) {
-      if (Array.isArray(body.args)) {
-        if (body.args.length == 0) return null
-        if (body.args.length == 1) return body.args[0]
-      }
-      return body.args
-    }
-  }
-  throw new Error('unknown body `' + JSON.stringify(body) + '`')
-}
+export { getBodyValue } from './tools';
 
 export class BaseGate {
   _router: Router

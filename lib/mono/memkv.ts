@@ -2,7 +2,7 @@
 
 import { match, defaultParse } from '../topic_pattern';
 import { errorCodes } from '../realm_error';
-import { KeyValueStorageAbstract, ActorPushKv, isDataFit, isDataEmpty, deepDataMerge, ActorPush } from '../realm';
+import { KeyValueStorageAbstract, ActorPushKv, isDataFit, isDataEmpty, deepDataMerge, IActorPush } from '../realm';
 
 export class MemKeyValueStorage extends KeyValueStorageAbstract {
   public _keyDb: Map<string, any>;
@@ -24,7 +24,7 @@ export class MemKeyValueStorage extends KeyValueStorageAbstract {
     });
   }
 
-  setKeyActor(actor: ActorPush): Promise<void> {
+  setKeyActor(actor: IActorPush): Promise<void> {
     const suri = this.getStrUri(actor);
 
     // let oldSid
@@ -53,17 +53,17 @@ export class MemKeyValueStorage extends KeyValueStorageAbstract {
         const newOpt = newActor.getOpt();
         const newData = deepDataMerge(oldData, newActor.getData());
         const willSid = ('will' in newOpt) ? newActor.getSid() : null;
-        newActor.confirm(actor.msg);
+        newActor.confirm((actor as any).msg);
         if (isDataEmpty(newData)) {
           this._keyDb.delete(suri);
         } else {
           this._keyDb.set(suri, [willSid, newData, newOpt.will, resWhen, newActor.getEventId()]);
         }
         this.saveChangeHistory(new ActorPushKv(
-          actor.getUri() as any,
+          actor.getUri(),
           newData,
           { sid: newActor.getSid(), retained: true, delta: true, trace: true }
-        ) as any);
+        ));
         newActor = findNextWhenActor(newData);
       } while (newActor);
     };

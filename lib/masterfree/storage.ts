@@ -1,14 +1,15 @@
 import * as sqlite from 'sqlite'
 
-import { BaseRealm } from '../realm'
+import { BaseRealm, unSerializeData } from '../realm'
 import { ComplexId, makeEmpty, keyId } from './makeid'
 import { HyperClient } from '../hyper/client'
 import * as History from '../sqlite/history'
 import { DbFactory } from '../sqlite/dbfactory'
-import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER, BODY_GENERATE_DRAFT } from './hyper.h'
-import { EventEmitter } from 'stream'
+import { createStorageRegistryTables } from '../sqlite/storage_registry'
+import { insertSegmentOver, updateSegmentResolved, computeUriCrc, listResolvedSegmentIdsForShard } from '../sqlite/segment_registry'
+import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER, BODY_GENERATE_DRAFT, BODY_STORAGE_NODE_CONNECTED, HistoryFetchRequest, HistoryFetchProgress, HistoryEvent } from './hyper.h'
 
-export const SEGMENT_COMMITTED = 'segment-committed'  // emit BODY_ADVANCE_SEGMENT_RESOLVED
+export { SEGMENT_COMMITTED, CommittedSegmentRecord, CommittedSegmentEvent, SegmentCommittedSource } from './segment_types'
 
 export class HistoryBuffer {
   private content: Array<BODY_KEEP_ADVANCE_HISTORY> = []
@@ -35,69 +36,81 @@ export class HistoryBuffer {
   }
 }
 
-export class StorageTask extends EventEmitter {
+import { SEGMENT_COMMITTED, CommittedSegmentRecord, CommittedSegmentEvent } from './segment_types'
+
+export type EventNodeConfig = { shards: number[] }
+
+export class EventStorageTask {
   private sysRealm: BaseRealm
   private dbFactory: DbFactory
   private maxId: ComplexId
   private bufferToWrite: Map<string, HistoryBuffer> = new Map()
   private api: HyperClient
-  private realms: Map<string, string> = new Map()
+  private realms: Set<string> = new Set()
+  private ownedTopics: string[] = []
+  private nodeId: string
+  private shards: number[]
 
-  constructor (sysRealm: BaseRealm, dbFactory: DbFactory) {
-    super()
+  constructor (sysRealm: BaseRealm, dbFactory: DbFactory, shardConfig: EventNodeConfig, nodeId: string) {
     this.sysRealm = sysRealm
     this.dbFactory = dbFactory
     this.maxId = makeEmpty(new Date())
+    this.nodeId = nodeId
+    this.shards = shardConfig.shards
 
     this.api = sysRealm.buildApi()
 
-    this.api.subscribe(Event.BEGIN_ADVANCE_SEGMENT, (args: BODY_BEGIN_ADVANCE_SEGMENT) => {
-      const msg: BODY_TRIM_ADVANCE_SEGMENT = {
-        advanceSegment: args.advanceSegment,
-        advanceOwner: args.advanceOwner
-      }
-      this.api.publish(Event.TRIM_ADVANCE_SEGMENT + '.' + args.advanceOwner, msg, {exclude_me: false})
-      console.log("PING: BEGIN_ADVANCE_SEGMENT => TRIM_ADVANCE_SEGMENT", args.advanceSegment)
-    })
-
-    this.api.subscribe(Event.KEEP_ADVANCE_HISTORY, this.event_keep_advance_history.bind(this))
+    for (const shard of shardConfig.shards) {
+      const beginTopic = Event.beginAdvanceSegmentTopic(shard)
+      const historyTopic = Event.keepAdvanceHistoryTopic(shard)
+      this.ownedTopics.push(historyTopic)
+      this.api.subscribe(beginTopic, (args: BODY_BEGIN_ADVANCE_SEGMENT) => {
+        const msg: BODY_TRIM_ADVANCE_SEGMENT = {
+          advanceStamp: args.advanceStamp,
+          advanceOwner: args.advanceOwner
+        }
+        this.api.publish(Event.TRIM_ADVANCE_SEGMENT + '.' + args.advanceOwner, msg, {exclude_me: false})
+        console.log("PING: BEGIN_ADVANCE_SEGMENT => TRIM_ADVANCE_SEGMENT", args.advanceStamp)
+      })
+      this.api.subscribe(historyTopic, (event: BODY_KEEP_ADVANCE_HISTORY) => {
+        this.event_keep_advance_history(event)
+      })
+      // Registered locally too (in addition to per-entry registration in listenEntry) so the
+      // RPC is callable by any client sharing this task's own realm — e.g. same-realm tests,
+      // or same-node local callers — without requiring a listenEntry() handshake first.
+      this.api.register(Event.historyFetchTopic(shard), (req: HistoryFetchRequest, opt: any) => {
+        return this.handleHistoryFetch(shard, req, opt)
+      })
+    }
+    console.log('EventStorageTask: subscribed to shard topics:', this.ownedTopics.join(', '))
 
     this.api.subscribe(Event.ADVANCE_SEGMENT_OVER, (body: BODY_ADVANCE_SEGMENT_OVER) => {
       const msg: BODY_GENERATE_DRAFT = {
-        advanceSegment: body.advanceSegment,
+        advanceStamp: body.advanceStamp,
         advanceOwner: body.advanceOwner,
         shardTag: body.shardTag,
       }
       this.api.publish(Event.GENERATE_DRAFT, msg, {exclude_me: false})
+
+      const buffer = this.bufferToWrite.get(body.advanceOwner + ':' + body.advanceStamp)
+      if (buffer) {
+        const db = this.dbFactory.getMainDb()
+        const realms = new Set(buffer.getContent().map(e => e.realm))
+        for (const realm of realms) {
+          this.ensureRealm(realm)
+            .then(() => insertSegmentOver(db, realm, body.advanceOwner, body.advanceStamp, body.shardTag))
+            .catch(err => console.error('insertSegmentOver error:', err))
+        }
+      }
     })
 
     this.api.subscribe(Event.ADVANCE_SEGMENT_RESOLVED, (body: BODY_ADVANCE_SEGMENT_RESOLVED) => {
-      this.commit_segment(body.advanceOwner, body.advanceSegment, body.segment).then((result) => {
-        this.emit(SEGMENT_COMMITTED, body)
+      this.commit_segment(body.advanceOwner, body.advanceStamp, body.segment).then((result) => {
+        this.dbFactory.emit(SEGMENT_COMMITTED, result)
       }).catch((err) => {
         console.error("Error in commit_segment:", err)
       })
     })
-
-    // TODO: entry, let me be your event source
-    // this.api.subscribe(
-    //   'eventSourceLock',
-    //   (args: any, opts: any) => {
-    //     if (args.pid == process.pid) {
-    //       console.log('gate '+this.gateId + ": eventSource in "+this.isEventSource, args, opts)
-    //     }
-    //   },
-    //   {retained: true}
-    // )
-
-    // this.api.publish(
-    //   'eventSourceLock',
-    //   { pid: process.pid },
-    //   { acknowledge: true, retain: true, when: null, will: null, watch: true, exclude_me: false }
-    // ).then((result) => {
-    //   console.log('GATE:'+this.gateId+': use that db as event source', result)
-    //   this.isEventSource = true
-    // })
   }
 
   getMaxId (): ComplexId {
@@ -105,12 +118,36 @@ export class StorageTask extends EventEmitter {
   }
 
   async listenEntry(client: HyperClient, gateId: string) {
-    await client.pipe(this.api, Event.BEGIN_ADVANCE_SEGMENT, {exclude_me: false})
-    await client.pipe(this.api, Event.KEEP_ADVANCE_HISTORY, {exclude_me: false})
+    await client.pipe(this.api, Event.BEGIN_ADVANCE_SEGMENT + '.*', {exclude_me: false})
+    for (const topic of this.ownedTopics) {
+      await client.pipe(this.api, topic, {exclude_me: false})
+    }
     await client.pipe(this.api, Event.ADVANCE_SEGMENT_OVER, {exclude_me: false})
 
     // export to GATE
     await this.api.pipe(client, Event.TRIM_ADVANCE_SEGMENT + '.' + gateId)
+
+    // announce this storage node's connection to the entry
+    await this.api.pipe(client, Event.STORAGE_NODE_CONNECTED)
+
+    await this.announceToEntry(client)
+  }
+
+  // pipe() only forwards pub/sub events, not RPC registrations — an entry's local
+  // sysApi.callrpc(...) can only ever reach a registrant that lives on the entry's own
+  // realm object, which for a genuinely remote storage node means registering through the
+  // session it holds into that realm (`client`), not through `this.api` (storage's own
+  // separate local realm). So on top of the STORAGE_NODE_CONNECTED pipe set up in
+  // listenEntry, we also publish the announcement and register the per-shard RPC directly.
+  async announceToEntry (client: HyperClient) {
+    const announcement: BODY_STORAGE_NODE_CONNECTED = { nodeId: this.nodeId }
+    await this.api.publish(Event.STORAGE_NODE_CONNECTED, announcement, { exclude_me: false })
+
+    for (const shard of this.shards) {
+      await client.register(Event.historyFetchTopic(shard), (req: HistoryFetchRequest, opt: any) => {
+        return this.handleHistoryFetch(shard, req, opt)
+      })
+    }
   }
 
   async listenStageOne(client: HyperClient) {
@@ -143,25 +180,36 @@ export class StorageTask extends EventEmitter {
   async ensureRealm (realm: string) {
     if (!this.realms.has(realm)) {
       await History.createHistoryTables(this.dbFactory.getMainDb(), realm)
-      this.realms.set(realm, "ok")
+      await createStorageRegistryTables(this.dbFactory.getMainDb(), realm)
+      this.realms.add(realm)
     }
   }
 
-  async commit_segment (advanceOwner: string, advanceSegment: number, segment: string) {
-    const key = advanceOwner + ':' + advanceSegment
+  async commit_segment (advanceOwner: string, advanceStamp: number, segment: string): Promise<CommittedSegmentEvent> {
+    const key = advanceOwner + ':' + advanceStamp
     let buffer = this.bufferToWrite.get(key)
+    let events: CommittedSegmentRecord[] = []
     if (buffer) {
-      let effectId = await this.dbSaveSegment(buffer, segment)
+      events = await this.dbSaveSegment(buffer, segment, advanceOwner, advanceStamp)
       this.bufferToWrite.delete(key)
     } else {
-      console.error("advanceSegment not found in segments [", key, "]")
+      console.error("advanceStamp not found in segments [", key, "]")
     }
+    return { advanceOwner, advanceStamp, segment, events }
   }
 
-  async dbSaveSegment (historyBuffer: HistoryBuffer, segment: string): Promise<string[]> {
+  async dbSaveSegment (historyBuffer: HistoryBuffer, segment: string, advanceOwner: string, advanceStamp: number): Promise<CommittedSegmentRecord[]> {
     const db: sqlite.Database = this.dbFactory.getMainDb()
-    let result: string[] = []
+    let result: CommittedSegmentRecord[] = []
     let offset: number = 0
+
+    // Group events by realm for per-realm segment registry update
+    const realmEvents = new Map<string, BODY_KEEP_ADVANCE_HISTORY[]>()
+    for (const row of historyBuffer.getContent()) {
+      const group = realmEvents.get(row.realm) || []
+      group.push(row)
+      realmEvents.set(row.realm, group)
+    }
 
     await db.run('BEGIN TRANSACTION')
     try {
@@ -169,7 +217,18 @@ export class StorageTask extends EventEmitter {
         await this.ensureRealm(row.realm)
         let eventId: string = segment + keyId(++offset)
         await History.saveEventHistory(db, row.realm, eventId, historyBuffer.getShard(), row.uri, row.data, row.opt)
-        result.push(eventId) // keep event position in result array
+        result.push({
+          eventId,
+          realm: row.realm,
+          uri: row.uri,
+          data: row.data,
+          opt: row.opt,
+          sid: row.sid,
+          shard: historyBuffer.getShard()
+        })
+      }
+      for (const [realm, events] of realmEvents) {
+        await updateSegmentResolved(db, realm, advanceOwner, advanceStamp, historyBuffer.getShard(), segment, events.length, computeUriCrc(events))
       }
       await db.run('COMMIT')
     } catch (err) {
@@ -177,5 +236,52 @@ export class StorageTask extends EventEmitter {
       throw err
     }
     return result
+  }
+
+  async handleHistoryFetch (shard: number, req: HistoryFetchRequest, opt: any): Promise<{ done: true }> {
+    if (!this.realms.has(req.realm)) {
+      return { done: true }
+    }
+    const db = this.dbFactory.getMainDb()
+    const segmentIds = await listResolvedSegmentIdsForShard(db, req.realm, shard)
+
+    let segIdx = 0
+    let currentSegmentId: string | null = segIdx < segmentIds.length ? segmentIds[segIdx] : null
+    let batch: HistoryEvent[] = []
+    let lastEventId = ''
+
+    const flush = () => {
+      if (batch.length > 0) {
+        const progress: HistoryFetchProgress = { events: batch, lastEventId }
+        opt.progress(progress)
+        batch = []
+      }
+    }
+
+    await History.getEventHistory(
+      db,
+      req.realm,
+      { fromId: req.afterEventId ?? undefined },
+      async (row: any) => {
+        if (row.shard !== shard) {
+          return
+        }
+        while (currentSegmentId !== null && !row.id.startsWith(currentSegmentId)) {
+          flush()
+          segIdx++
+          currentSegmentId = segIdx < segmentIds.length ? segmentIds[segIdx] : null
+        }
+        batch.push({
+          eventId: row.id,
+          shardTag: row.shard,
+          uri: row.uri,
+          data: unSerializeData(row.body),
+          opt: row.opt
+        })
+        lastEventId = row.id
+      }
+    )
+    flush()
+    return { done: true }
   }
 }

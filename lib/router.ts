@@ -119,6 +119,12 @@ export class Router extends EventEmitter {
     }
     this._realms.set(realmName, realm)
     await realm.getEngine().launchEngine(realmName)
+
+    const repo = realm.getEngine().getSchemaRepository()
+    if (repo) {
+      realm.registerSchemaRepository(repo)
+    }
+
     this.emit(REALM_CREATED, realm, realmName)
   }
 

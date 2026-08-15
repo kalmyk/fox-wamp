@@ -42,7 +42,7 @@ describe('61.net-entry', function () {
     sysStack = []
     sysRealm = await router.getRealm('sys')
     sysApi = sysRealm.api()
-    sysApi.subscribe('*', (event, opt) => {
+    sysApi.subscribe('#', (event, opt) => {
       if (nextSysPromise.length > 0) {
         const promiseResolve = nextSysPromise.shift() as (value: any) => void
         promiseResolve([opt.topic, event])
@@ -63,9 +63,9 @@ describe('61.net-entry', function () {
 
     // create two sync node responders
     const stageA = new StageOneTask(sysRealm, 'SYNC_A', 2, syncCluster)
-    stageA.getAdvanceOwnerState('E1').recentAdvanceSegment = 5
+    stageA.getAdvanceOwnerState('E1').recentAdvanceStamp = 5
     const stageB = new StageOneTask(sysRealm, 'SYNC_B', 2, syncCluster)
-    stageB.getAdvanceOwnerState('E1').recentAdvanceSegment = 7
+    stageB.getAdvanceOwnerState('E1').recentAdvanceStamp = 7
 
     // simulate connections
     const entryApiA = sysRealm.buildApi()
@@ -80,20 +80,20 @@ describe('61.net-entry', function () {
   })
 
   it('Event.BEGIN_ADVANCE_SEGMENT', async () => {
-    const advanceSegmentStartedPkg = getSysPackage()
+    const advanceStampStartedPkg = getSysPackage()
     const admanceEventSentPkg = getSysPackage()
 
     await netApi.publish('any-test-topic', { package: 'test' }, {})
 
-    const advanceSegmentStarted = await advanceSegmentStartedPkg
-    expect(advanceSegmentStarted.length).equal(2)
-    expect(advanceSegmentStarted[0]).equal(Event.BEGIN_ADVANCE_SEGMENT)
-    expect(advanceSegmentStarted[1])
-      .deep.include({ advanceOwner: "E1", advanceSegment: netEngineMill.getRecentAdvanceSegment() })
+    const advanceStampStarted = await advanceStampStartedPkg
+    expect(advanceStampStarted.length).equal(2)
+    expect(advanceStampStarted[0]).to.match(new RegExp('^' + Event.BEGIN_ADVANCE_SEGMENT + '\\.\\d+$'))
+    expect(advanceStampStarted[1])
+      .deep.include({ advanceOwner: "E1", advanceStamp: netEngineMill.getRecentAdvanceSegment() })
 
     const admanceEventSent = await admanceEventSentPkg
     expect(admanceEventSent.length).equal(2)
-    expect(admanceEventSent[0]).equal(Event.KEEP_ADVANCE_HISTORY)
+    expect(admanceEventSent[0]).to.match(new RegExp('^' + Event.KEEP_ADVANCE_HISTORY + '\\.\\d+$'))
     delete admanceEventSent[1].shard
     delete admanceEventSent[1].sid
     expect(admanceEventSent[1]).deep.equal({
@@ -119,7 +119,7 @@ describe('61.net-entry', function () {
 
     await sysApi.publish(Event.TRIM_ADVANCE_SEGMENT + '.E1', {
       advanceOwner: 'E1',
-      advanceSegment: 1
+      advanceStamp: 1
     },
       { exclude_me: true }
     )

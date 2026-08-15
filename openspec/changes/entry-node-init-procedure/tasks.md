@@ -23,5 +23,5 @@
 
 ## 5. Bug Fixes and Improvements
 
-- [x] 5.1 Fix `computeMaxId` by changing `advanceSegment` to a numeric format and using composite keys for uniqueness.
+- [x] 5.1 Fix `computeMaxId` by changing `advanceStamp` to a numeric format and using composite keys for uniqueness.
 - [ ] 5.2 Implement timeout for `init-entry` handshake in `NetEngineMill`.

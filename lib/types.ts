@@ -15,12 +15,12 @@ TODO
 export type Id = string | number
 
 export interface HyperCommand<CommandId = Id> {
-  id?: CommandId
-  qid?: any
+  id?: CommandId   // incoming id - id of answer
+  qid?: any        // internal id created by engine
   traceId?: any
   subId?: any
   unr?: any
-  uri?: any
+  uri?: string[]
   hdr?: any
   data?: any
   opt?: any
@@ -32,3 +32,38 @@ export interface HyperCommand<CommandId = Id> {
 }
 
 export type RealmCommand = HyperCommand<Id>
+
+export enum StorageStatus {
+  Inactive = 'inactive',
+  Refreshing = 'refreshing',
+  Online = 'online',
+  Failed = 'failed',
+}
+
+export enum SchemaStatus {
+  Active = 'active',
+  Deprecated = 'deprecated',
+}
+
+export interface SchemaRecord {
+  schemaId: string
+  label: string
+  urlPattern: string
+  dataTable: string
+  schemaJson: string
+  status: SchemaStatus
+  createdAt: number
+}
+
+export interface StorageRecord {
+  name: string
+  realmName: string
+  uriPattern: string
+  schemaId: string
+  startedAt: number | null
+  status: StorageStatus
+  currentPosition: string | null
+  lastError: string | null
+  skippedCount: number
+  lastWarning: string | null
+}

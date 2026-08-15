@@ -4,17 +4,21 @@ const conf_db_file = process.env.DB_FILE
 const conf_config_file = process.env.CONFIG
   || console.log('CONFIG file name must be defined') || process.exit(1)
 
+const conf_node_id = process.env.NODE_ID
+  || console.log('NODE_ID must be defined') || process.exit(1)
+
 import { keyDate, ProduceId } from '../lib/masterfree/makeid'
 import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
+import { ProjectionListener } from '../lib/sqlite/projection_listener'
 import { Router } from '../lib/router'
 import { getConfigInstance } from '../lib/masterfree/config'
 import { DbFactory } from '../lib/sqlite/dbfactory'
-import { StorageTask } from '../lib/masterfree/storage'
+import { EventStorageTask } from '../lib/masterfree/storage'
 import { StageTwoTask } from '../lib/masterfree/synchronizer'
 import { INTRA_REALM_NAME } from '../lib/masterfree/hyper.h'
 import { HyperNetClient } from '../lib/hyper/net_transport'
 
-function mkSync(host: string, port: number, nodeId: string, storageTask: StorageTask, stageTwoTask: StageTwoTask) {
+function mkSync(host: string, port: number, nodeId: string, storageTask: EventStorageTask, stageTwoTask: StageTwoTask) {
   const client: HyperNetClient = new HyperNetClient({host, port})
   client.onopen(async () => {
     await client.login({realm: INTRA_REALM_NAME})
@@ -25,7 +29,7 @@ function mkSync(host: string, port: number, nodeId: string, storageTask: Storage
   return client.connect()
 }
 
-function mkGate(host: string, port: number, gateId: string, storageTask: StorageTask) {
+function mkGate(host: string, port: number, gateId: string, storageTask: EventStorageTask) {
   const client = new HyperNetClient({host, port})
   client.onopen(async () => {
     await client.login({realm: INTRA_REALM_NAME})
@@ -51,10 +55,18 @@ async function main () {
   const dbFactory = new DbFactory('')
   const db = await dbFactory.openMainDatabase(conf_db_file)
 
-  const storageTask: StorageTask = new StorageTask(sysRealm, dbFactory)
+  config.validateShardsForNode(conf_node_id)
+  const shards = config.findShardsForNode(conf_node_id)
+  if (shards.length === 0) {
+    console.error(`NODE_ID="${conf_node_id}" not found in eventNodes — cannot start without shard configuration`)
+    process.exit(1)
+  }
+  const storageTask = new EventStorageTask(sysRealm, dbFactory, { shards }, conf_node_id)
   const stageTwoTask: StageTwoTask = new StageTwoTask(sysRealm, config.getSyncQuorum())
 
   const makeId: ProduceId = new ProduceId(() => keyDate(new Date()))
+  new ProjectionListener(dbFactory, db, makeId)
+  
   const modKv: SqliteKvFabric = new SqliteKvFabric(dbFactory, makeId)
 
   const syncNodes = config.getSyncNodes()

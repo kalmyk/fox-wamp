@@ -1,0 +1,9 @@
+{
+  "url_pattern": "customer.*",
+  "primary_key": ["id"],
+  "properties": {
+    "id": "string",
+    "name": "string",
+    "credit": "number"
+  }
+}

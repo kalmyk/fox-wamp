@@ -1,4 +1,5 @@
 import { promises as fsp } from 'fs'
+import { TOTAL_SHARDS_COUNT } from './netengine'
 
 export class Config {
   private config: any = {}
@@ -45,6 +46,26 @@ export class Config {
 
   getSyncQuorum () {
     return this.config.syncQuorum || 2
+  }
+
+  getEventNodes (): { [nodeId: string]: any } | undefined {
+    return this.config.eventNodes
+  }
+
+  findShardsForNode (nodeId: string): number[] {
+    const eventNodes = this.config.eventNodes
+    if (!eventNodes) return []
+    const node = eventNodes[nodeId]
+    if (!node || !Array.isArray(node.shards)) return []
+    return node.shards
+  }
+
+  validateShardsForNode (nodeId: string): void {
+    for (const shard of this.findShardsForNode(nodeId)) {
+      if (!Number.isInteger(shard) || shard < 0 || shard >= TOTAL_SHARDS_COUNT) {
+        throw Error(`eventNodes.${nodeId}: shard ${shard} out of range [0, ${TOTAL_SHARDS_COUNT - 1}]`)
+      }
+    }
   }
 }
 

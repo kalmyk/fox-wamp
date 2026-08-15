@@ -8,7 +8,7 @@ import sqlite3 from 'sqlite3'
 import * as sqlite from 'sqlite'
 
 import { Router } from '../lib/router'
-import { StorageTask, SEGMENT_COMMITTED } from '../lib/masterfree/storage'
+import { CommittedSegmentEvent, EventStorageTask, SEGMENT_COMMITTED } from '../lib/masterfree/storage'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { Event, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_KEEP_ADVANCE_HISTORY, BODY_PICK_CHALLENGER } from '../lib/masterfree/hyper.h'
 import { BaseRealm } from '../lib/realm'
@@ -21,7 +21,7 @@ describe('63.storage', function () {
     api: HyperClient,
     router: Router,
     sysRealm: BaseRealm,
-    storage: StorageTask,
+    storage: EventStorageTask,
     dbFactory: DbFactory,
     db: sqlite.Database
 
@@ -39,10 +39,7 @@ describe('63.storage', function () {
     router.setId('sync1')
     sysRealm = await router.getRealm('sys')
 
-    storage = new StorageTask(
-      sysRealm,
-      dbFactory
-    )
+    storage = new EventStorageTask(sysRealm, dbFactory, { shards: [0] }, router.getId())
 
     api = sysRealm.buildApi()
     await api.subscribe(Event.PICK_CHALLENGER, (event, opt) => { draftStack.push(opt.headers) })
@@ -53,9 +50,9 @@ describe('63.storage', function () {
 
   it('receive-draft-segment', async () => {
     const eventPC1: BODY_PICK_CHALLENGER = {
-      shardTag: '0',
+      shardTag: 0,
       advanceOwner: 'entry1',
-      advanceSegment: 1,
+      advanceStamp: 1,
       draftOwner: 'sync2',
       draftId: { dt: 'PREFIX1:', id: 1 }
     }
@@ -64,9 +61,9 @@ describe('63.storage', function () {
     expect(extractStack).deep.equal([])
 
     const eventPC2: BODY_PICK_CHALLENGER = {
-      shardTag: '0',
+      shardTag: 0,
       advanceOwner: 'entry2',
-      advanceSegment: 1,
+      advanceStamp: 1,
       draftOwner: 'sync2',
       draftId: { dt: 'PREFIX1:', id: 1 }
     }
@@ -77,7 +74,7 @@ describe('63.storage', function () {
 
     // expect(draftStack).deep.equal([{
     //   advanceOwner: 'entry1',
-    //   advanceSegment: 1,
+    //   advanceStamp: 1,
     //   draftId: { dt: 'PREFIX1:', id: 1 },
     //   draftOwner: 'sync2'
     // }])
@@ -101,25 +98,34 @@ describe('63.storage', function () {
       opt: { trace: true },
       sid: 'session1'
     }
-    await api.publish(Event.KEEP_ADVANCE_HISTORY, eventKAH, { exclude_me: false })
+    await api.publish(Event.keepAdvanceHistoryTopic(0), eventKAH, { exclude_me: false })
 
-    const commit_requested: Promise<any[]> = once(storage, SEGMENT_COMMITTED)
+    const commit_requested: Promise<any[]> = once(dbFactory, SEGMENT_COMMITTED)
 
     // 2. Send ADVANCE_SEGMENT_RESOLVED
     const eventASR: BODY_ADVANCE_SEGMENT_RESOLVED = {
       advanceOwner: 'entry1',
-      advanceSegment: 1,
+      advanceStamp: 1,
       segment: 'res_seg1'
     }
     await api.publish(Event.ADVANCE_SEGMENT_RESOLVED, eventASR, { exclude_me: false })
 
     const commit_resolverd: any[] = await commit_requested
-    const commit_result: BODY_ADVANCE_SEGMENT_RESOLVED = commit_resolverd[0]
+    const commit_result: CommittedSegmentEvent = commit_resolverd[0]
 
     expect(commit_result).to.deep.equal({
       advanceOwner: 'entry1',
-      advanceSegment: 1,
-      segment: 'res_seg1'
+      advanceStamp: 1,
+      segment: 'res_seg1',
+      events: [{
+        eventId: 'res_seg1a1',
+        realm: 'myrealm',
+        uri: ['my', 'topic'],
+        data: 'test-data',
+        opt: { trace: true },
+        sid: 'session1',
+        shard: 0
+      }]
     })
 
     // 3. Check Database

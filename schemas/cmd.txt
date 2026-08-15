@@ -1,0 +1,2 @@
+$ tsx bin/foxctl.ts --realm realm1 schema add customer schemas/customer.json
+$ tsx bin/foxctl.ts --realm realm1 kv add customer-tbl sch_realm1_93e44a59acb82354
