@@ -166,17 +166,45 @@ export class FoxGate extends BaseGate {
 }
 
 handlers.LOGIN = function (ctx, session, message) {
-  this.getRouter().getRealm(message.data.realm, (realm) => {
-    realm.joinSession(session);
-    ctx.foxSend({
-      id: message.id,
-      rsp: RESULT_OK
+  if (session.realm) {
+    ctx.foxClose(1002, 'protocol violation');
+    return;
+  }
+
+  const realmName = message.data && message.data.realm;
+  session.realmName = realmName;
+  session.secureDetails = message.data;
+
+  const joinRealm = () => {
+    this.getRouter().getRealm(realmName, (realm) => {
+      realm.joinSession(session);
+      ctx.foxSend({
+        id: message.id,
+        rsp: RESULT_OK
+      });
     });
-  });
+  };
+
+  if (this.isAuthRequired(session)) {
+    this._authHandler.auth(realmName, session.secureDetails, message.data && message.data.secret, (err: any, userDetails: any) => {
+      if (err) {
+        ctx.sendError({ id: message.id }, errorCodes.ERROR_NOT_AUTHORIZED, 'authentication_failed');
+        return;
+      }
+      session.setUserDetails(userDetails);
+      joinRealm();
+    });
+    return;
+  }
+
+  joinRealm();
 };
 
 handlers.ECHO = function (ctx, session, message) {
   this.checkRealm(session, message.id);
+  if (!this.checkAuthorize(ctx, message, 'echo')) {
+    return;
+  }
   session.realm!.cmdEcho(ctx, message);
 };
 
@@ -192,31 +220,49 @@ handlers.CONFIRM = function (ctx, session, message) {
 
 handlers.REG = function (ctx, session, message) {
   this.checkRealm(session, message.id);
+  if (!this.checkAuthorize(ctx, message, 'register')) {
+    return;
+  }
   session.realm!.cmdRegRpc(ctx, message);
 };
 
 handlers.UNREG = function (ctx, session, message) {
   this.checkRealm(session, message.id);
+  if (!this.checkAuthorize(ctx, message, 'unregister')) {
+    return;
+  }
   session.realm!.cmdUnRegRpc(ctx, message);
 };
 
 handlers.CALL = function (ctx, session, message) {
   this.checkRealm(session, message.id);
+  if (!this.checkAuthorize(ctx, message, 'call')) {
+    return;
+  }
   session.realm!.cmdCallRpc(ctx, message);
 };
 
 handlers.TRACE = function (ctx, session, message) {
   this.checkRealm(session, message.id);
+  if (!this.checkAuthorize(ctx, message, 'subscribe')) {
+    return;
+  }
   session.realm!.cmdTrace(ctx, message);
 };
 
 handlers.UNTRACE = function (ctx, session, message) {
   this.checkRealm(session, message.id);
+  if (!this.checkAuthorize(ctx, message, 'unsubscribe')) {
+    return;
+  }
   session.realm!.cmdUnTrace(ctx, message);
 };
 
 handlers.PUSH = function (ctx, session, message) {
   this.checkRealm(session, message.id);
+  if (!this.checkAuthorize(ctx, message, 'publish')) {
+    return;
+  }
   session.realm!.cmdPush(ctx, message);
 };
 

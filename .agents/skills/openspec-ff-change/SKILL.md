@@ -92,7 +92,7 @@ After completing all artifacts, summarize:
 - Change name and location
 - List of artifacts created with brief descriptions, plus any conditional artifact you skipped and why
 - What's ready: "All artifacts needed for implementation are ready."
-- Prompt: "Run `/opsx-apply` or ask me to implement to start working on the tasks."
+- Prompt: "Run `$openspec-apply-change (Codex) or /openspec-apply-change (other agents)` or ask me to implement to start working on the tasks."
 
 **Artifact Creation Guidelines**
 
