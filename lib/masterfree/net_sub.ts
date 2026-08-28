@@ -3,6 +3,33 @@ import { errorCodes, RealmError } from '../realm_error'
 import { HyperClient } from '../hyper/client'
 import { Event, HistoryEvent, HistoryFetchRequest, HistoryFetchProgress, TOTAL_SHARDS_COUNT } from './hyper.h'
 
+// Bounded FIFO de-dup window for live-tail dispatch (see openspec/changes/net-subscription D8).
+// A shard replicated across N storage nodes each independently commits and broadcasts the same
+// event, so an entry can see up to N copies of one eventId. Unlike SharedSegmentBuffer (bounded
+// by realm history size and scoped to one historical fetch), this window must survive for the
+// life of the process, so it evicts the oldest entry once capacity is exceeded rather than
+// growing unbounded.
+export class SeenEventWindow {
+  private seen: Set<string> = new Set()
+  private order: string[] = []
+
+  constructor (private capacity: number = 5000) {}
+
+  // Returns true and records the id if it hasn't been seen; returns false if it's a duplicate.
+  addIfNew (eventId: string): boolean {
+    if (this.seen.has(eventId)) {
+      return false
+    }
+    this.seen.add(eventId)
+    this.order.push(eventId)
+    if (this.order.length > this.capacity) {
+      const oldest = this.order.shift()!
+      this.seen.delete(oldest)
+    }
+    return true
+  }
+}
+
 export class NetSubStatusFactory {
   private connected: boolean = false
 

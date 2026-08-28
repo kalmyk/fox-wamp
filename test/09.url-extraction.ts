@@ -7,7 +7,7 @@ import {
   mergeUrlAndBodyPayload
 } from '../lib/sqlite/schema_repository'
 
-describe('URL Field Extraction', function () {
+describe('09.url-extraction', function () {
   describe('countWildcards', () => {
     it('counts single wildcard in pattern', () => {
       const count = countWildcards('app.*.data')

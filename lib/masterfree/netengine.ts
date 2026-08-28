@@ -2,9 +2,9 @@ import { ActorPush, BaseRealm, BaseEngine, makeDataSerializable, unSerializeData
 import { Router } from '../router'
 import { HyperClient } from '../hyper/client'
 import { MemKeyValueStorage } from '../mono/memkv'
-import { AdvanceOffsetId, Event, INTRA_REALM_NAME, TOTAL_SHARDS_COUNT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_OVER, BODY_ADVANCE_SEGMENT_FAILED, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_INIT_ENTRY_ACCEPTED } from './hyper.h'
+import { AdvanceOffsetId, Event, INTRA_REALM_NAME, TOTAL_SHARDS_COUNT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_OVER, BODY_ADVANCE_SEGMENT_FAILED, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_INIT_ENTRY_ACCEPTED, BODY_SEGMENT_COMMITTED } from './hyper.h'
 import { keyId } from './makeid'
-import { NetSubStatusFactory, SharedSegmentBuffer } from './net_sub'
+import { NetSubStatusFactory, SharedSegmentBuffer, SeenEventWindow } from './net_sub'
 import EventEmitter from 'events'
 
 export { TOTAL_SHARDS_COUNT }
@@ -104,6 +104,7 @@ export class NetEngineMill extends EventEmitter {
   private initReceivedDone: boolean = false
   private netSubStatusFactory: NetSubStatusFactory
   private realmBuffers: Map<string, SharedSegmentBuffer> = new Map()
+  private seenDispatchedEvents: SeenEventWindow = new SeenEventWindow()
 
   constructor (router: Router, configQuorum: number) {
     super()
@@ -130,9 +131,8 @@ export class NetEngineMill extends EventEmitter {
       this.event_advance_segment_failed(data)
     })
 
-    this.sysApi.subscribe('dispatchEvent', (data: any, opt: any) => {
-      console.log('=> dispatchEvent', opt.headers.qid)
-      this.dispatchEvent(opt.headers)
+    this.sysApi.subscribe(Event.SEGMENT_COMMITTED, (body: BODY_SEGMENT_COMMITTED) => {
+      this.dispatchLiveEvents(body)
     })
   }
 
@@ -264,15 +264,27 @@ export class NetEngineMill extends EventEmitter {
     return Promise.all(all)
   }
 
-  dispatchEvent (eventData: any) {
-    const realm = this.router.findRealm(eventData.realm)
-    if (realm) {
+  // Live-tail delivery (see openspec/changes/net-subscription D7/D8): storage re-broadcasts
+  // Event.SEGMENT_COMMITTED to every connected entry right after a segment is durably
+  // committed (the same event it already emits in-process for its own ProjectionListener). A
+  // single commit isn't necessarily scoped to one realm, so resolve the realm per event. A
+  // shard replicated across N storage nodes each broadcast independently, so de-dup by eventId
+  // before dispersing — disperseToSubs has no dedup of its own, it would deliver every call as-is.
+  dispatchLiveEvents (body: BODY_SEGMENT_COMMITTED) {
+    for (const event of body.events) {
+      if (!this.seenDispatchedEvents.addIfNew(event.eventId)) {
+        continue
+      }
+      const realm = this.router.findRealm(event.realm)
+      if (!realm) {
+        continue
+      }
       realm.getEngine().disperseToSubs({
-        qid: eventData.qid,
-        uri: eventData.uri,
-        data: unSerializeData(eventData.data),
-        opt: eventData.opt,
-        sid: eventData.sid
+        qid: event.eventId,
+        uri: event.uri,
+        data: unSerializeData(event.data),
+        opt: event.opt,
+        sid: event.sid
       })
     }
   }

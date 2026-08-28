@@ -4,6 +4,8 @@
 
 `NetEngine` (the distributed engine used by entry nodes) has a stub `getHistoryAfter` that returns an empty result. `supportsRetainedEventSync` is `false`. This means any WAMP `SUBSCRIBE` with `options.after` on a distributed realm silently delivers no history.
 
+**Revision (live-tail gap found during real-cluster validation, see D7/D8):** the original draft of this design assumed a plain `SUBSCRIBE` with no `after` already worked — `BaseRealm.doTrace` marks it `traceStarted = true` immediately and relies on `disperseToSubs` for live delivery, same as the local (non-`NetEngine`) case. That assumption was wrong: `NetEngine.doPush` fully overrides `BaseEngine.doPush` and never calls `disperseToSubs` — it only calls `netEngineMill.saveHistory(...)`. `NetEngineMill` even has a `'dispatchEvent'` sysApi subscription wired to call `disperseToSubs` (`lib/masterfree/netengine.ts`), but nothing anywhere ever publishes to it. So on a distributed realm, *no* subscription — with or without `after` — ever received a live event; `after`-based catch-up (this change, D1-D6) only fixed the "replay up to now" half. D7/D8 fix the other half: live events after catch-up.
+
 The storage layer already has all the necessary pieces:
 - `event_history_<realm>` table with `msg_id` ordering that is globally monotonic (segment IDs are committed with strictly increasing values by the synchronizer's `recentValue` guard; event IDs are `segmentId + keyId(offset)` which inherit that order), plus a `msg_shard` column recording which shard each event belongs to
 - `getEventHistory(db, realm, { fromId, toId }, cb)` — cursor-based reader
@@ -22,12 +24,15 @@ The missing pieces are the network path from entry to storage and the buffering 
 - Events delivered to subscribers in `event_id ASC` order; violation logged as error
 - A shard replicated across multiple storage nodes is served by whichever registrant is available, with no entry-side node tracking or selection logic
 - `NetEngine.getHistoryAfter` drives the fetch; `supportsRetainedEventSync` enabled when at least one storage node has ever connected
+- Storage nodes broadcast each newly-committed event to every connected entry in real time, so both plain and `after`-based subscriptions receive events published after they started listening — not just historical catch-up (D7)
+- A shard replicated across multiple storage nodes each broadcasting the same committed event is de-duplicated on the entry side before it reaches `disperseToSubs` (D8)
 
 **Non-Goals**
-- Cross-shard merge ordering guarantees beyond best-effort (events from different shards at the same timestamp are unordered relative to each other — this is a deliberate design choice)
+- Cross-shard merge ordering guarantees beyond best-effort (events from different shards at the same timestamp are unordered relative to each other — this is a deliberate design choice), for both historical replay and live dispatch
 - Persistent cursor storage (cursor lives in memory; reconnect restarts from `afterEventId`)
 - Snapshot subscription support (`supportsSnapshotSubscription` remains `false`)
 - Authentication / authorisation on the history fetch RPC
+- Exactly-once live delivery guarantees — D8's dedup window is bounded; a duplicate broadcast arriving after the window has evicted its event ID could in principle be delivered twice. At-least-once, effectively-once-in-practice is the target, not a formal guarantee
 - Preferring a "freshest" replica when a shard has multiple registrants — any available one is accepted (see D5)
 
 ## Decisions
@@ -100,6 +105,27 @@ getHistoryAfter(after, uri, cbRow):
   // returns — realm.doTrace continues to set traceStarted = true
 ```
 
+### D7: Live dispatch reuses the existing (dead) `dispatchEvent` hook, piped as `Event.SEGMENT_COMMITTED` itself
+
+`NetEngineMill`'s constructor already subscribes to a `'dispatchEvent'` sysApi topic and calls `realm.getEngine().disperseToSubs(...)` on receipt — this is exactly the primitive live dispatch needs, it was simply never fed. Rather than invent a second delivery mechanism, this change:
+
+1. **Revised:** an initial version of this change introduced a brand-new `Event.SEGMENT_COMMITTED` broadcast, published in addition to the pre-existing `SEGMENT_COMMITTED`, which storage already `dbFactory.emit()`s locally for `ProjectionListener`. That duplicated a payload shape (`CommittedSegmentRecord[]`) storage.ts already produces at commit time. Instead, `SEGMENT_COMMITTED` itself was promoted from a local-only `EventEmitter` event into a proper `hyper.h.ts` `Event` — `Event.SEGMENT_COMMITTED` — with a typed body `BODY_SEGMENT_COMMITTED = BODY_ADVANCE_SEGMENT_RESOLVED & { events: CommittedSegmentRecord[] }`, piped over the wire the same way every other segment event (`ADVANCE_SEGMENT_OVER`, `ADVANCE_SEGMENT_RESOLVED`, ...) already is. `DISPATCH_EVENT`/`BODY_DISPATCH_EVENT`/`DispatchEventRecord` no longer exist. `SEGMENT_COMMITTED` (the string constant re-exported from `segment_types.ts` for the local `dbFactory.emit`/`ProjectionListener` path) is now literally `Event.SEGMENT_COMMITTED` — one event, two independent delivery mechanisms (in-process `EventEmitter` for same-node listeners, piped pub/sub for cross-node).
+2. `EventStorageTask`'s existing `Event.ADVANCE_SEGMENT_RESOLVED` handler (`storage.ts`) is the trigger point: immediately after `commit_segment(...)` resolves, it both `dbFactory.emit(SEGMENT_COMMITTED, result)`s (unchanged, in-process) and, when `result.events` is non-empty, `this.api.publish(Event.SEGMENT_COMMITTED, result, {exclude_me: false})`s the same `result` over the wire. A segment with zero events for this node (the "no-data" case — this node doesn't own the shard) publishes nothing. Unlike the rejected `DISPATCH_EVENT` design, there's no grouping-by-realm on the publish side — `result.events` is delivered as one flat (possibly multi-realm) batch, since a single advance/segment buffer isn't necessarily scoped to one realm.
+3. `EventStorageTask.listenEntry` pipes `Event.SEGMENT_COMMITTED` to **every** connected entry (`await this.api.pipe(client, Event.SEGMENT_COMMITTED, {exclude_me: false})`), not just whichever entry originally accepted the publish — a live subscriber can be sitting on any entry node, not only the one the original publisher happened to connect to.
+4. On the entry side, `NetEngineMill` subscribes to `Event.SEGMENT_COMMITTED`, and for each event record resolves `this.router.findRealm(event.realm)` individually (since one message can span realms), and — after the D8 dedup check — calls `realm.getEngine().disperseToSubs({ qid: eventId, uri, data: unSerializeData(data), opt, sid })`.
+
+Delivery is durable-first: an event is only broadcast live after it has been committed to sqlite, not optimistically on raw ingest. This keeps "durably saved" and "visible to live subscribers" consistent with each other, and reuses a data shape (`CommittedSegmentRecord`) storage.ts already produces at that point — no new bookkeeping required on the write path.
+
+Alternative considered: dispatch optimistically at `event_keep_advance_history` time (lower latency, before quorum/durability). Rejected for this change: the final `eventId` (`segment + keyId(offset)`) isn't known until the segment resolves, and delivering a live event before it's durable would let a subscriber see data that could theoretically vanish if `ADVANCE_SEGMENT_FAILED` retries the segment — durable-first avoids that class of bug entirely.
+
+### D8: Bounded dedup window on the entry side for replicated shards
+
+Every storage node replicating a shard runs its own `StageTwoTask` and independently reaches quorum on `ELECT_SEGMENT` votes (this is already true for `ADVANCE_SEGMENT_RESOLVED` today, per the storage→entry ack pipe fix that preceded this change) — so a shard replicated across N storage nodes will each independently commit the same segment and each publish their own `Event.SEGMENT_COMMITTED` for it. Every connected entry therefore receives up to N copies of the same event.
+
+`NetEngineMill` keeps a small bounded FIFO dedup structure (`Set<string>` of recently-seen `eventId`s plus an array recording insertion order for eviction, capped at a fixed size, e.g. 5000 entries) and drops an incoming `CommittedSegmentRecord` whose `eventId` is already present before calling `disperseToSubs`. This mirrors the exact dedup approach `SharedSegmentBuffer.appendEvents` already uses for retry-overlap during historical fetch (`net-subscription-buffer`), just bounded instead of unbounded (a live-tail dedup window cannot grow for the life of the process the way a bounded historical buffer's contents can).
+
+Alternative considered: suppress duplicate publication at the source, e.g. only the "lowest node ID" replica for a shard broadcasts. Rejected: adds cross-replica coordination/leader-election for a problem a few extra kilobytes of memory on the entry already solves for the exactly-analogous historical-replay case; also fails open if the designated leader is unreachable from a given entry while a non-leader replica is.
+
 ## Risks / Trade-offs
 
 **[Risk] Cross-shard event ordering** — Events from shard 0 and shard 4 at the same timestamp are merged by `event_id ASC`. Since segment IDs are globally monotonic (the synchronizer enforces this), this ordering is correct. But if two segments were committed nearly simultaneously and the IDs ended up very close, the merge-sort on the entry needs to wait for both streams to confirm no earlier event is coming. Mitigation: merge with a small hold-back per stream (wait until both streams have produced an event past the merge point before emitting).
@@ -110,17 +136,25 @@ getHistoryAfter(after, uri, cbRow):
 
 **[Risk] A shard with zero registrants is silently treated as "no data"** — if every node owning a shard is disconnected, `fox.storage.history.fetch.<shardTag>` calls fail with `ERROR_NO_SUCH_PROCEDURE` for that shard, and the entry proceeds as if the shard were empty rather than surfacing a gap. Mitigation: acceptable for MVP (matches existing `supportsRetainedEventSync`-gated behavior of "no data available" rather than a hard error); this also means a `SUBSCRIBE` with `after` never hangs waiting for a shard that will never respond — the fixed `TOTAL_SHARDS_COUNT` call count (never zero, never open-ended) means `SharedSegmentBuffer` always has a known, finite number of outcomes to wait on and reliably reaches `done = true`.
 
+**[Risk] Live dispatch duplicates from replicated shards (D7/D8)** — every storage node covering a shard independently commits and broadcasts the same event, so an entry can see up to N copies (N = replication factor) of one `eventId` in quick succession. Mitigation: D8's bounded dedup window. Residual risk: if copies arrive further apart than the window's capacity (e.g. one replica is transiently slow), a duplicate could slip through and be delivered twice to a live subscriber. Accepted as a rare, low-severity trade-off (WAMP pub/sub has no built-in exactly-once contract either) rather than adding cross-replica coordination.
+
+**[Risk] A live event committed during an in-flight catch-up fetch can be delivered twice — via replay AND via live dispatch** — `SharedSegmentBuffer.ensureLoading`'s per-shard RPC snapshot boundary is "whenever the storage-side handler happens to query `segment_registry`," which is not synchronized with `Event.SEGMENT_COMMITTED` broadcasts in any way. An event committed in the narrow window between a subscriber's `after`-fetch being issued and its handler actually running on the storage node can be captured by both the historical query (replay path) and the live broadcast (D7 path), and `BaseRealm.disperseToSubs`'s delay-stack mechanism has no cross-source dedup — it dedups replicas-of-the-same-broadcast (D8) but not "this event delivered by two different mechanisms." **This is not new to this change**: it is the same structural gap `DbEngine`'s local (non-`NetEngine`) `getHistoryAfter` already has (its DB read and `disperseToSubs` are similarly unsynchronized) — this change makes it reachable in `NetEngine` for the first time only because live dispatch (D7) previously didn't exist to race with it at all. Mitigation: out of scope for this change — matches an existing accepted characteristic of history-replay-plus-live-delivery elsewhere in the codebase, not a new regression. Future work, if ever warranted: track a per-subscription high-water-mark of the last replayed `eventId` and drop any live-dispatched event at or below it.
+
+**[Risk] Live dispatch fan-out cost scales with entries × storage-node replicas** — each storage node pipes `Event.SEGMENT_COMMITTED` to every entry it's connected to, so a cluster with E entries and a shard replicated across R nodes produces `E × R` deliveries of one committed event cluster-wide. Mitigation: acceptable at the scale this project targets (single-digit entries/replicas per shard); if this becomes a bottleneck, a future change could have only the shard's "primary" replica (however defined) broadcast, falling back to another replica on failure — deliberately not built now (see D8's rejected alternative).
+
 ## Migration Plan
 
 - No data migration required; `event_history_<realm>` schema unchanged
 - `supportsRetainedEventSync` on `NetEngine` transitions from `false` → `true` at runtime when the first storage node connects; no restart required
-- Existing subscriptions without `after` are unaffected
+- **Revised:** existing subscriptions without `after` were assumed unaffected by the original draft of this change; D7/D8 correct that assumption. Plain (non-`after`) subscriptions on a distributed realm now receive live events for the first time — this is a bug fix from the caller's perspective (a `SUBSCRIBE` that silently delivered nothing now works), but it is a real behavior change worth calling out to anyone who built workarounds (e.g. polling via repeated `after`-based subscribes) around the previous silent-no-op behavior
 - The RPC naming change (`fox.storage.history.fetch.<shardTag>` instead of a single `fox.storage.history.fetch`) is internal to entry↔storage communication; no external/client-facing API changes
+- The `'dispatchEvent'` string topic and its `opt.headers`-carried single-event payload (dead code, never published to) are replaced by the existing `SEGMENT_COMMITTED` event, promoted to a piped `hyper.h.ts` `Event` with a proper batch body — internal to entry↔storage communication, no external/client-facing API changes
 
 ## Open Questions
 
 - Should `fox.storage.history.fetch.<shardTag>` filter events by URI (topic pattern) server-side, or always stream full realm history for that shard and let the entry filter? Server-side filtering reduces traffic but complicates the RPC.
 - What is the maximum batch size per progress call? Fixed at 100 events? Configurable?
+- Should the D8 dedup window size be configurable per deployment (larger clusters/replication factors may want a bigger window), or is a fixed constant sufficient for now?
 
 ## Verified During Review (no action needed)
 

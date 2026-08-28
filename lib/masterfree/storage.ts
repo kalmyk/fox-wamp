@@ -50,6 +50,13 @@ export class EventStorageTask {
   private ownedTopics: string[] = []
   private nodeId: string
   private shards: number[]
+  // Serializes all writes against the single shared sqlite connection (dbFactory.getMainDb()).
+  // sqlite/node-sqlite3 allows only one write/transaction in flight per connection: if a second
+  // caller issues BEGIN TRANSACTION while dbSaveSegment's own BEGIN..COMMIT is still open (e.g.
+  // two different advanceOwner segments resolving concurrently), sqlite raises "cannot start a
+  // transaction within a transaction". Routing every write through withWriteLock() guarantees at
+  // most one write — and its awaits — is ever in flight, without needing a second db connection.
+  private writeLock: Promise<void> = Promise.resolve()
 
   constructor (sysRealm: BaseRealm, dbFactory: DbFactory, shardConfig: EventNodeConfig, nodeId: string) {
     this.sysRealm = sysRealm
@@ -98,7 +105,7 @@ export class EventStorageTask {
         const realms = new Set(buffer.getContent().map(e => e.realm))
         for (const realm of realms) {
           this.ensureRealm(realm)
-            .then(() => insertSegmentOver(db, realm, body.advanceOwner, body.advanceStamp, body.shardTag))
+            .then(() => this.withWriteLock(() => insertSegmentOver(db, realm, body.advanceOwner, body.advanceStamp, body.shardTag)))
             .catch(err => console.error('insertSegmentOver error:', err))
         }
       }
@@ -107,6 +114,15 @@ export class EventStorageTask {
     this.api.subscribe(Event.ADVANCE_SEGMENT_RESOLVED, (body: BODY_ADVANCE_SEGMENT_RESOLVED) => {
       this.commit_segment(body.advanceOwner, body.advanceStamp, body.segment).then((result) => {
         this.dbFactory.emit(SEGMENT_COMMITTED, result)
+        // Live-tail delivery (see openspec/changes/net-subscription D7/D8): re-broadcast the
+        // same commit, over the wire this time, to every connected entry so
+        // NetEngineMill.dispatchLiveEvents() can feed BaseRealm.disperseToSubs() for live
+        // subscribers cluster-wide, not just the entry that originally accepted the publish.
+        // A no-data commit (this node doesn't own the shard's buffered data) produces an empty
+        // `events` array and is skipped — nothing to dispatch.
+        if (result.events.length > 0) {
+          this.api.publish(Event.SEGMENT_COMMITTED, result, { exclude_me: false })
+        }
       }).catch((err) => {
         console.error("Error in commit_segment:", err)
       })
@@ -115,6 +131,16 @@ export class EventStorageTask {
 
   getMaxId (): ComplexId {
     return this.maxId
+  }
+
+  // Queues fn behind any write already in flight on the shared db connection, so at most one
+  // write executes at a time regardless of how many segments resolve concurrently.
+  // this.writeLock itself always resolves — a rejected write must not wedge the queue for
+  // subsequent writes — while the caller still observes the original rejection via `scheduled`.
+  private withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
+    const scheduled = this.writeLock.then(fn)
+    this.writeLock = scheduled.then(() => undefined, () => undefined)
+    return scheduled
   }
 
   async listenEntry(client: HyperClient, gateId: string) {
@@ -126,6 +152,20 @@ export class EventStorageTask {
 
     // export to GATE
     await this.api.pipe(client, Event.TRIM_ADVANCE_SEGMENT + '.' + gateId)
+
+    // ADVANCE_SEGMENT_RESOLVED is produced locally by this node's colocated StageTwoTask
+    // (same sysRealm) once quorum is reached — it never otherwise reaches the entry node.
+    // Without this pipe, NetEngineMill.advance_segment_resolved() on entry never fires, so
+    // acknowledged publishes (WAMP PUBLISHED) never complete, even though the underlying
+    // events are still durably committed to this node's sqlite db. Every storage node pipes
+    // its own copy to every entry it's connected to; entry-side findSegment/deleteSegment
+    // makes redundant deliveries for an already-resolved segment a no-op.
+    await this.api.pipe(client, Event.ADVANCE_SEGMENT_RESOLVED, {exclude_me: false})
+
+    // Live-tail: pipe this same SEGMENT_COMMITTED broadcast to this entry too, independent of
+    // whether this entry originally accepted the publish — a live subscriber may be on any
+    // entry. See openspec/changes/net-subscription D7/D8.
+    await this.api.pipe(client, Event.SEGMENT_COMMITTED, {exclude_me: false})
 
     // announce this storage node's connection to the entry
     await this.api.pipe(client, Event.STORAGE_NODE_CONNECTED)
@@ -153,10 +193,6 @@ export class EventStorageTask {
   async listenStageOne(client: HyperClient) {
     // export GENERATE_DRAFT to all sync hosts
     await this.api.pipe(client, Event.GENERATE_DRAFT, {exclude_me: false})
-  }
-
-  async listenStageTwo(client: HyperClient) {
-    await client.pipe(this.api, Event.ADVANCE_SEGMENT_RESOLVED, {exclude_me: false})
   }
 
   getHystoryBuffer(segment: string, shard: number): HistoryBuffer {
@@ -190,7 +226,7 @@ export class EventStorageTask {
     let buffer = this.bufferToWrite.get(key)
     let events: CommittedSegmentRecord[] = []
     if (buffer) {
-      events = await this.dbSaveSegment(buffer, segment, advanceOwner, advanceStamp)
+      events = await this.withWriteLock(() => this.dbSaveSegment(buffer!, segment, advanceOwner, advanceStamp))
       this.bufferToWrite.delete(key)
     } else {
       console.error("advanceStamp not found in segments [", key, "]")

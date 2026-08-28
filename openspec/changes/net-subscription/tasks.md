@@ -64,7 +64,54 @@ All in `test/68.net_subscription.ts` unless noted.
 - [x] 7.10 Regression test: covered at two levels — `SharedSegmentBuffer.drainUntil` resolves with zero events when every shard call rejects `ERROR_NO_SUCH_PROCEDURE`, and `NetEngine.getHistoryAfter` resolves (no hang) on a realm with no storage nodes at all
 - [x] 7.11 Unit test: a shard's progress callback re-delivering the same `event_id` (simulating retry overlap) is deduplicated, not double-appended
 
-## 8. Build and Final Checks
+## 8. Types: DISPATCH_EVENT (live dispatch)
 
-- [x] 8.1 Run `tsc --noEmit` — no TypeScript errors
-- [x] 8.2 Run `npm test` (lint + build + `npm run-script mocha-node-test`) — full suite passes, 288 passing
+- [x] 8.1 Add `DISPATCH_EVENT = 'dispatch-event'` to the `Event` enum in `lib/masterfree/hyper.h.ts`
+- [x] 8.2 Add `DispatchEventRecord = { eventId: string, uri: string[], data: any, opt: any, sid: string }` type
+- [x] 8.3 Add `BODY_DISPATCH_EVENT = { realm: string, events: DispatchEventRecord[] }` type
+- [x] 8.4 Remove the ad hoc `'dispatchEvent'` string subscription and its `opt.headers`-based single-event handling in `NetEngineMill` (dead code, never published to by anything) in favor of the typed `Event.DISPATCH_EVENT`/`BODY_DISPATCH_EVENT` from 8.1-8.3
+
+## 9. Storage Node: Publish DISPATCH_EVENT on Commit
+
+- [x] 9.1 In `EventStorageTask`'s existing `Event.ADVANCE_SEGMENT_RESOLVED` subscribe handler (`storage.ts`), after `commit_segment(...)` resolves (same point `this.dbFactory.emit(SEGMENT_COMMITTED, result)` already fires), group `result.events` (`CommittedSegmentRecord[]`) by `realm` — implemented as `dispatchCommittedEvents(events)`, called right after the `SEGMENT_COMMITTED` emit
+- [x] 9.2 For each realm group with at least one event, publish `Event.DISPATCH_EVENT` on `this.api` with `{ realm, events: [...] }` (`{ exclude_me: false }`); a realm group is only produced when `result.events` is non-empty, so the existing "no-data" case (this node doesn't own the shard's buffer) naturally publishes nothing
+- [x] 9.3 In `EventStorageTask.listenEntry(client, gateId)`, pipe `Event.DISPATCH_EVENT` to the connecting entry: `await this.api.pipe(client, Event.DISPATCH_EVENT, {exclude_me: false})` — alongside the existing `Event.ADVANCE_SEGMENT_RESOLVED` pipe added for the ack-path fix
+
+## 10. Entry Node: Live Dispatch Fan-out and Dedup
+
+- [x] 10.1 Add a small bounded dedup helper to `lib/masterfree/net_sub.ts` — `SeenEventWindow`, wrapping a `Set<string>` plus an insertion-order array, capped at a fixed capacity (5000), evicting the oldest entry when exceeded
+- [x] 10.2 In `NetEngineMill`, replace the `'dispatchEvent'` subscription with `this.sysApi.subscribe(Event.DISPATCH_EVENT, (body: BODY_DISPATCH_EVENT) => { ... })`
+- [x] 10.3 In the handler: resolve `const realm = this.router.findRealm(body.realm)`; if not found, return (silently — not every entry hosts every realm)
+- [x] 10.4 For each `DispatchEventRecord` in `body.events`: skip if `eventId` already in the dedup window (10.1); otherwise record it and call `realm.getEngine().disperseToSubs({ qid: eventId, uri, data: unSerializeData(data), opt, sid })`
+- [x] 10.5 Renamed the old `dispatchEvent(eventData: any)` method to `dispatchLiveEvents(body: BODY_DISPATCH_EVENT)`, folding in 10.2-10.4; the `opt.headers`-smuggling call site is gone
+
+## 11. Tests (Live Dispatch)
+
+New tests added to `test/68.net_subscription.ts` (kept in the same file — it stayed a reasonable size).
+
+- [x] 11.1 Unit test: `commit_segment` with events triggers exactly one `Event.DISPATCH_EVENT` per distinct realm in the committed batch
+- [x] 11.2 Unit test: `commit_segment` with zero events (no-data case, a second `EventStorageTask` not owning the shard) publishes no `Event.DISPATCH_EVENT` — combined into the same test as 11.1
+- [x] 11.3 Integration test: a plain `session.subscribe(topic, cb)` (no `after`) on a distributed (`NetEngine`) realm receives an event published after the subscription was established — the regression test for the original bug
+- [x] 11.4 Integration test: two storage nodes configured with an overlapping shard both independently commit the same segment; the entry's live subscriber receives the event exactly once (dedup verified)
+- [x] 11.5 **Implemented differently than drafted:** rather than an artificial in-flight-catch-up race (found during implementation to also double-deliver via the *pre-existing, unrelated* local-engine-shared gap noted in design.md's new Risk — historical replay and live dispatch have no cross-source dedup, not something specific to this change), the test covers the realistic and well-defined case instead: after an `after`-based catch-up finds nothing left to replay (`traceStarted = true` with an empty replay), a **subsequent** live commit is still delivered — this is still a real regression test, since before this change nothing would ever have arrived at all once `traceStarted` was set
+- [x] 11.6 Integration test: `Event.DISPATCH_EVENT` for a realm with no local sessions/subscribers does not throw and is a no-op
+- [x] 11.7 Unit test: dedup window evicts oldest entries once its capacity is exceeded (does not grow unbounded)
+
+## 12. Build and Final Checks
+
+- [x] 12.0 (Pre-existing, before this addition) `tsc --noEmit` and `npm test` passed with 288 tests for the historical-catch-up half of this change
+- [x] 12.1 Run `tsc --noEmit` (via `npm run build`) — no TypeScript errors
+- [x] 12.2 Run `npm test` (lint + build + `npm run-script mocha-node-test`) — full suite passes, 305 passing
+
+## 13. Revision: Consolidate DISPATCH_EVENT into SEGMENT_COMMITTED
+
+Sections 8-10 above introduced a brand-new `Event.DISPATCH_EVENT` broadcast, published in *addition* to `SEGMENT_COMMITTED` (which storage already `dbFactory.emit()`s locally, in-process, for `ProjectionListener`) — two events firing at the same point, carrying near-identical data. Once `SEGMENT_COMMITTED` was recognized as just needing to become pipeable, the separate `DISPATCH_EVENT` type was redundant. This section replaces it.
+
+- [x] 13.1 In `lib/masterfree/hyper.h.ts`: remove `Event.DISPATCH_EVENT`, `BODY_DISPATCH_EVENT`, `DispatchEventRecord`. Add `Event.SEGMENT_COMMITTED = 'segment-committed'` to the `Event` enum; add `CommittedSegmentRecord` and `BODY_SEGMENT_COMMITTED = BODY_ADVANCE_SEGMENT_RESOLVED & { events: CommittedSegmentRecord[] }` as the canonical wire types
+- [x] 13.2 In `lib/masterfree/segment_types.ts`: turn it into a thin re-export shim — `SEGMENT_COMMITTED` is now literally `Event.SEGMENT_COMMITTED`; `CommittedSegmentRecord`/`CommittedSegmentEvent` (alias for `BODY_SEGMENT_COMMITTED`) and `SegmentCommittedSource` (the local-`EventEmitter`-facing interface) are re-exported from/defined against `hyper.h.ts`, preserving the existing import surface for `dbfactory.ts`/`storage.ts`/`projection_listener.ts`/tests
+- [x] 13.3 In `storage.ts`'s `Event.ADVANCE_SEGMENT_RESOLVED` handler: remove `dispatchCommittedEvents(events)` and its by-realm grouping entirely; when `result.events.length > 0`, publish the same `result` (already shaped as `BODY_SEGMENT_COMMITTED`) via `this.api.publish(Event.SEGMENT_COMMITTED, result, { exclude_me: false })`, right next to the pre-existing `dbFactory.emit(SEGMENT_COMMITTED, result)`
+- [x] 13.4 In `storage.ts`'s `listenEntry`: replace the `Event.DISPATCH_EVENT` pipe with `await this.api.pipe(client, Event.SEGMENT_COMMITTED, {exclude_me: false})`
+- [x] 13.5 In `netengine.ts`: subscribe to `Event.SEGMENT_COMMITTED` instead of `Event.DISPATCH_EVENT`; `dispatchLiveEvents(body: BODY_SEGMENT_COMMITTED)` now resolves `this.router.findRealm(event.realm)` **per event** inside the loop (rather than once for the whole body), since a single `SEGMENT_COMMITTED` batch is no longer guaranteed single-realm
+- [x] 13.6 Updated `test/68.net_subscription.ts`'s "live dispatch" describe block: subscribes to `Event.SEGMENT_COMMITTED` instead of `Event.DISPATCH_EVENT`; test 11.1/11.2 asserts on `dispatches[0].events` records' individual `.realm` fields instead of a single `dispatches[0].realm`
+- [x] 13.7 Updated `openspec/changes/net-subscription/{proposal,design,tasks}.md` and `specs/net-live-dispatch/spec.md` to describe `Event.SEGMENT_COMMITTED` as the live-dispatch wire event throughout, in place of `Event.DISPATCH_EVENT`
+- [x] 13.8 `tsc --noEmit` clean; `npm test` — 305 passing, unchanged count (this is a rename/consolidation, not new coverage)

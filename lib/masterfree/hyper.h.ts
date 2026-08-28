@@ -25,6 +25,11 @@ export enum Event {
   INIT_ENTRY_ACCEPTED = 'INIT_ENTRY_ACCEPTED',
 
   STORAGE_NODE_CONNECTED = 'STORAGE_NODE_CONNECTED', // announced by storage to a connecting entry via pipe()
+
+  // storage -> local dbFactory listeners (in-process, e.g. ProjectionListener) AND, piped via
+  // listenEntry like every other segment event, every connected entry — live-tail delivery of
+  // newly-committed events feeding NetEngineMill.dispatchLiveEvents() -> disperseToSubs().
+  SEGMENT_COMMITTED = 'segment-committed',
 }
 
 export namespace Event {
@@ -125,6 +130,23 @@ export type BODY_ADVANCE_SEGMENT_FAILED = {
   advanceOwner: string
   advanceStamp: number
   reason: string
+}
+
+export type CommittedSegmentRecord = {
+  eventId: string
+  realm: string
+  uri: string[]
+  data: any
+  opt: any
+  sid: string
+  shard: number
+}
+
+// Fired once per commit_segment() resolution — may carry events from more than one realm
+// (a single advance/segment buffer isn't necessarily scoped to one realm), so consumers group
+// or resolve-per-realm as needed rather than assuming a single realm per message.
+export type BODY_SEGMENT_COMMITTED = BODY_ADVANCE_SEGMENT_RESOLVED & {
+  events: CommittedSegmentRecord[]
 }
 
 export namespace AdminEvent {

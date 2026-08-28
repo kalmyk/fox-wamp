@@ -13,7 +13,7 @@ import { FoxGate } from '../lib/hyper/gate'
 import { DbFactory } from '../lib/sqlite/dbfactory'
 import { EventStorageTask, SEGMENT_COMMITTED } from '../lib/masterfree/storage'
 import { NetEngine, NetEngineMill } from '../lib/masterfree/netengine'
-import { NetSubStatusFactory, SharedSegmentBuffer } from '../lib/masterfree/net_sub'
+import { NetSubStatusFactory, SharedSegmentBuffer, SeenEventWindow } from '../lib/masterfree/net_sub'
 import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_ADVANCE_SEGMENT_RESOLVED, HistoryEvent, HistoryFetchProgress } from '../lib/masterfree/hyper.h'
 import { errorCodes, RealmError } from '../lib/realm_error'
 
@@ -373,6 +373,144 @@ describe('68.net_subscription', function () {
       const rows: any[] = []
       await netEngine.getHistoryAfter('', ['topicA'], (cmd: any) => rows.push(cmd))
       expect(rows).to.deep.equal([])
+    })
+  })
+
+  // ─── Live dispatch (net-live-dispatch) ─────────────────────────────────────
+
+  describe('live dispatch', () => {
+    let router: Router
+    let dbFactory: DbFactory
+    let db: sqlite.Database
+    let netEngineMill: NetEngineMill
+    let netRealm: BaseRealm
+    let netApi: HyperClient
+    let sysRealm: BaseRealm
+    let storage: EventStorageTask
+
+    beforeEach(async () => {
+      db = await sqlite.open({ filename: ':memory:', driver: sqlite3.Database })
+      dbFactory = new DbFactory('/tmp/fox-test-dbs/')
+      dbFactory.setMainDb(db)
+      router = new Router()
+      router.setId('E1')
+      netEngineMill = new NetEngineMill(router, 1)
+      netRealm = new BaseRealm(router, new NetEngine(netEngineMill))
+      router.initRealm('testnet', netRealm)
+      netApi = netRealm.api()
+      sysRealm = await router.getRealm('sys')
+      storage = new EventStorageTask(sysRealm, dbFactory, { shards: [0] }, 'NDB1')
+    })
+
+    it('11.3 a plain subscribe (no after) receives an event published after the subscription — regression for the original bug', async () => {
+      const received: any[] = []
+      await netApi.subscribe('topicA', (data: any) => {
+        received.push(data)
+      })
+
+      const commitApi = sysRealm.buildApi()
+      await commitSegment(commitApi, dbFactory, {
+        shard: 0, realm: 'testnet', advanceOwner: 'e1', advanceStamp: 1, segment: 'seg1',
+        events: [{ uri: ['topicA'], data: { kv: 'd1' } }]
+      })
+
+      await new Promise(resolve => setTimeout(resolve, 20))
+      expect(received).to.deep.equal(['d1'])
+    })
+
+    it('11.1/11.2 dispatches exactly one Event.SEGMENT_COMMITTED broadcast per commit, none for a no-data commit', async () => {
+      const dispatches: any[] = []
+      sysRealm.buildApi().subscribe(Event.SEGMENT_COMMITTED, (body: any) => dispatches.push(body))
+
+      const commitApi = sysRealm.buildApi()
+      await commitSegment(commitApi, dbFactory, {
+        shard: 0, realm: 'testnet', advanceOwner: 'e1', advanceStamp: 1, segment: 'seg1',
+        events: [{ uri: ['topicA'], data: { kv: 'd1' } }, { uri: ['topicA'], data: { kv: 'd2' } }]
+      })
+      expect(dispatches.length).to.equal(1)
+      expect(dispatches[0].events.every((e: any) => e.realm === 'testnet')).to.be.true
+      expect(dispatches[0].events.map((e: any) => e.eventId)).to.deep.equal(['seg1a1', 'seg1a2'])
+
+      // A second EventStorageTask sharing this realm but not owning shard 0 (its own separate
+      // db — a shared dbFactory here would make the two nodes' SEGMENT_COMMITTED emissions
+      // indistinguishable to commitSegment's `once()` wait) sees the same ADVANCE_SEGMENT_RESOLVED,
+      // produces zero committed events, and must dispatch nothing.
+      const dbFactory2 = new DbFactory('/tmp/fox-test-dbs/')
+      dbFactory2.setMainDb(await sqlite.open({ filename: ':memory:', driver: sqlite3.Database }))
+      new EventStorageTask(sysRealm, dbFactory2, { shards: [7] }, 'NDB2')
+      dispatches.length = 0
+      await commitSegment(commitApi, dbFactory, {
+        shard: 0, realm: 'testnet', advanceOwner: 'e1', advanceStamp: 2, segment: 'seg2',
+        events: [{ uri: ['topicA'], data: { kv: 'd3' } }]
+      })
+      // only the shard-0 owner (the original `storage`) produced a dispatch; NDB2 produced none
+      expect(dispatches.length).to.equal(1)
+    })
+
+    it('11.4 a shard replicated across two storage nodes dispatches the same event twice; the entry delivers it once (dedup)', async () => {
+      const dbFactory2 = new DbFactory('/tmp/fox-test-dbs/')
+      dbFactory2.setMainDb(await sqlite.open({ filename: ':memory:', driver: sqlite3.Database }))
+      // Second storage node replicating shard 0, sharing the same sys realm as `storage` and
+      // the same entry — mirrors how replication actually happens in this architecture (fan-out
+      // pub/sub to every node owning a shard), same setup as test 7.8.
+      new EventStorageTask(sysRealm, dbFactory2, { shards: [0] }, 'NDB2')
+
+      const received: any[] = []
+      await netApi.subscribe('topicA', (data: any) => received.push(data))
+
+      const commitApi = sysRealm.buildApi()
+      await commitSegment(commitApi, dbFactory, {
+        shard: 0, realm: 'testnet', advanceOwner: 'e1', advanceStamp: 1, segment: 'seg1',
+        events: [{ uri: ['topicA'], data: { kv: 'd1' } }]
+      })
+
+      await new Promise(resolve => setTimeout(resolve, 20))
+      expect(received).to.deep.equal(['d1'])
+    })
+
+    it('11.6 Event.SEGMENT_COMMITTED for a realm with no local sessions is a silent no-op', async () => {
+      const commitApi = sysRealm.buildApi()
+      await commitSegment(commitApi, dbFactory, {
+        shard: 0, realm: 'nobody_home', advanceOwner: 'e1', advanceStamp: 1, segment: 'seg1',
+        events: [{ uri: ['topicA'], data: { kv: 'd1' } }]
+      })
+      // no throw, no crash — nothing to assert beyond "the process is still alive"
+    })
+
+    it('11.5 after catch-up finds nothing left to replay, a subsequent live commit is still delivered', async () => {
+      const commitApi = sysRealm.buildApi()
+      await commitSegment(commitApi, dbFactory, {
+        shard: 0, realm: 'testnet', advanceOwner: 'e1', advanceStamp: 1, segment: 'seg1',
+        events: [{ uri: ['topicA'], data: { kv: 'd1' } }]
+      })
+
+      const received: any[] = []
+      // after: 'seg1a1' — catch-up has nothing to replay (seg1a1 is the only, and excluded,
+      // event); before this change, that meant traceStarted=true and then live delivery never
+      // happened at all. Awaiting the subscribe lets replay (confirmed empty) settle first.
+      await netApi.subscribe('topicA', (data: any) => received.push(data), { after: 'seg1a1' })
+      await new Promise(resolve => setTimeout(resolve, 20))
+      expect(received).to.deep.equal([])
+
+      await commitSegment(commitApi, dbFactory, {
+        shard: 0, realm: 'testnet', advanceOwner: 'e1', advanceStamp: 2, segment: 'seg2',
+        events: [{ uri: ['topicA'], data: { kv: 'd2' } }]
+      })
+      await new Promise(resolve => setTimeout(resolve, 20))
+      expect(received).to.deep.equal(['d2'])
+    })
+  })
+
+  describe('SeenEventWindow', () => {
+    it('11.7 evicts the oldest entry once capacity is exceeded', () => {
+      const window = new SeenEventWindow(3)
+      expect(window.addIfNew('a')).to.be.true
+      expect(window.addIfNew('b')).to.be.true
+      expect(window.addIfNew('c')).to.be.true
+      expect(window.addIfNew('d')).to.be.true // evicts 'a'
+
+      expect(window.addIfNew('a')).to.be.true // 'a' was evicted, treated as new again
+      expect(window.addIfNew('d')).to.be.false // 'd' still within window
     })
   })
 
