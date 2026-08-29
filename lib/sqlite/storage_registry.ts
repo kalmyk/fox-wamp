@@ -3,6 +3,7 @@ import * as sqlite from 'sqlite'
 import { StorageRecord, StorageStatus } from '../types'
 import { ProduceId } from '../masterfree/makeid'
 import { createUpdateHistoryTable, saveUpdateHistory } from './update_history'
+import { withWriteLock } from './db_lock'
 
 export type StorageRegistration = {
   name: string
@@ -104,27 +105,33 @@ export class StorageRegistry {
       throw new Error(`Storage uriPattern "${storage.uriPattern}" does not match schema urlPattern "${schemaRow.url_pattern}"`)
     }
 
-    await this.db.run(
-      `INSERT OR IGNORE INTO ${this.tableName}
-        (name, schema_id, uri_pattern, started_at, status, current_position, last_error, skipped_count, last_warning)
-        VALUES (?, ?, ?, NULL, ?, NULL, NULL, 0, NULL)`,
-      [
+    // Locked: the shared `db` also carries other writers' explicit multi-statement transactions
+    // (EventStorageTask, SchemaRepository) — a bare INSERT issued here while one of those is open
+    // would silently become part of it instead of raising an error, so every writer on this
+    // connection needs the same lock, not just the ones that open their own transaction.
+    await withWriteLock(this.db, async () => {
+      await this.db.run(
+        `INSERT OR IGNORE INTO ${this.tableName}
+          (name, schema_id, uri_pattern, started_at, status, current_position, last_error, skipped_count, last_warning)
+          VALUES (?, ?, ?, NULL, ?, NULL, NULL, 0, NULL)`,
+        [
+          storage.name,
+          storage.schemaId,
+          storage.uriPattern,
+          StorageStatus.Inactive,
+        ]
+      )
+      const newRecord = await this.get(storage.name)
+      await saveUpdateHistory(
+        this.db,
+        this.realmName,
+        this.makeId.generateIdStr(),
+        null,
         storage.name,
-        storage.schemaId,
-        storage.uriPattern,
-        StorageStatus.Inactive,
-      ]
-    )
-    const newRecord = await this.get(storage.name)
-    await saveUpdateHistory(
-      this.db,
-      this.realmName,
-      this.makeId.generateIdStr(),
-      null,
-      storage.name,
-      null,
-      newRecord
-    )
+        null,
+        newRecord
+      )
+    }, { label: 'storageRegistry.register' })
   }
 
   async get(name: string): Promise<StorageRecord | null> {
@@ -151,44 +158,46 @@ export class StorageRegistry {
 
   async updateStatus(name: string, status: StorageStatus, startedAt?: number | null): Promise<void> {
     await this.init()
-    const oldRecord = await this.get(name)
-    if (startedAt === undefined) {
-      await this.db.run(
-        `UPDATE ${this.tableName} SET status = ? WHERE name = ?`,
-        [status, name]
+    await withWriteLock(this.db, async () => {
+      const oldRecord = await this.get(name)
+      if (startedAt === undefined) {
+        await this.db.run(
+          `UPDATE ${this.tableName} SET status = ? WHERE name = ?`,
+          [status, name]
+        )
+      } else {
+        await this.db.run(
+          `UPDATE ${this.tableName} SET status = ?, started_at = ? WHERE name = ?`,
+          [status, startedAt, name]
+        )
+      }
+      const newRecord = await this.get(name)
+      await saveUpdateHistory(
+        this.db,
+        this.realmName,
+        this.makeId.generateIdStr(),
+        null,
+        name,
+        oldRecord,
+        newRecord
       )
-    } else {
-      await this.db.run(
-        `UPDATE ${this.tableName} SET status = ?, started_at = ? WHERE name = ?`,
-        [status, startedAt, name]
-      )
-    }
-    const newRecord = await this.get(name)
-    await saveUpdateHistory(
-      this.db,
-      this.realmName,
-      this.makeId.generateIdStr(),
-      null,
-      name,
-      oldRecord,
-      newRecord
-    )
+    }, { label: 'storageRegistry.updateStatus' })
   }
 
   async updatePosition(name: string, currentPosition: string | null): Promise<void> {
     await this.init()
-    await this.db.run(
+    await withWriteLock(this.db, () => this.db.run(
       `UPDATE ${this.tableName} SET current_position = ? WHERE name = ?`,
       [currentPosition, name]
-    )
+    ), { label: 'storageRegistry.updatePosition' })
   }
 
   async updateLastError(name: string, lastError: string | null): Promise<void> {
     await this.init()
-    await this.db.run(
+    await withWriteLock(this.db, () => this.db.run(
       `UPDATE ${this.tableName} SET last_error = ? WHERE name = ?`,
       [lastError, name]
-    )
+    ), { label: 'storageRegistry.updateLastError' })
   }
 
   // Records a skipped, schema-nonconforming event without failing the whole
@@ -196,10 +205,10 @@ export class StorageRegistry {
   // malformed event during backfill and isn't a structural state change.
   async recordSkippedEvent(name: string, message: string): Promise<void> {
     await this.init()
-    await this.db.run(
+    await withWriteLock(this.db, () => this.db.run(
       `UPDATE ${this.tableName} SET skipped_count = skipped_count + 1, last_warning = ? WHERE name = ?`,
       [message, name]
-    )
+    ), { label: 'storageRegistry.recordSkippedEvent' })
   }
 
   async startActivation(name: string, startedAt: number = Date.now()): Promise<StorageActivation> {
@@ -221,23 +230,25 @@ export class StorageRegistry {
     }
 
     const activationTarget = await latestRealmEventId(this.db, this.realmName)
-    await this.db.run(
-      `UPDATE ${this.tableName}
-        SET status = ?, started_at = ?, last_error = NULL, skipped_count = 0, last_warning = NULL
-        WHERE name = ?`,
-      [StorageStatus.Refreshing, startedAt, name]
-    )
+    await withWriteLock(this.db, async () => {
+      await this.db.run(
+        `UPDATE ${this.tableName}
+          SET status = ?, started_at = ?, last_error = NULL, skipped_count = 0, last_warning = NULL
+          WHERE name = ?`,
+        [StorageStatus.Refreshing, startedAt, name]
+      )
 
-    const newRecord = await this.get(name)
-    await saveUpdateHistory(
-      this.db,
-      this.realmName,
-      this.makeId.generateIdStr(),
-      null,
-      name,
-      record,
-      newRecord
-    )
+      const newRecord = await this.get(name)
+      await saveUpdateHistory(
+        this.db,
+        this.realmName,
+        this.makeId.generateIdStr(),
+        null,
+        name,
+        record,
+        newRecord
+      )
+    }, { label: 'storageRegistry.startActivation' })
 
     return {
       name,
@@ -249,22 +260,24 @@ export class StorageRegistry {
 
   async reset(name: string): Promise<void> {
     await this.init()
-    const oldRecord = await this.get(name)
-    await this.db.run(
-      `UPDATE ${this.tableName}
-        SET current_position = NULL, last_error = NULL, status = ?, started_at = NULL, skipped_count = 0, last_warning = NULL
-        WHERE name = ?`,
-      [StorageStatus.Inactive, name]
-    )
-    const newRecord = await this.get(name)
-    await saveUpdateHistory(
-      this.db,
-      this.realmName,
-      this.makeId.generateIdStr(),
-      null,
-      name,
-      oldRecord,
-      newRecord
-    )
+    await withWriteLock(this.db, async () => {
+      const oldRecord = await this.get(name)
+      await this.db.run(
+        `UPDATE ${this.tableName}
+          SET current_position = NULL, last_error = NULL, status = ?, started_at = NULL, skipped_count = 0, last_warning = NULL
+          WHERE name = ?`,
+        [StorageStatus.Inactive, name]
+      )
+      const newRecord = await this.get(name)
+      await saveUpdateHistory(
+        this.db,
+        this.realmName,
+        this.makeId.generateIdStr(),
+        null,
+        name,
+        oldRecord,
+        newRecord
+      )
+    }, { label: 'storageRegistry.reset' })
   }
 }

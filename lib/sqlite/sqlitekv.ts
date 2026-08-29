@@ -4,6 +4,7 @@ import { isDataEmpty, deepDataMerge, unSerializeData, makeDataSerializable, isDa
 import { DbFactory } from './dbfactory'
 import { ProduceId } from '../masterfree/makeid'
 import { createUpdateHistoryTable, saveUpdateHistory } from './update_history'
+import { withWriteLock } from './db_lock'
 
 export async function createKvTables (db: sqlite.Database, realmName: string) {
   await createUpdateHistoryTable(db, realmName)
@@ -83,31 +84,37 @@ export class SqliteKvFabric {
     const newData = deepDataMerge(oldData, data)
     const updateHistoryId = this.makeId.generateIdStr()
 
-    await db.run(`DELETE FROM session_kv_${realmName} WHERE topic = ?`, [suri])
-    if (isDataEmpty(newData)) {
-      await db.run(`DELETE FROM kv_${realmName} WHERE topic = ?`, [suri])
-    } else {
-      const willSid = ('will' in opt) ? sid : 0
-      await db.run(
-        `INSERT OR REPLACE INTO kv_${realmName} (topic, value, will_sid, opt, updated_by_msg_id) VALUES (?, ?, ?, ?, ?)`,
-        [suri, JSON.stringify(makeDataSerializable(newData)), willSid, JSON.stringify(opt), updateHistoryId]
+    // Locked as one unit: this `db` is also shared with EventStorageTask/ProjectionListener/
+    // SchemaRepository on a masterfree ndb node (see masterfree/ndb.ts) — several statements
+    // here must land together without another writer's statement (or explicit transaction)
+    // interleaving between them.
+    await withWriteLock(db, async () => {
+      await db.run(`DELETE FROM session_kv_${realmName} WHERE topic = ?`, [suri])
+      if (isDataEmpty(newData)) {
+        await db.run(`DELETE FROM kv_${realmName} WHERE topic = ?`, [suri])
+      } else {
+        const willSid = ('will' in opt) ? sid : 0
+        await db.run(
+          `INSERT OR REPLACE INTO kv_${realmName} (topic, value, will_sid, opt, updated_by_msg_id) VALUES (?, ?, ?, ?, ?)`,
+          [suri, JSON.stringify(makeDataSerializable(newData)), willSid, JSON.stringify(opt), updateHistoryId]
+        )
+      }
+      if ('will' in opt) {
+        await db.run(
+          `INSERT INTO session_kv_${realmName} (topic, value, will_sid, msg_id) VALUES (?, ?, ?, ?)`,
+          [suri, JSON.stringify(makeDataSerializable(opt.will)), sid, origin]
+        )
+      }
+      await saveUpdateHistory(
+        db,
+        realmName,
+        updateHistoryId,
+        oldUpdatedByMsgId,
+        suri,
+        oldData === null ? null : makeDataSerializable(oldData),
+        isDataEmpty(newData) ? null : makeDataSerializable(newData)
       )
-    }
-    if ('will' in opt) {
-      await db.run(
-        `INSERT INTO session_kv_${realmName} (topic, value, will_sid, msg_id) VALUES (?, ?, ?, ?)`,
-        [suri, JSON.stringify(makeDataSerializable(opt.will)), sid, origin]
-      )
-    }
-    await saveUpdateHistory(
-      db,
-      realmName,
-      updateHistoryId,
-      oldUpdatedByMsgId,
-      suri,
-      oldData === null ? null : makeDataSerializable(oldData),
-      isDataEmpty(newData) ? null : makeDataSerializable(newData)
-    )
+    }, { label: 'sqliteKv.writeKvLocked' })
 
     return { newData, whenNotMet: false }
   }

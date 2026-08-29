@@ -5,6 +5,7 @@ import { ProduceId } from '../masterfree/makeid'
 import { createUpdateHistoryTable, saveUpdateHistory } from './update_history'
 import { match, defaultParse } from '../topic_pattern'
 import { validateSchema as baseValidateSchema, sortKeys } from '../schema_validation'
+import { withWriteLock } from './db_lock'
 
 export async function createSchemaTables(db: sqlite.Database, realmName: string) {
   await createUpdateHistoryTable(db, realmName)
@@ -161,41 +162,47 @@ export class SchemaRepository {
       createdAt
     }
 
-    // Provision data table within a transaction
+    // Provision data table within a transaction. Wrapped in withWriteLock: this is an explicit
+    // multi-statement transaction on a `db` shared with other writers (EventStorageTask,
+    // ProjectionListener, ...) — without the lock, a BEGIN issued here while another explicit
+    // transaction is open on the same connection raises "cannot start a transaction within a
+    // transaction".
     const createTableSql = generateCreateTableSql(dataTable, sortedSchema)
 
-    await this.db.run('BEGIN TRANSACTION')
-    try {
-      await this.db.run(createTableSql)
-      await this.db.run(
-        `INSERT INTO message_schemas_${this.realmName} (
-          schema_id, label, url_pattern, data_table, schema_json, status, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          record.schemaId,
-          record.label,
-          record.urlPattern,
-          record.dataTable,
-          record.schemaJson,
-          record.status,
-          record.createdAt
-        ]
-      )
+    await withWriteLock(this.db, async () => {
+      await this.db.run('BEGIN TRANSACTION')
+      try {
+        await this.db.run(createTableSql)
+        await this.db.run(
+          `INSERT INTO message_schemas_${this.realmName} (
+            schema_id, label, url_pattern, data_table, schema_json, status, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            record.schemaId,
+            record.label,
+            record.urlPattern,
+            record.dataTable,
+            record.schemaJson,
+            record.status,
+            record.createdAt
+          ]
+        )
 
-      await saveUpdateHistory(
-        this.db,
-        this.realmName,
-        this.makeId.generateIdStr(),
-        null,
-        `schema:${schemaId}`,
-        null,
-        record
-      )
-      await this.db.run('COMMIT')
-    } catch (e) {
-      await this.db.run('ROLLBACK')
-      throw e
-    }
+        await saveUpdateHistory(
+          this.db,
+          this.realmName,
+          this.makeId.generateIdStr(),
+          null,
+          `schema:${schemaId}`,
+          null,
+          record
+        )
+        await this.db.run('COMMIT')
+      } catch (e) {
+        await this.db.run('ROLLBACK')
+        throw e
+      }
+    }, { label: 'schema.register' })
 
     this.cache = null
     await this.loadCache()
@@ -270,18 +277,20 @@ export class SchemaRepository {
     if (!schema) throw new Error(`Schema not found: ${schemaId}`)
     if (schema.status === SchemaStatus.Deprecated) return
 
-    await this.db.run('BEGIN TRANSACTION')
-    try {
-      await this.db.run(`DROP TABLE IF EXISTS "${schema.dataTable}"`)
-      await this.db.run(
-        `UPDATE message_schemas_${this.realmName} SET status = ? WHERE schema_id = ?`,
-        [SchemaStatus.Deprecated, schemaId]
-      )
-      await this.db.run('COMMIT')
-    } catch (e) {
-      await this.db.run('ROLLBACK')
-      throw e
-    }
+    await withWriteLock(this.db, async () => {
+      await this.db.run('BEGIN TRANSACTION')
+      try {
+        await this.db.run(`DROP TABLE IF EXISTS "${schema.dataTable}"`)
+        await this.db.run(
+          `UPDATE message_schemas_${this.realmName} SET status = ? WHERE schema_id = ?`,
+          [SchemaStatus.Deprecated, schemaId]
+        )
+        await this.db.run('COMMIT')
+      } catch (e) {
+        await this.db.run('ROLLBACK')
+        throw e
+      }
+    }, { label: 'schema.deprecate' })
 
     this.cache = null
     await this.loadCache()

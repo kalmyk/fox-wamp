@@ -5,6 +5,7 @@ import { ComplexId, makeEmpty, keyId } from './makeid'
 import { HyperClient } from '../hyper/client'
 import * as History from '../sqlite/history'
 import { DbFactory } from '../sqlite/dbfactory'
+import { withWriteLock } from '../sqlite/db_lock'
 import { createStorageRegistryTables } from '../sqlite/storage_registry'
 import { insertSegmentOver, updateSegmentResolved, computeUriCrc, listResolvedSegmentIdsForShard } from '../sqlite/segment_registry'
 import { Event, BODY_KEEP_ADVANCE_HISTORY, BODY_TRIM_ADVANCE_SEGMENT, BODY_BEGIN_ADVANCE_SEGMENT, BODY_ADVANCE_SEGMENT_RESOLVED, BODY_ADVANCE_SEGMENT_OVER, BODY_GENERATE_DRAFT, BODY_STORAGE_NODE_CONNECTED, HistoryFetchRequest, HistoryFetchProgress, HistoryEvent } from './hyper.h'
@@ -50,13 +51,6 @@ export class EventStorageTask {
   private ownedTopics: string[] = []
   private nodeId: string
   private shards: number[]
-  // Serializes all writes against the single shared sqlite connection (dbFactory.getMainDb()).
-  // sqlite/node-sqlite3 allows only one write/transaction in flight per connection: if a second
-  // caller issues BEGIN TRANSACTION while dbSaveSegment's own BEGIN..COMMIT is still open (e.g.
-  // two different advanceOwner segments resolving concurrently), sqlite raises "cannot start a
-  // transaction within a transaction". Routing every write through withWriteLock() guarantees at
-  // most one write — and its awaits — is ever in flight, without needing a second db connection.
-  private writeLock: Promise<void> = Promise.resolve()
 
   constructor (sysRealm: BaseRealm, dbFactory: DbFactory, shardConfig: EventNodeConfig, nodeId: string) {
     this.sysRealm = sysRealm
@@ -105,7 +99,7 @@ export class EventStorageTask {
         const realms = new Set(buffer.getContent().map(e => e.realm))
         for (const realm of realms) {
           this.ensureRealm(realm)
-            .then(() => this.withWriteLock(() => insertSegmentOver(db, realm, body.advanceOwner, body.advanceStamp, body.shardTag)))
+            .then(() => withWriteLock(db, () => insertSegmentOver(db, realm, body.advanceOwner, body.advanceStamp, body.shardTag), { label: 'storage.insertSegmentOver' }))
             .catch(err => console.error('insertSegmentOver error:', err))
         }
       }
@@ -131,16 +125,6 @@ export class EventStorageTask {
 
   getMaxId (): ComplexId {
     return this.maxId
-  }
-
-  // Queues fn behind any write already in flight on the shared db connection, so at most one
-  // write executes at a time regardless of how many segments resolve concurrently.
-  // this.writeLock itself always resolves — a rejected write must not wedge the queue for
-  // subsequent writes — while the caller still observes the original rejection via `scheduled`.
-  private withWriteLock<T>(fn: () => Promise<T>): Promise<T> {
-    const scheduled = this.writeLock.then(fn)
-    this.writeLock = scheduled.then(() => undefined, () => undefined)
-    return scheduled
   }
 
   async listenEntry(client: HyperClient, gateId: string) {
@@ -226,7 +210,8 @@ export class EventStorageTask {
     let buffer = this.bufferToWrite.get(key)
     let events: CommittedSegmentRecord[] = []
     if (buffer) {
-      events = await this.withWriteLock(() => this.dbSaveSegment(buffer!, segment, advanceOwner, advanceStamp))
+      const db = this.dbFactory.getMainDb()
+      events = await withWriteLock(db, () => this.dbSaveSegment(buffer!, segment, advanceOwner, advanceStamp), { label: 'storage.dbSaveSegment' })
       this.bufferToWrite.delete(key)
     } else {
       console.error("advanceStamp not found in segments [", key, "]")

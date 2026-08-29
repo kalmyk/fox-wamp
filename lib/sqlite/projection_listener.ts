@@ -1,5 +1,6 @@
 import * as sqlite from 'sqlite'
 import { CommittedSegmentEvent, CommittedSegmentRecord, SegmentCommittedSource, SEGMENT_COMMITTED } from '../masterfree/storage'
+import { withWriteLock } from './db_lock'
 import { StorageRegistry, StorageActivation } from './storage_registry'
 import { SchemaRepository } from './schema_repository'
 import { StorageStatus, StorageRecord } from '../types'
@@ -58,7 +59,7 @@ export class KvProjection {
         }
 
         if (values.every((v: any) => v !== undefined && v !== null)) {
-          await this.db.run(`DELETE FROM "${this.dataTable}" WHERE ${where}`, values)
+          await withWriteLock(this.db, () => this.db.run(`DELETE FROM "${this.dataTable}" WHERE ${where}`, values), { label: 'kvProjection.applyEvent.delete' })
         }
       }
       return record.eventId
@@ -90,34 +91,34 @@ export class KvProjection {
     const values = columns.map(c => payload[c])
 
     const sql = `INSERT OR REPLACE INTO "${this.dataTable}" (${colNames}) VALUES (${placeholders})`
-    await this.db.run(sql, values)
-    
+    await withWriteLock(this.db, () => this.db.run(sql, values), { label: 'kvProjection.applyEvent.upsert' })
+
     return record.eventId
   }
 
   async recordWarning(eventId: string, uri: string, message: string): Promise<void> {
     const warning = `skipped event ${eventId} at "${uri}": ${message}`
     console.warn(`[kv:${this.record.name}] ${warning}`)
-    await this.db.run(
+    await withWriteLock(this.db, () => this.db.run(
       `UPDATE storage_desc_${this.record.realmName} SET skipped_count = skipped_count + 1, last_warning = ? WHERE name = ?`,
       [warning, this.record.name]
-    )
+    ), { label: 'kvProjection.recordWarning' })
   }
 
   async advancePosition(eventId: string): Promise<void> {
     if (eventId === this.record.currentPosition) return
-    await this.db.run(
+    await withWriteLock(this.db, () => this.db.run(
       `UPDATE storage_desc_${this.record.realmName} SET current_position = ? WHERE name = ?`,
       [eventId, this.record.name]
-    )
+    ), { label: 'kvProjection.advancePosition' })
     this.record.currentPosition = eventId
   }
 
   async setStatus(status: StorageStatus, error?: string): Promise<void> {
-    await this.db.run(
+    await withWriteLock(this.db, () => this.db.run(
       `UPDATE storage_desc_${this.record.realmName} SET status = ?, last_error = ? WHERE name = ?`,
       [status, error || null, this.record.name]
-    )
+    ), { label: 'kvProjection.setStatus' })
     this.record.status = status
   }
 }
@@ -204,7 +205,7 @@ export class ProjectionListener {
     
     // Clear data table
     if (schema) {
-      await this.db.run(`DELETE FROM "${schema.dataTable}"`)
+      await withWriteLock(this.db, () => this.db.run(`DELETE FROM "${schema.dataTable}"`), { label: 'projectionListener.resetProjection' })
     }
 
     await registry.reset(name)
