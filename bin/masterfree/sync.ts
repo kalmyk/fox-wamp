@@ -4,13 +4,13 @@ const conf_config_file = process.env.CONFIG
 const conf_node_id = process.env.NODE_ID
   || console.log('NODE_ID must be defined') || process.exit(1)
 
-import { Router } from '../lib/router'
-import {BaseRealm, BaseEngine} from '../lib/realm'
-import { StageOneTask } from '../lib/masterfree/synchronizer'
-import { getConfigInstance } from '../lib/masterfree/config'
-import { HyperNetClient, listenHyperNetServer } from '../lib/hyper/net_transport'
-import { FoxGate } from '../lib/hyper/gate'
-import { INTRA_REALM_NAME } from '../lib/masterfree/hyper.h'
+import { Router } from '../../lib/router'
+import {BaseRealm, BaseEngine} from '../../lib/realm'
+import { StageOneTask } from '../../lib/masterfree/synchronizer'
+import { getConfigInstance } from '../../lib/masterfree/config'
+import { HyperNetClient, listenHyperNetServer } from '../../lib/hyper/net_transport'
+import { FoxGate } from '../../lib/hyper/gate'
+import { INTRA_REALM_NAME } from '../../lib/masterfree/hyper.h'
 
 const config = getConfigInstance()
 const router = new Router()

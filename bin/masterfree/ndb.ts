@@ -7,16 +7,16 @@ const conf_config_file = process.env.CONFIG
 const conf_node_id = process.env.NODE_ID
   || console.log('NODE_ID must be defined') || process.exit(1)
 
-import { keyDate, ProduceId } from '../lib/masterfree/makeid'
-import { SqliteKvFabric } from '../lib/sqlite/sqlitekv'
-import { ProjectionListener } from '../lib/sqlite/projection_listener'
-import { Router } from '../lib/router'
-import { getConfigInstance } from '../lib/masterfree/config'
-import { DbFactory } from '../lib/sqlite/dbfactory'
-import { EventStorageTask } from '../lib/masterfree/storage'
-import { StageTwoTask } from '../lib/masterfree/synchronizer'
-import { INTRA_REALM_NAME } from '../lib/masterfree/hyper.h'
-import { HyperNetClient } from '../lib/hyper/net_transport'
+import { keyDate, ProduceId } from '../../lib/masterfree/makeid'
+import { SqliteKvFabric } from '../../lib/sqlite/sqlitekv'
+import { ProjectionListener } from '../../lib/sqlite/projection_listener'
+import { Router } from '../../lib/router'
+import { getConfigInstance } from '../../lib/masterfree/config'
+import { DbFactory } from '../../lib/sqlite/dbfactory'
+import { EventStorageTask } from '../../lib/masterfree/storage'
+import { StageTwoTask } from '../../lib/masterfree/synchronizer'
+import { INTRA_REALM_NAME } from '../../lib/masterfree/hyper.h'
+import { HyperNetClient } from '../../lib/hyper/net_transport'
 
 function mkSync(host: string, port: number, nodeId: string, storageTask: EventStorageTask, stageTwoTask: StageTwoTask) {
   const client: HyperNetClient = new HyperNetClient({host, port})

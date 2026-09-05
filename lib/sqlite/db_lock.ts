@@ -7,7 +7,7 @@ import * as sqlite from 'sqlite'
 // hit and fixed inside EventStorageTask alone (two of its own methods sharing one private
 // lock) — but the same `sqlite.Database` (one open file) is also written to, independently and
 // unlocked, by ProjectionListener/KvProjection, SchemaRepository, StorageRegistry and
-// SqliteKvFabric wherever they share a DbFactory's main db (see masterfree/ndb.ts). Any pair of
+// SqliteKvFabric wherever they share a DbFactory's main db (see bin/masterfree/ndb.ts). Any pair of
 // those can race the same way. The fix has to live at the connection, not inside one class.
 //
 // Keying by the `sqlite.Database` object itself (via WeakMap, so an unused db can still be GC'd)

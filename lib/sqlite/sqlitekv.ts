@@ -85,7 +85,7 @@ export class SqliteKvFabric {
     const updateHistoryId = this.makeId.generateIdStr()
 
     // Locked as one unit: this `db` is also shared with EventStorageTask/ProjectionListener/
-    // SchemaRepository on a masterfree ndb node (see masterfree/ndb.ts) — several statements
+    // SchemaRepository on a masterfree ndb node (see bin/masterfree/ndb.ts) — several statements
     // here must land together without another writer's statement (or explicit transaction)
     // interleaving between them.
     await withWriteLock(db, async () => {

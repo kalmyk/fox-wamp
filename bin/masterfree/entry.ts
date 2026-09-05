@@ -13,15 +13,15 @@ const conf_node_id: string = process.env.NODE_ID
 const conf_quorum: string = process.env.QUORUM
   || console.log('QUORUM must be defined') || process.exit(1)
 
-import { Router } from '../lib/router'
-import { BaseRealm } from '../lib/realm'
-import { WampGate } from '../lib/wamp/gate'
-import { FoxGate } from '../lib/hyper/gate'
-import { listenHyperNetServer } from '../lib/hyper/net_transport'
-import { WampServer } from '../lib/wamp/transport'
-import listenMqttServer from '../lib/mqtt/transport'
-import { INIT_ADVANCE_SEGMENTS_COMPLETED, NetEngine, NetEngineMill } from '../lib/masterfree/netengine'
-import { MqttGate } from '../lib/mqtt/gate'
+import { Router } from '../../lib/router'
+import { BaseRealm } from '../../lib/realm'
+import { WampGate } from '../../lib/wamp/gate'
+import { FoxGate } from '../../lib/hyper/gate'
+import { listenHyperNetServer } from '../../lib/hyper/net_transport'
+import { WampServer } from '../../lib/wamp/transport'
+import listenMqttServer from '../../lib/mqtt/transport'
+import { INIT_ADVANCE_SEGMENTS_COMPLETED, NetEngine, NetEngineMill } from '../../lib/masterfree/netengine'
+import { MqttGate } from '../../lib/mqtt/gate'
 
 async function main() {
   const router: Router = new Router()

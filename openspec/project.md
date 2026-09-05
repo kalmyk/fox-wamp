@@ -23,13 +23,13 @@ FOX-WAMP supports several operational modes depending on the storage and distrib
 - **Detailed Specification:** See [Distributed Mode](specs/distributed-mode.md) for architecture, message flow diagrams, and ID election protocols.
 - **Components:**
     - `NetEngine`: Handles inter-node communication and state replication.
-    - `entry.ts`: Gateway node that handles client connections (WAMP/MQTT).
-    - `ndb.ts`: Data/Storage node that manages persistent state via SQLite and synchronizes with other nodes.
-    - `synchronizer.ts`: Manages cluster-wide state consistency.
+    - `bin/masterfree/entry.ts`: Gateway node that handles client connections (WAMP/MQTT).
+    - `bin/masterfree/ndb.ts`: Data/Storage node that manages persistent state via SQLite and synchronizes with other nodes.
+    - `lib/masterfree/synchronizer.ts`: Manages cluster-wide state consistency.
 - **Communication:** Uses a internal queue-based protocol over `HyperNet` for node-to-node synchronization.
 
 ## Tech Stack
-- **Language:** TypeScript (Source in `lib/`, `bin/`, `masterfree/`, `test/`). The project is actively migrating from JavaScript to TypeScript.
+- **Language:** TypeScript (Source in `lib/`, `bin/` — including the masterfree cluster start scripts in `bin/masterfree/` — `test/`). The project is actively migrating from JavaScript to TypeScript.
 - **Runtime:** Node.js (>= 8.5.0)
 - **Protocols:** WAMP V2, MQTT 3.1
 - **Databases/Storage:** SQLite (via `sqlite`, `sqlite3` packages)
