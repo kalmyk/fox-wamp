@@ -28,6 +28,16 @@ FOX-WAMP supports several operational modes depending on the storage and distrib
     - `lib/masterfree/synchronizer.ts`: Manages cluster-wide state consistency.
 - **Communication:** Uses a internal queue-based protocol over `HyperNet` for node-to-node synchronization.
 
+## Development Agents
+Claude Code subagents defined under `.claude/agents/` map to the node types above — route work (and OpenSpec change ownership) accordingly:
+- **architect** — cross-cutting design: router-mode/topology decisions, the masterfree message lifecycle end-to-end, `hyper.h.ts` wire contracts, and the OpenSpec proposal/spec workflow itself.
+- **entry-node** — `bin/masterfree/entry.ts`, `NetEngine`/`NetEngineMill`, and the client-facing WAMP/MQTT gates.
+- **sync-node** — `bin/masterfree/sync.ts`, `StageOneTask` (draft generation, `PICK_CHALLENGER` voting), and cluster config/quorum.
+- **event-history-node** — `bin/masterfree/ndb.ts`, `StageTwoTask`, `EventStorageTask`, and the SQLite-backed history/segment persistence in `lib/sqlite/`.
+- **kv-node** — persistent KV projections and the admin API (`AdminApiServer`, `StorageRegistry`, `SchemaRepository`, `ProjectionListener`). Currently co-located in `ndb.ts`/`OneDbRouter`; a dedicated KV-node script is planned to split it out as its own masterfree process type.
+
+When an OpenSpec change spans more than one of these areas, have **architect** define the shared contract (event/`BODY_*` types, sequence updates in `specs/distributed-mode.md`) before the relevant node agent(s) implement their side.
+
 ## Tech Stack
 - **Language:** TypeScript (Source in `lib/`, `bin/` — including the masterfree cluster start scripts in `bin/masterfree/` — `test/`). The project is actively migrating from JavaScript to TypeScript.
 - **Runtime:** Node.js (>= 8.5.0)
