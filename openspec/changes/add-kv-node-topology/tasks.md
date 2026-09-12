@@ -8,6 +8,7 @@
 
 - [ ] 2.1 Add a `parseStoragePattern(pattern: string): { realm: string; keyPattern: string[] }` helper (splitting on the first `:`, parsing the key-pattern segment with `defaultParse()` from `lib/topic_pattern.ts`); verify with unit tests for an exact realm, a `*` wildcard realm, and a multi-segment dotted key-pattern.
 - [ ] 2.2 Add a `nodeOwnsRealmAndUri(nodeId: string, realmName: string, uriParts: string[]): boolean` helper that parses the node's patterns and applies `match()` from `lib/topic_pattern.ts` per pattern (realm exact-or-`*`, then topic `match`); verify with unit tests covering: exact-realm match, wildcard-realm match, non-matching realm, matching key-pattern, non-matching key-pattern, and a node with multiple patterns where only one covers the input.
+- [ ] 2.3 Fix the `*` vs `#` wildcard-completeness gotcha (see design.md Decision 2 correction): `match()` requires equal parsed length unless the filter uses `#`, so key-pattern `*` only matches single-segment topics, not "every key regardless of depth." Correct `supervisor/config.json`'s `dbNodes.storage` example from `"*:*"` to `"*:#"` for `KV1`/`KV2`, and add a unit test asserting `nodeOwnsRealmAndUri` returns `true` for a multi-segment URI (e.g. `["orders", "created"]`) under a `"*:#"` pattern and `false` under `"*:*"`.
 
 ## 3. Config: validation
 
@@ -26,3 +27,4 @@
 ## 6. Hand-off
 
 - [ ] 6.1 Share this change's proposal/design/spec deltas with `kv-node` and `event-history-node` as the frozen contract for the follow-on KV-node process implementation (no code task here — tracking note for the architect handing off).
+- [ ] 6.2 Flag to `kv-node`'s implementation change (see design.md Decision 6 correction): redundant multi-entry attachment must be consumed as active/standby failover (exactly one source driving `handleSegmentCommitted` at a time), not concurrently, until either a per-key applied-event-id check is added to `KvProjection.applyEvent` or `advancePosition`/`handleSegmentCommitted` gains an explicit high-water-mark comparison that refuses to move a projection's position backward. No code task here — tracking note for `kv-node`'s implementation change.
