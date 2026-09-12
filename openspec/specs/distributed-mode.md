@@ -7,6 +7,7 @@ The "Masterfree" mode provides a distributed, high-availability architecture for
 - **Entry Nodes (`entry.ts`):** Handle client connections (WAMP/MQTT) and initiate the message lifecycle by generating temporary "advance-ids".
 - **NDB Storage Nodes (`ndb.ts`):** Manage persistent storage in SQLite and participate in the segment termination and ID election process.
 - **Sync Cluster (`synchronizer.ts`):** Responsible for transforming temporary advance-ids into monotonic, permanent IDs across the cluster via two-stage stateless voting.
+- **KV-Nodes (`dbNodes` config):** Host persistent KV projections (`StorageRegistry`, `SchemaRepository`, generated projection tables) for realm+URI-pattern combinations declared in their own `dbNodes` cluster-config section — separate from the `eventNodes` section that configures NDB storage/shard ownership. Sit strictly downstream of segment commitment and take no part in the ID-election handshake below.
 
 ## Message Lifecycle & Flow
 The system uses a unique ID generation and synchronization process to ensure consistency and ordering across distributed nodes.
@@ -118,6 +119,9 @@ Each StageTwo node (typically co-located on db-node) runs `StageTwoTask`:
 ### 7. Resolution
 `ADVANCE_SEGMENT_RESOLVED` is sent back to entry and NDB nodes. Temporary advance storage is moved to permanent storage, and ACK is sent to the client.
 
+### 8. KV-Node Ingestion (downstream, no voting)
+Any KV-node whose `dbNodes.storage` patterns match a committed event's realm and URI observes it by subscribing to the `SEGMENT_COMMITTED` broadcast already delivered to attached entry nodes — after `ADVANCE_SEGMENT_RESOLVED`, using only already-committed, already-ordered event data. A KV-node never originates, forwards, or votes on `GENERATE_DRAFT`/`PICK_CHALLENGER`/`ELECT_SEGMENT`, and holds no StageOne or StageTwo voting state.
+
 ---
 
 ## Stateless Voting Invariants
@@ -130,6 +134,8 @@ Each StageTwo node (typically co-located on db-node) runs `StageTwoTask`:
 | **Late vote guard (StageOne)** | `recentAdvanceSegment[owner] > advanceStamp` → segment already resolved → skip |
 | **Monotonic IDs** | `recentValue` in StageTwo ensures `finalId` is non-decreasing across segments |
 | **Deduplication** | `voters: Set<nodeId>` — duplicate votes from the same node are ignored |
+
+> Scope: these invariants apply to Entry, Sync (StageOne), and NDB Storage (StageTwo) nodes only. A KV-node participates in none of them; its per-realm projection state is bounded by the realms actually matched by its own `dbNodes.storage` patterns, not by advance-id or segment volume — see the "KV-Node Position in the Message Lifecycle" requirement below.
 
 ---
 
@@ -154,6 +160,26 @@ Uses internal `HyperNet` protocol for low-latency node-to-node communication and
 ---
 
 ## Requirements
+
+### Requirement: KV-Node as a Fourth Node Type
+The masterfree architecture SHALL recognize a KV-node as a fourth process/node type, alongside Entry Nodes, the Sync Cluster, and NDB Storage Nodes, responsible for hosting persistent KV projections (`StorageRegistry`, `SchemaRepository`, generated projection tables) as declared by the `dbNodes` cluster config section.
+
+#### Scenario: KV-node identified in architecture
+- **WHEN** the masterfree architecture is described
+- **THEN** the KV-node SHALL be listed as a distinct component from NDB Storage Nodes, driven by its own `dbNodes` cluster-config section (host/port/`storage` patterns), separate from the `eventNodes` section that configures NDB storage/shard ownership.
+
+### Requirement: KV-Node Position in the Message Lifecycle
+A KV-node SHALL sit strictly downstream of segment commitment in the message lifecycle and SHALL take no part in the ID-election (StageOne/StageTwo) handshake described in the Sequence Diagram.
+
+#### Scenario: KV-node ingestion point
+- **WHEN** a segment is committed by a storage node and `SEGMENT_COMMITTED` is emitted
+- **THEN** any KV-node whose configured storage patterns match the committed events' realm and URI SHALL observe those events by subscribing to the existing `SEGMENT_COMMITTED` broadcast already delivered to attached entry nodes.
+- **AND** this observation SHALL occur after `ADVANCE_SEGMENT_RESOLVED`, using only already-committed, already-ordered event data.
+
+#### Scenario: KV-node excluded from stateless voting invariants table
+- **WHEN** the stateless voting invariants (no heap accumulation, monotonic IDs, stale entry cleanup) are evaluated for cluster correctness
+- **THEN** they SHALL apply only to Entry, Sync (StageOne), and NDB Storage (StageTwo) nodes.
+- **AND** a KV-node's per-realm projection state SHALL be bounded by the realms actually matched by that node's own `dbNodes.storage` patterns, not by advance-id or segment volume.
 
 ### Requirement: Distributed retained event synchronization
 In distributed mode, synchronization for `after` SHALL wait for the local Key-Value projection watermark to reach the requested event ID before retained state is fetched.
