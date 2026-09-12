@@ -11,6 +11,22 @@ class Deferred {
 
 // Key Promise Queue
 // one started promise in the queue under key/uri
+//
+// This is a per-key JS-level critical section, not a replacement for (or duplicate of)
+// db_lock's `withWriteLock`, which is a per-connection lock keyed by the `sqlite.Database`
+// object. The two guard different things and both are needed wherever they're used together
+// (see DbEngine.updateKvFromActor / applyKvActorLocked in lib/mono/dbengine.ts):
+//   - withWriteLock only wraps the actual write statements inside SqliteKvFabric.writeKvLocked,
+//     to stop the sqlite driver's "cannot start a transaction within a transaction" error when
+//     unrelated modules sharing one connection write at the same time.
+//   - KPQueue wraps the *whole* read-modify-write cycle for one key (read old value, check
+//     `when`, merge, write, then resolve/chain any parked "watch" actors for that same key) so
+//     two concurrent updates to the same URI can't both read the same stale value before either
+//     writes (a lost-update race that withWriteLock's connection-level lock does not prevent,
+//     since the read happens before the write lock is acquired).
+// Note also that collapsing this into another `withWriteLock(db, ...)` call around the outer
+// cycle would deadlock: writeKvLocked already calls withWriteLock on the same db, and
+// withWriteLock's per-db promise chain isn't reentrant.
 export class KPQueue {
   private keyLock: Map<string, any[]> = new Map() // of uri, queue of defer objects
 
