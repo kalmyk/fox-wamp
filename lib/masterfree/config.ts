@@ -1,5 +1,18 @@
 import { promises as fsp } from 'fs'
 import { TOTAL_SHARDS_COUNT } from './netengine'
+import { defaultParse, match } from '../topic_pattern'
+
+// A dbNodes.<id>.storage entry is "<realm>:<key-pattern>", split on the first ':'.
+// realm is matched exact-or-'*'; key-pattern is parsed/matched with the same
+// defaultParse()/match() functions already used for projection uri_pattern matching
+// (see openspec/changes/add-kv-node-topology/design.md Decision 2) — no second
+// pattern-matching implementation for this concept.
+export function parseStoragePattern (pattern: string): { realm: string; keyPattern: string[] } {
+  const idx = pattern.indexOf(':')
+  const realm = idx === -1 ? pattern : pattern.slice(0, idx)
+  const keyPatternStr = idx === -1 ? '' : pattern.slice(idx + 1)
+  return { realm, keyPattern: defaultParse(keyPatternStr) }
+}
 
 export class Config {
   private config: any = {}
@@ -64,6 +77,59 @@ export class Config {
     for (const shard of this.findShardsForNode(nodeId)) {
       if (!Number.isInteger(shard) || shard < 0 || shard >= TOTAL_SHARDS_COUNT) {
         throw Error(`eventNodes.${nodeId}: shard ${shard} out of range [0, ${TOTAL_SHARDS_COUNT - 1}]`)
+      }
+    }
+  }
+
+  getDbNodes (): { [nodeId: string]: any } | undefined {
+    return this.config.dbNodes
+  }
+
+  getDbNodeById (nodeId: string) {
+    const result = this.config.dbNodes && this.config.dbNodes[nodeId]
+    if (!result) {
+      throw Error('Db node with id ' + nodeId + ' not found')
+    }
+    return result
+  }
+
+  findStoragePatternsForNode (nodeId: string): string[] {
+    const dbNodes = this.config.dbNodes
+    if (!dbNodes) return []
+    const node = dbNodes[nodeId]
+    if (!node || !Array.isArray(node.storage)) return []
+    return node.storage
+  }
+
+  // Node-level storage responsibility gate (see add-kv-node-topology spec delta,
+  // "Node-Level Storage Responsibility Gate"): does any of this node's configured
+  // storage patterns cover the given realm+URI combination.
+  nodeOwnsRealmAndUri (nodeId: string, realmName: string, uriParts: string[]): boolean {
+    for (const pattern of this.findStoragePatternsForNode(nodeId)) {
+      const { realm, keyPattern } = parseStoragePattern(pattern)
+      if (realm !== '*' && realm !== realmName) {
+        continue
+      }
+      if (match(uriParts, keyPattern)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  validateStorageForNode (nodeId: string): void {
+    for (const pattern of this.findStoragePatternsForNode(nodeId)) {
+      const idx = pattern.indexOf(':')
+      if (idx === -1) {
+        throw Error(`dbNodes.${nodeId}: storage pattern "${pattern}" is missing the realm:key-pattern separator`)
+      }
+      const realm = pattern.slice(0, idx)
+      const keyPatternStr = pattern.slice(idx + 1)
+      if (realm.length === 0) {
+        throw Error(`dbNodes.${nodeId}: storage pattern "${pattern}" has an empty realm segment`)
+      }
+      if (keyPatternStr.length === 0) {
+        throw Error(`dbNodes.${nodeId}: storage pattern "${pattern}" has an empty key-pattern segment`)
       }
     }
   }
