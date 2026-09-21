@@ -8,7 +8,6 @@ const conf_node_id = process.env.NODE_ID
   || console.log('NODE_ID must be defined') || process.exit(1)
 
 import { keyDate, ProduceId } from '../../lib/masterfree/makeid'
-import { SqliteKvFabric } from '../../lib/sqlite/sqlitekv'
 import { ProjectionListener } from '../../lib/sqlite/projection_listener'
 import { Router } from '../../lib/router'
 import { getConfigInstance } from '../../lib/masterfree/config'
@@ -66,8 +65,6 @@ async function main () {
 
   const makeId: ProduceId = new ProduceId(() => keyDate(new Date()))
   new ProjectionListener(dbFactory, db, makeId)
-  
-  const modKv: SqliteKvFabric = new SqliteKvFabric(dbFactory, makeId)
 
   const syncNodes = config.getSyncNodes()
   for (const syncNodeId of Object.keys(syncNodes)) {
