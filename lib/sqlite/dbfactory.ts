@@ -20,6 +20,7 @@ export class DbFactory extends EventEmitter implements SegmentCommittedSource {
 
   pushLocalEvent (realm: string, uri: string[], data: any, opt: any, sid: string, eventId: string): void {
     const event: CommittedSegmentEvent = {
+      origin: 'local',
       advanceOwner: 'local',
       advanceStamp: 0,
       segment: eventId,

@@ -16,6 +16,23 @@ masterfree band queue work
 $ supervisord -c ./masterfree.supervisord.ini
 ```
 
+## kv node
+The KV node hosts persistent KV projections and their admin API. It is not part of `masterfree.supervisord.ini`; start one per `dbNodes` entry of `config.json`:
+```shell
+$ NODE_ID=KV1 CONFIG=./config.json DB_FILE=./kv1.db tsx ../bin/masterfree/kvnode.ts
+```
+It exits with an error if `NODE_ID` is not in `dbNodes` or one of its `storage` patterns is malformed.
+
+- `dbNodes.<id>.host/port` is the address administrators connect to. The admin API cannot be reached through an entry node, so point `foxctl` straight at the KV node:
+```shell
+$ foxctl --host 127.0.0.1 --port 1765 --realm myapp kv list
+```
+- `dbNodes.<id>.storage` lists `<realm>:<key-pattern>` entries the node is responsible for. The realm is a name or `*`; the key pattern uses the usual topic wildcards, where `*` matches one segment and `#` matches any depth, so use `"*:#"` for "everything" (`"*:*"` only matches single-segment topics).
+- Registration (`schema add`, `kv add`) is rejected for a realm and url pattern the node does not cover. A node that covers a realm only through `*` also rejects that realm's first registration when another `dbNodes` entry names the realm exactly, and says which node to use.
+- `fox.admin.kvnode.list` returns every `dbNodes` entry, one row per storage pattern, from any running KV node.
+- The node connects to every entry in `entryNodes`; one connection feeds it at a time and the others are standby.
+- Activating a projection fetches the realm's existing history from the storage nodes before it goes online.
+
 # blueprint
 Yes, I know about snowflake-id
 
@@ -41,3 +58,6 @@ ndb-storage
 
 sync
     the sync cluster is responsible to transform nearly random advance-id to monotonic id.
+
+kv node
+    a downstream consumer, outside the election. it subscribes to the SEGMENT_COMMITTED broadcast that every storage node sends to every entry, so unlike a storage node's local commit event it sees every shard. it keeps KV projections (StorageRegistry, SchemaRepository) and serves the admin API on its own port.

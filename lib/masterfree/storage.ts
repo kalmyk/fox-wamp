@@ -216,7 +216,7 @@ export class EventStorageTask {
     } else {
       console.error("advanceStamp not found in segments [", key, "]")
     }
-    return { advanceOwner, advanceStamp, segment, events }
+    return { origin: this.nodeId, advanceOwner, advanceStamp, segment, events }
   }
 
   async dbSaveSegment (historyBuffer: HistoryBuffer, segment: string, advanceOwner: string, advanceStamp: number): Promise<CommittedSegmentRecord[]> {
@@ -282,7 +282,7 @@ export class EventStorageTask {
     await History.getEventHistory(
       db,
       req.realm,
-      { fromId: req.afterEventId ?? undefined },
+      { fromId: req.afterEventId ?? undefined, toId: req.untilEventId ?? undefined },
       async (row: any) => {
         if (row.shard !== shard) {
           return

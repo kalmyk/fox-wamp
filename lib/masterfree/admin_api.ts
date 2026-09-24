@@ -6,8 +6,9 @@ import { SchemaRepository } from '../sqlite/schema_repository'
 import { StorageRecord } from '../types'
 import { StorageStatus } from '../types'
 import { ProduceId } from './makeid'
-import { AdminEvent, AdminEventShardEntry, SegmentRecord } from './hyper.h'
+import { AdminEvent, AdminEventShardEntry, AdminDbNodeEntry, SegmentRecord } from './hyper.h'
 import { getConfigInstance } from './config'
+import { defaultParse } from '../topic_pattern'
 import { listSegments } from '../sqlite/segment_registry'
 
 export class AdminApiServer {
@@ -16,9 +17,13 @@ export class AdminApiServer {
   private projectionListener: ProjectionListener
   private makeId: ProduceId
   private schemaRepo: SchemaRepository
+  // Id of the dbNodes entry this server runs as. Undefined in single-process mode (OneDbRouter),
+  // which has no dbNodes concept, so the registration gates below are skipped there.
+  private myNodeId?: string
 
-  constructor(realm: BaseRealm, realmName: string, db: sqlite.Database, projectionListener: ProjectionListener, makeId: ProduceId) {
+  constructor(realm: BaseRealm, realmName: string, db: sqlite.Database, projectionListener: ProjectionListener, makeId: ProduceId, myNodeId?: string) {
     this.realmName = realmName
+    this.myNodeId = myNodeId
     this.db = db
     this.projectionListener = projectionListener
     this.makeId = makeId
@@ -38,6 +43,29 @@ export class AdminApiServer {
     this._register(api)
   }
 
+  // Registration-time gates for KV_ADD/SCHEMA_ADD (openspec add-kv-node-process, Decision 4):
+  // 1. node ownership: the realm+urlPattern must be covered by one of this node's storage patterns;
+  // 2. wildcard precedence: if this node covers the realm only through a wildcard ('*') realm
+  //    pattern and this would be the realm's first registration here, another node that declares
+  //    the realm exactly must take it instead. Both checks are local — every process loads the
+  //    whole dbNodes config.
+  private checkRegistrationGate(urlPattern: string, isFirstRegistration: boolean): void {
+    if (!this.myNodeId) return
+    const config = getConfigInstance()
+    const nodeId = this.myNodeId
+    if (!config.nodeOwnsRealmAndUri(nodeId, this.realmName, defaultParse(urlPattern))) {
+      throw new Error(`Registration rejected: realm "${this.realmName}" with url pattern "${urlPattern}" is not covered by the storage patterns of KV-node ${nodeId}`)
+    }
+    if (!isFirstRegistration) return
+    if (config.findExactRealmOwners(this.realmName).includes(nodeId)) return
+    const owners = config.findExactRealmOwners(this.realmName)
+    if (owners.length > 0) {
+      const target = owners[0]
+      const conf = config.getDbNodeById(target)
+      throw new Error(`Registration rejected: the first registration for realm "${this.realmName}" must target KV-node ${target} (${conf.host}:${conf.port}), which declares it exactly; KV-node ${nodeId} covers it only through a wildcard pattern`)
+    }
+  }
+
   private _register(api: any): void {
     api.register(AdminEvent.KV_LIST, async () => {
       const registry = new StorageRegistry(this.db, this.realmName, this.makeId)
@@ -50,6 +78,7 @@ export class AdminApiServer {
         throw new Error(`Schema not found: ${schemaId}`)
       }
       const registry = new StorageRegistry(this.db, this.realmName, this.makeId)
+      this.checkRegistrationGate(schemaRecord.urlPattern, (await registry.list()).length === 0)
       await registry.register({ name, uriPattern: schemaRecord.urlPattern, schemaId })
       const record = await registry.get(name) as StorageRecord
       return { name: record.name, schemaId: record.schemaId, uriPattern: record.uriPattern, status: record.status }
@@ -70,6 +99,7 @@ export class AdminApiServer {
     })
 
     api.register(AdminEvent.SCHEMA_ADD, async ({ label, urlPattern, schema }: { label: string; urlPattern: string; schema: object }) => {
+      this.checkRegistrationGate(urlPattern, (await this.schemaRepo.list()).length === 0)
       const record = await this.schemaRepo.register(label, urlPattern, schema)
       return { schemaId: record.schemaId, dataTable: record.dataTable }
     })
@@ -102,6 +132,22 @@ export class AdminApiServer {
       }
       shards.sort((a, b) => a.shardTag - b.shardTag)
       return { shards }
+    })
+
+    // Served identically by every KV-node: config.getDbNodes() flattened, no ownership filtering
+    // (mirrors EVENT_SHARD_LIST), so it can be pointed at any running KV-node.
+    api.register(AdminEvent.KV_NODE_LIST, () => {
+      const dbNodes = getConfigInstance().getDbNodes()
+      const nodes: AdminDbNodeEntry[] = []
+      if (!dbNodes) return { nodes }
+      for (const nodeId of Object.keys(dbNodes)) {
+        const node = dbNodes[nodeId]
+        if (!node || !Array.isArray(node.storage)) continue
+        for (const pattern of node.storage) {
+          nodes.push({ nodeId, host: node.host, port: node.port, pattern })
+        }
+      }
+      return { nodes }
     })
 
     api.register(AdminEvent.SEGMENT_LIST, async () => {

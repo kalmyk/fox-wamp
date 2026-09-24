@@ -9,7 +9,8 @@ import { getPayload, validatePayload, SchemaValidationError } from '../schema_va
 import { getMergedBody } from '../tools'
 import { unSerializeData } from '../realm'
 import { ProduceId } from '../masterfree/makeid'
-import { getEventHistory, forEachRealm } from './history'
+import { forEachRealm } from './history'
+import { RealmHistorySource, LocalDbHistorySource } from './realm_history_source'
 
 export class KvProjection {
   private db: sqlite.Database
@@ -105,6 +106,10 @@ export class KvProjection {
     ), { label: 'kvProjection.recordWarning' })
   }
 
+  getPosition(): string | null {
+    return this.record.currentPosition
+  }
+
   async advancePosition(eventId: string): Promise<void> {
     if (eventId === this.record.currentPosition) return
     await withWriteLock(this.db, () => this.db.run(
@@ -123,17 +128,28 @@ export class KvProjection {
   }
 }
 
+export type ProjectionListenerOptions = {
+  // Where activation catch-up reads a realm's history from. Defaults to the local db.
+  historySource?: RealmHistorySource
+  // Called each time a projection finishes catch-up and goes online, with the position it reached.
+  onProjectionOnline?: (realmName: string, position: string | null) => void
+}
+
 export class ProjectionListener {
   private source: SegmentCommittedSource
   private db: sqlite.Database
   private registries: Map<string, StorageRegistry> = new Map()
   private schemas: Map<string, SchemaRepository> = new Map()
   private makeId: ProduceId
+  private historySource: RealmHistorySource
+  private onProjectionOnline?: (realmName: string, position: string | null) => void
 
-  constructor(source: SegmentCommittedSource, db: sqlite.Database, makeId: ProduceId) {
+  constructor(source: SegmentCommittedSource, db: sqlite.Database, makeId: ProduceId, options: ProjectionListenerOptions = {}) {
     this.source = source
     this.db = db
     this.makeId = makeId
+    this.historySource = options.historySource || new LocalDbHistorySource(db)
+    this.onProjectionOnline = options.onProjectionOnline
 
     this.source.on(SEGMENT_COMMITTED, (event: CommittedSegmentEvent) => {
       this.handleSegmentCommitted(event).catch(err => {
@@ -144,20 +160,24 @@ export class ProjectionListener {
 
   async activateProjection(realmName: string, name: string): Promise<void> {
     const registry = await this.getRegistry(realmName)
-    const activation = await registry.startActivation(name)
+    const activation = await registry.startActivation(name, Date.now(), this.targetResolver(realmName))
     if (!activation.started) return
     await this._runActivation(realmName, name, activation.activationTarget)
   }
 
   async startActivation(realmName: string, name: string): Promise<StorageActivation> {
     const registry = await this.getRegistry(realmName)
-    const activation = await registry.startActivation(name)
+    const activation = await registry.startActivation(name, Date.now(), this.targetResolver(realmName))
     if (activation.started) {
       this._runActivation(realmName, name, activation.activationTarget).catch(err => {
         console.error(`Background activation failed for ${name}:`, err)
       })
     }
     return activation
+  }
+
+  private targetResolver(realmName: string): (record: StorageRecord) => Promise<string | null> {
+    return (record) => this.historySource.latestEventId(realmName, record.currentPosition)
   }
 
   private async _runActivation(realmName: string, name: string, activationTarget: string | null): Promise<void> {
@@ -173,7 +193,7 @@ export class ProjectionListener {
       const projection = new KvProjection(this.db, projRecord, JSON.parse(schema.schemaJson), schema.dataTable)
 
       if (activationTarget) {
-        await getEventHistory(this.db, realmName, { toId: activationTarget }, async (event) => {
+        await this.historySource.fetchSince(realmName, { toId: activationTarget }, async (event) => {
           await projection.applyEvent({
             eventId: event.id,
             realm: realmName,
@@ -188,6 +208,9 @@ export class ProjectionListener {
       }
 
       await projection.setStatus(StorageStatus.Online)
+      if (this.onProjectionOnline) {
+        this.onProjectionOnline(realmName, projection.getPosition())
+      }
     } catch (e) {
       await registry.updateStatus(name, StorageStatus.Failed)
       await registry.updateLastError(name, (e as Error).message)

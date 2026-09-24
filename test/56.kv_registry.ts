@@ -214,7 +214,7 @@ describe('56.kv_registry', function () {
     let schemaRec: SchemaRecord
 
     function makeSeg(segId: string, events: any[]): CommittedSegmentEvent {
-      return { advanceOwner: 'entry1', advanceStamp: 1, segment: segId, events }
+      return { origin: 'test', advanceOwner: 'entry1', advanceStamp: 1, segment: segId, events }
     }
     function makeEvt(eventId: string, realm: string, uri: string[], data: any, retain = true) {
       return { eventId, realm, uri, data, opt: { retain }, sid: 's1', shard: 0 }

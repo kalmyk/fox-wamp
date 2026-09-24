@@ -125,6 +125,52 @@ describe('68.net_subscription', function () {
       expect(events.map(e => e.eventId)).to.deep.equal(['seg1a2'])
     })
 
+    // live-dispatch-eventid-ordering 3.1: optional inclusive upper bound on eventId
+    it('7.4 untilEventId is an inclusive upper bound on eventId', async () => {
+      await commitSegment(api, dbFactory, {
+        shard: 0, realm: 'myapp', advanceOwner: 'e1', advanceStamp: 1, segment: 'seg1',
+        events: [{ uri: ['a'], data: { kv: 'd1' } }, { uri: ['a'], data: { kv: 'd2' } }, { uri: ['a'], data: { kv: 'd3' } }]
+      })
+      await commitSegment(api, dbFactory, {
+        shard: 0, realm: 'myapp', advanceOwner: 'e1', advanceStamp: 2, segment: 'seg2',
+        events: [{ uri: ['a'], data: { kv: 'd4' } }]
+      })
+
+      const fetchIds = async (req: any): Promise<string[]> => {
+        const progresses: HistoryFetchProgress[] = []
+        await api.callrpc(Event.historyFetchTopic(0), { realm: 'myapp', ...req }, {
+          progress: (p: HistoryFetchProgress) => progresses.push(p)
+        })
+        return progresses.flatMap(p => p.events).map(e => e.eventId)
+      }
+
+      expect(await fetchIds({ afterEventId: null, untilEventId: 'seg1a2' })).to.deep.equal(['seg1a1', 'seg1a2'])
+      expect(await fetchIds({ afterEventId: 'seg1a1', untilEventId: 'seg1a2' })).to.deep.equal(['seg1a2'])
+      // a bound in the middle of nowhere still cuts cleanly between segments
+      expect(await fetchIds({ afterEventId: null, untilEventId: 'seg1a3' })).to.deep.equal(['seg1a1', 'seg1a2', 'seg1a3'])
+      expect(await fetchIds({ afterEventId: 'seg1a3', untilEventId: 'seg1a3' })).to.deep.equal([])
+    })
+
+    it('7.5 an absent or null untilEventId behaves exactly like the unbounded request', async () => {
+      await commitSegment(api, dbFactory, {
+        shard: 0, realm: 'myapp', advanceOwner: 'e1', advanceStamp: 1, segment: 'seg1',
+        events: [{ uri: ['a'], data: { kv: 'd1' } }, { uri: ['a'], data: { kv: 'd2' } }]
+      })
+
+      const fetchIds = async (req: any): Promise<string[]> => {
+        const progresses: HistoryFetchProgress[] = []
+        await api.callrpc(Event.historyFetchTopic(0), { realm: 'myapp', ...req }, {
+          progress: (p: HistoryFetchProgress) => progresses.push(p)
+        })
+        return progresses.flatMap(p => p.events).map(e => e.eventId)
+      }
+
+      const unbounded = await fetchIds({ afterEventId: null })
+      expect(unbounded).to.deep.equal(['seg1a1', 'seg1a2'])
+      expect(await fetchIds({ afterEventId: null, untilEventId: null })).to.deep.equal(unbounded)
+      expect(await fetchIds({ afterEventId: null, untilEventId: undefined })).to.deep.equal(unbounded)
+    })
+
     it('7.3 unknown realm returns { done: true } immediately, no progress calls', async () => {
       const progresses: HistoryFetchProgress[] = []
       const result = await api.callrpc(Event.historyFetchTopic(0), { realm: 'unknown', afterEventId: null }, {
@@ -445,6 +491,27 @@ describe('68.net_subscription', function () {
       })
       // only the shard-0 owner (the original `storage`) produced a dispatch; NDB2 produced none
       expect(dispatches.length).to.equal(1)
+    })
+
+    // live-dispatch-eventid-ordering 3.2: the marker identifies the node that emitted it
+    it('11.8 the SEGMENT_COMMITTED broadcast carries the emitting storage node id as origin', async () => {
+      const dispatches: any[] = []
+      sysRealm.buildApi().subscribe(Event.SEGMENT_COMMITTED, (body: any) => dispatches.push(body))
+
+      const localCommits: any[] = []
+      dbFactory.on(SEGMENT_COMMITTED, (body: any) => localCommits.push(body))
+
+      await commitSegment(sysRealm.buildApi(), dbFactory, {
+        shard: 0, realm: 'testnet', advanceOwner: 'e1', advanceStamp: 1, segment: 'seg1',
+        events: [{ uri: ['topicA'], data: { kv: 'd1' } }]
+      })
+
+      expect(dispatches.length).to.equal(1)
+      expect(dispatches[0].origin).to.equal('NDB1')
+      // origin is the emitting node, not the entry that originated the segment
+      expect(dispatches[0].advanceOwner).to.equal('e1')
+      // the in-process emitter (ProjectionListener's feed) carries the same field
+      expect(localCommits[0].origin).to.equal('NDB1')
     })
 
     it('11.4 a shard replicated across two storage nodes dispatches the same event twice; the entry delivers it once (dedup)', async () => {

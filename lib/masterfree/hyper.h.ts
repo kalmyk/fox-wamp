@@ -72,6 +72,8 @@ export type BODY_STORAGE_NODE_CONNECTED = {
 export type HistoryFetchRequest = {
   realm: string
   afterEventId: string | null
+  // Optional inclusive upper bound on eventId. Absent or null keeps the unbounded behavior.
+  untilEventId?: string | null
 }
 
 export type HistoryEvent = {
@@ -146,6 +148,9 @@ export type CommittedSegmentRecord = {
 // (a single advance/segment buffer isn't necessarily scoped to one realm), so consumers group
 // or resolve-per-realm as needed rather than assuming a single realm per message.
 export type BODY_SEGMENT_COMMITTED = BODY_ADVANCE_SEGMENT_RESOLVED & {
+  // Id of the node that emitted this marker (a storage node id today). Not a shard tag:
+  // markers may also pass through nodes that have no shard.
+  origin: string
   events: CommittedSegmentRecord[]
 }
 
@@ -158,6 +163,7 @@ export namespace AdminEvent {
   export const SCHEMA_ADD = 'fox.admin.schema.add'
   export const SCHEMA_DROP = 'fox.admin.schema.drop'
   export const EVENT_SHARD_LIST = 'fox.admin.event.shard.list'
+  export const KV_NODE_LIST = 'fox.admin.kvnode.list'
   export const SEGMENT_LIST = 'fox.admin.segment.list'
 }
 
@@ -184,6 +190,10 @@ export type AdminSchemaDropResponse = { status: 'deprecated' }
 
 export type AdminEventShardEntry = { shardTag: number; nodeId: string; host: string; port: string }
 export type AdminEventShardListResponse = { shards: AdminEventShardEntry[] }
+
+// One row per (node, storage pattern) pair of the dbNodes cluster config.
+export type AdminDbNodeEntry = { nodeId: string; host: string; port: string; pattern: string }
+export type AdminKvNodeListResponse = { nodes: AdminDbNodeEntry[] }
 
 export type SegmentRecord = {
   advanceOwner: string

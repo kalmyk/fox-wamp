@@ -37,7 +37,7 @@ function mapStorageRecord(realmName: string, row: any): StorageRecord {
   }
 }
 
-async function latestRealmEventId(db: sqlite.Database, realmName: string): Promise<string | null> {
+export async function latestRealmEventId(db: sqlite.Database, realmName: string): Promise<string | null> {
   const tableName = `event_history_${realmName}`
   const table = await db.get(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
@@ -211,7 +211,14 @@ export class StorageRegistry {
     ), { label: 'storageRegistry.recordSkippedEvent' })
   }
 
-  async startActivation(name: string, startedAt: number = Date.now()): Promise<StorageActivation> {
+  // resolveTarget lets a caller whose history does not live in this db (a standalone KV-node)
+  // supply the activation target from its own RealmHistorySource; the default reads the local
+  // event_history_<realm> table, as before.
+  async startActivation(
+    name: string,
+    startedAt: number = Date.now(),
+    resolveTarget?: (record: StorageRecord) => Promise<string | null>
+  ): Promise<StorageActivation> {
     await this.init()
     const record = await this.get(name)
     if (!record) {
@@ -229,7 +236,9 @@ export class StorageRegistry {
       }
     }
 
-    const activationTarget = await latestRealmEventId(this.db, this.realmName)
+    const activationTarget = resolveTarget
+      ? await resolveTarget(record)
+      : await latestRealmEventId(this.db, this.realmName)
     await withWriteLock(this.db, async () => {
       await this.db.run(
         `UPDATE ${this.tableName}

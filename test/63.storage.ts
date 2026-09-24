@@ -114,6 +114,7 @@ describe('63.storage', function () {
     const commit_result: CommittedSegmentEvent = commit_resolverd[0]
 
     expect(commit_result).to.deep.equal({
+      origin: router.getId(),
       advanceOwner: 'entry1',
       advanceStamp: 1,
       segment: 'res_seg1',

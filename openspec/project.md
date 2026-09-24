@@ -26,6 +26,7 @@ FOX-WAMP supports several operational modes depending on the storage and distrib
     - `bin/masterfree/entry.ts`: Gateway node that handles client connections (WAMP/MQTT).
     - `bin/masterfree/ndb.ts`: Data/Storage node that manages persistent state via SQLite and synchronizes with other nodes.
     - `lib/masterfree/synchronizer.ts`: Manages cluster-wide state consistency.
+    - `bin/masterfree/kvnode.ts`: KV-node that hosts persistent KV projections and their admin API (`fox.admin.*`) for the realm/key patterns listed in its `dbNodes.<id>.storage` config. It listens on its own `dbNodes.<id>.host/port` for admin clients and subscribes outward to every entry node's `SEGMENT_COMMITTED` broadcast; it takes no part in ID-election voting. Startup logic lives in `lib/masterfree/kvnode.ts`.
 - **Communication:** Uses a internal queue-based protocol over `HyperNet` for node-to-node synchronization.
 
 ## Development Agents
@@ -34,7 +35,7 @@ Claude Code subagents defined under `.claude/agents/` map to the node types abov
 - **entry-node** — `bin/masterfree/entry.ts`, `NetEngine`/`NetEngineMill`, and the client-facing WAMP/MQTT gates.
 - **sync-node** — `bin/masterfree/sync.ts`, `StageOneTask` (draft generation, `PICK_CHALLENGER` voting), and cluster config/quorum.
 - **event-history-node** — `bin/masterfree/ndb.ts`, `StageTwoTask`, `EventStorageTask`, and the SQLite-backed history/segment persistence in `lib/sqlite/`.
-- **kv-node** — persistent KV projections and the admin API (`AdminApiServer`, `StorageRegistry`, `SchemaRepository`, `ProjectionListener`). Currently co-located in `ndb.ts`/`OneDbRouter`; a dedicated KV-node script is planned to split it out as its own masterfree process type.
+- **kv-node** — persistent KV projections and the admin API (`AdminApiServer`, `StorageRegistry`, `SchemaRepository`, `ProjectionListener`). In single-process mode it runs inside `OneDbRouter`; in masterfree mode it runs as the dedicated `bin/masterfree/kvnode.ts` process (`KvNodeRouter`, `WireSegmentCommittedSource`, `WireHistoryFetchSource`), because `ndb.ts`'s local commit emitter only sees that node's own shards.
 
 When an OpenSpec change spans more than one of these areas, have **architect** define the shared contract (event/`BODY_*` types, sequence updates in `specs/distributed-mode.md`) before the relevant node agent(s) implement their side.
 

@@ -117,6 +117,23 @@ export class Config {
     return false
   }
 
+  // Ids of dbNodes that declare an exact (non-wildcard) realm pattern for this realm. Used to let
+  // an explicit owner take a realm's first registration ahead of a node that only covers it via '*'.
+  findExactRealmOwners (realmName: string): string[] {
+    const dbNodes = this.config.dbNodes
+    if (!dbNodes) return []
+    const owners: string[] = []
+    for (const nodeId of Object.keys(dbNodes)) {
+      for (const pattern of this.findStoragePatternsForNode(nodeId)) {
+        if (parseStoragePattern(pattern).realm === realmName) {
+          owners.push(nodeId)
+          break
+        }
+      }
+    }
+    return owners
+  }
+
   validateStorageForNode (nodeId: string): void {
     for (const pattern of this.findStoragePatternsForNode(nodeId)) {
       const idx = pattern.indexOf(':')
